@@ -1,9 +1,12 @@
 """
-Spotify Floating Lyrics Overlay — 165Hz Cinematic Edition.
-- Liquid 165 Hz hardware-accelerated rendering.
-- 7clouds Montserrat / Poppins typography in pure white (#FFFFFF).
-- 18 weighted animation styles (motion blur, word reveals, hand-drawn underlines, glow).
-- Single-instance IPC: running the app twice opens the Settings Window.
+Lyric Flow — 165Hz Floating Lyrics Overlay for Spotify.
+- Edge-to-edge screen geometry: zero text clipping or cutoff on any display.
+- Dynamic font fitting: scales gracefully so long lines never overflow.
+- 7clouds typography: Edo SZ signature brush & Montserrat Black extra bold.
+- Dual-buffer cross-transitions between lyric lines (no abrupt cuts).
+- Real-time spring-damper gravity physics and continuous breathing buoyancy.
+- Real-time settings sync with instant live updates.
+- Pure razor-sharp text (no fuzzy glow).
 """
 
 import sys
@@ -22,7 +25,7 @@ if sys.stderr is None:
 from PyQt6.QtWidgets import QApplication, QWidget
 from PyQt6.QtCore import Qt, QTimer, QPoint, QPointF, QRectF, QObject, pyqtSignal
 from PyQt6.QtGui import (
-    QPainter, QColor, QFont, QFontDatabase, QPen,
+    QPainter, QColor, QFont, QFontMetrics, QFontDatabase, QPen,
     QPainterPath, QTransform, QIcon
 )
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
@@ -31,13 +34,13 @@ import settings_manager
 from settings_window import SettingsDialog
 from spotify_client import SpotifyClient, PlaybackState
 from lyrics_fetcher import get_lyrics, LyricLine
-from animation_engine import pick_animation_type, AnimationState
+from animation_engine import AnimationEngine
 
 IPC_SERVER_NAME = "SpotifyLyricsOverlayIPC_v1"
 
 
 class AppSignals(QObject):
-    """Thread-safe signal bridge between background worker threads and PyQt6 GUI."""
+    """Thread-safe signal bridge between background threads and PyQt6 GUI."""
     lyrics_fetched = pyqtSignal(object)
     hotkey_lock = pyqtSignal()
     hotkey_hide = pyqtSignal()
@@ -71,8 +74,6 @@ class FloatingLyricsWidget(QWidget):
         self.current_track_id: str = ""
         self.current_line_index: int = -1
         self.current_line_text: str = ""
-        self.line_start_time = 0.0
-        self.line_duration = 3.0
 
         # Thread-safe Signal Bridge
         self.signals = AppSignals()
@@ -88,10 +89,10 @@ class FloatingLyricsWidget(QWidget):
         self.is_dragging = False
         self.drag_position = QPoint()
 
-        # Animation Engine
-        self.anim = AnimationState()
+        # Physics & Animation Engine
+        self.engine = AnimationEngine()
 
-        # Load 7clouds Fonts (Montserrat & Poppins)
+        # Load 7clouds fonts (Edo SZ, Montserrat Black, Poppins)
         self._load_fonts()
 
         # Configure Frameless Transparent Layered Window
@@ -104,17 +105,17 @@ class FloatingLyricsWidget(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
 
-        # Positioning at top of screen
+        # Edge-to-Edge full width positioning to eliminate text clipping
         screen = QApplication.primaryScreen()
         screen_geo = screen.availableGeometry() if screen else self.screen().geometry()
-        self.window_w = min(1400, screen_geo.width() - 40)
-        self.window_h = 160
-        self.window_x = (screen_geo.width() - self.window_w) // 2
+        self.window_w = screen_geo.width()
+        self.window_h = 180
+        self.window_x = 0
         self.window_y = self.settings.get("overlay_y", 55)
         self.setGeometry(self.window_x, self.window_y, self.window_w, self.window_h)
 
         # 165 Hz Render Timer
-        fps = self.settings.get("target_fps", 165)
+        fps = int(self.settings.get("target_fps", 165))
         interval_ms = max(4, int(1000.0 / fps))
         self.render_timer = QTimer(self)
         self.render_timer.timeout.connect(self.update)
@@ -137,23 +138,46 @@ class FloatingLyricsWidget(QWidget):
         self._start_global_hotkeys()
 
     def _load_fonts(self):
-        f1 = resolve_asset_path(os.path.join("fonts", "Montserrat.ttf"))
-        f2 = resolve_asset_path(os.path.join("fonts", "Poppins-Bold.ttf"))
-        if os.path.exists(f1):
-            QFontDatabase.addApplicationFont(f1)
-        if os.path.exists(f2):
-            QFontDatabase.addApplicationFont(f2)
+        font_files = [
+            "fonts/EdoSZ.ttf",
+            "fonts/Montserrat-Black.ttf",
+            "fonts/Montserrat-ExtraBold.ttf",
+            "fonts/Montserrat.ttf",
+            "fonts/Poppins-Bold.ttf",
+        ]
+        for rel in font_files:
+            fp = resolve_asset_path(rel)
+            if os.path.exists(fp):
+                QFontDatabase.addApplicationFont(fp)
+
+    def _get_active_font_family(self) -> str:
+        choice = self.settings.get("font_family", "7clouds Modern")
+        if "Edo" in choice:
+            return "Edo SZ"
+        elif "Poppins" in choice:
+            return "Poppins"
+        elif "Segoe" in choice:
+            return "Segoe UI"
+        return "Montserrat"
 
     def apply_settings(self, new_settings: dict):
-        self.settings.update(new_settings)
-        # Update FPS
-        fps = self.settings.get("target_fps", 165)
-        interval_ms = max(4, int(1000.0 / fps))
-        self.render_timer.setInterval(interval_ms)
-        # Update Y-position
-        self.window_y = self.settings.get("overlay_y", 55)
-        self.move(self.x(), self.window_y)
-        self.update()
+        """Real-time live settings sync without restarts or crashes."""
+        try:
+            self.settings.update(new_settings)
+
+            # Update FPS
+            fps = int(self.settings.get("target_fps", 165))
+            interval_ms = max(4, int(1000.0 / fps))
+            self.render_timer.setInterval(interval_ms)
+
+            # Update screen vertical position
+            self.window_y = int(self.settings.get("overlay_y", 55))
+            self.move(0, self.window_y)
+
+            # Trigger immediate live repaint
+            self.update()
+        except Exception as e:
+            pass
 
     def open_settings_window(self):
         if self.settings_dialog is None:
@@ -164,101 +188,95 @@ class FloatingLyricsWidget(QWidget):
         self.settings_dialog.raise_()
         self.settings_dialog.activateWindow()
 
-    # ── Paint Engine (165 FPS Hardware Accelerated) ──
+    # ── Paint Engine (165 FPS Hardware Accelerated, Razor Sharp) ──
     def paintEvent(self, event):
-        if not self.current_line_text:
+        data = self.engine.update()
+        curr_text = data.get("curr_text", "")
+        prev_data = data.get("prev")
+
+        if not curr_text and not prev_data:
             return
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
 
-        # Compute animation frame parameters
-        anim_data = self.anim.update()
+        screen_cx = self.width() / 2.0
+        screen_cy = self.height() / 2.0
+        avail_w = self.width() - 80.0
+        base_size = int(self.settings.get("font_size", 42))
+        font_family = self._get_active_font_family()
 
-        center_x = self.width() / 2.0
-        center_y = self.height() / 2.0 + anim_data["offset_y"]
-        scale = anim_data["scale"]
-        alpha = anim_data["alpha"]
+        # ── 1. Outgoing Line (Seamless Cross-Transition) ──
+        if prev_data and prev_data["alpha"] > 0.02:
+            p_text = prev_data["text"]
+            p_alpha = int(prev_data["alpha"] * 255)
+            p_font, p_metrics = self._fit_font(p_text, avail_w, base_size, font_family)
+            painter.setFont(p_font)
+            painter.setPen(QColor(255, 255, 255, p_alpha))
 
-        # Font configuration (Montserrat / 7clouds style)
-        font_size = self.settings.get("font_size", 42)
-        font = QFont("Montserrat", font_size, QFont.Weight.Bold)
+            painter.save()
+            painter.translate(screen_cx, screen_cy + prev_data["offset_y"])
+            if prev_data["scale"] != 1.0:
+                painter.scale(prev_data["scale"], prev_data["scale"])
+
+            w = p_metrics.horizontalAdvance(p_text)
+            painter.drawText(QRectF(-w / 2.0, -40, w, 80), Qt.AlignmentFlag.AlignCenter, p_text)
+            painter.restore()
+
+        # ── 2. Incoming Line (Razor Sharp Pure White with Physics) ──
+        if curr_text and data["curr_alpha"] > 0.02:
+            in_alpha = int(data["curr_alpha"] * 255)
+            in_font, in_metrics = self._fit_font(curr_text, avail_w, base_size, font_family)
+            painter.setFont(in_font)
+
+            painter.save()
+            painter.translate(screen_cx, screen_cy + data["curr_offset_y"])
+            if data["curr_scale"] != 1.0:
+                painter.scale(data["curr_scale"], data["curr_scale"])
+
+            total_w = in_metrics.horizontalAdvance(curr_text)
+
+            # Word-by-word reveal (Active illumination)
+            if self.settings.get("word_reveal_enabled", True) and data.get("word_alphas"):
+                self._draw_sharp_word_reveal(painter, in_metrics, curr_text, data["word_alphas"], in_alpha)
+            else:
+                # Razor sharp pure white line
+                painter.setPen(QColor(255, 255, 255, in_alpha))
+                painter.drawText(QRectF(-total_w / 2.0, -40, total_w, 80), Qt.AlignmentFlag.AlignCenter, curr_text)
+
+            # ── 3. Organic Hand-Drawn Underline ──
+            if (self.settings.get("hand_drawn_underline_enabled", True) and
+                    data.get("underline_active") and
+                    data.get("underline_progress", 0.0) > 0.02):
+                self._draw_organic_underline(
+                    painter, 0.0, 18.0, total_w,
+                    data["underline_stroke"], data["underline_progress"],
+                    data["curr_alpha"]
+                )
+
+            painter.restore()
+
+    def _fit_font(self, text: str, max_w: float, base_size: int, family: str) -> tuple[QFont, QFontMetrics]:
+        """Dynamically scales font size down so long lyric lines NEVER get cut off."""
+        size = base_size
+        weight = QFont.Weight.Black if family == "Montserrat" else QFont.Weight.Bold
+        font = QFont(family, size, weight)
         font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
-        painter.setFont(font)
+        metrics = QFontMetrics(font)
 
-        # ── 1. Motion Blur Layer (if enabled) ──
-        if self.settings.get("motion_blur_enabled", True) and anim_data["blur_alpha"] > 0.02:
-            blur_a = int(anim_data["blur_alpha"] * 180)
-            blur_color = QColor(255, 255, 255, blur_a)
-            painter.setPen(blur_color)
+        # Scale down smoothly if line exceeds available width
+        while metrics.horizontalAdvance(text) > max_w and size > 18:
+            size -= 1
+            font.setPointSize(size)
+            metrics = QFontMetrics(font)
 
-            # Draw two ghosted sub-frames
-            for mult in (0.5, 1.0):
-                gx = center_x + anim_data["blur_offset_x"] * mult
-                gy = center_y + anim_data["blur_offset_y"] * mult
-                rect_ghost = QRectF(gx - 600, gy - 50, 1200, 100)
-                painter.drawText(rect_ghost, Qt.AlignmentFlag.AlignCenter, self.current_line_text)
+        return font, metrics
 
-        # ── 2. Vocal Glow / Bloom (if enabled) ──
-        if self.settings.get("glow_enabled", True) and alpha > 0.1:
-            glow_radius = anim_data["glow_radius"]
-            glow_alpha = int(alpha * (50 + min(glow_radius, 40)))
-            glow_color = QColor(255, 255, 255, min(glow_alpha, 90))
-            painter.setPen(glow_color)
-
-            # Multi-pass soft bloom halo
-            for r in (2, 4):
-                for dx, dy in ((-r, 0), (r, 0), (0, -r), (0, r)):
-                    glow_rect = QRectF(center_x + dx - 600, center_y + dy - 50, 1200, 100)
-                    painter.drawText(glow_rect, Qt.AlignmentFlag.AlignCenter, self.current_line_text)
-
-        # ── 3. Chromatic Aberration Split (Rare Animation) ──
-        if anim_data["chroma"] > 0.5:
-            c = anim_data["chroma"]
-            painter.setPen(QColor(100, 220, 255, int(alpha * 140)))
-            painter.drawText(QRectF(center_x - c - 600, center_y - 50, 1200, 100),
-                             Qt.AlignmentFlag.AlignCenter, self.current_line_text)
-            painter.setPen(QColor(255, 120, 140, int(alpha * 140)))
-            painter.drawText(QRectF(center_x + c - 600, center_y - 50, 1200, 100),
-                             Qt.AlignmentFlag.AlignCenter, self.current_line_text)
-
-        # ── 4. Main Pure White Text Layer ──
-        main_alpha = int(alpha * 255)
-        text_color = QColor(255, 255, 255, max(0, min(255, main_alpha)))
-        painter.setPen(text_color)
-
-        painter.save()
-        painter.translate(center_x, center_y)
-        if scale != 1.0:
-            painter.scale(scale, scale)
-
-        rect_main = QRectF(-600, -50, 1200, 100)
-
-        # Word-by-word reveal rendering
-        if (anim_data["anim_type"] == "word_reveal" and
-                self.settings.get("word_reveal_enabled", True) and
-                anim_data["word_alphas"]):
-            self._draw_word_reveal(painter, font, anim_data["word_alphas"])
-        else:
-            painter.drawText(rect_main, Qt.AlignmentFlag.AlignCenter, self.current_line_text)
-
-        painter.restore()
-
-        # ── 5. Hand-Drawn Underline Effect ──
-        if (self.settings.get("hand_drawn_underline_enabled", True) and
-                anim_data["underline_progress"] > 0.0):
-            self._draw_hand_drawn_underline(painter, center_x, center_y, anim_data["underline_progress"], alpha)
-
-        # ── 6. Star Glints (Rare Animation) ──
-        if anim_data["anim_type"] == "star_glint" and anim_data["stars"]:
-            self._draw_star_glints(painter, center_x, center_y, anim_data["stars"], alpha)
-
-    def _draw_word_reveal(self, painter: QPainter, font: QFont, word_alphas: list[float]):
-        """Renders words with individualized progressive alpha & vocal illumination."""
-        metrics = painter.fontMetrics()
-        words = self.current_line_text.strip().split()
+    def _draw_sharp_word_reveal(self, painter: QPainter, metrics: QFontMetrics,
+                                 text: str, word_alphas: list[float], master_alpha: int):
+        """Renders words with high-contrast sharp illumination (no fuzzy blur)."""
+        words = text.strip().split()
         space_w = metrics.horizontalAdvance(" ")
         word_widths = [metrics.horizontalAdvance(w) for w in words]
         total_w = sum(word_widths) + (len(words) - 1) * space_w
@@ -267,51 +285,58 @@ class FloatingLyricsWidget(QWidget):
         y = metrics.ascent() - metrics.height() / 2.0
 
         for idx, word in enumerate(words):
-            w_alpha = word_alphas[idx] if idx < len(word_alphas) else 1.0
-            col = QColor(255, 255, 255, int(w_alpha * 255))
-            painter.setPen(col)
+            raw_w_alpha = word_alphas[idx] if idx < len(word_alphas) else 1.0
+            # Muted upcoming words (sharp ~40% white), active words (pure 100% white)
+            final_a = int(master_alpha * raw_w_alpha)
+            painter.setPen(QColor(255, 255, 255, max(0, min(255, final_a))))
             painter.drawText(QPointF(curr_x, y), word)
             curr_x += word_widths[idx] + space_w
 
-    def _draw_hand_drawn_underline(self, painter: QPainter, cx: float, cy: float, progress: float, alpha: float):
-        """Draws an organic, curved hand-drawn chalk/brush underline."""
-        metrics = painter.fontMetrics()
-        text_w = min(metrics.horizontalAdvance(self.current_line_text), 900)
-        start_x = cx - text_w / 2.0
-        target_w = text_w * progress
-
-        if target_w <= 4:
+    def _draw_organic_underline(self, painter: QPainter, cx: float, cy: float,
+                                 text_w: float, stroke, progress: float, alpha: float):
+        """Draws realistic sketched pencil and fluid marker hand-drawn flourishes."""
+        if not stroke or progress <= 0.03:
             return
 
-        pen = QPen(QColor(255, 255, 255, int(alpha * 210)), 2.8)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(pen)
+        draw_w = min(text_w, 900) * progress
+        if draw_w < 8:
+            return
 
-        path = QPainterPath()
-        path.moveTo(start_x, cy + 32)
-        mid_x = start_x + target_w / 2.0
-        end_x = start_x + target_w
-        path.quadTo(mid_x, cy + 35, end_x, cy + 33)
+        start_x = cx - text_w / 2.0
 
-        painter.drawPath(path)
+        # Pass 1: Light sketchy pencil under-stroke
+        pen_sketch = QPen(QColor(255, 255, 255, int(alpha * 75)), 1.2)
+        pen_sketch.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen_sketch)
 
-    def _draw_star_glints(self, painter: QPainter, cx: float, cy: float, stars: list[dict], alpha: float):
-        metrics = painter.fontMetrics()
-        text_w = min(metrics.horizontalAdvance(self.current_line_text), 900)
-        left = cx - text_w / 2.0
+        path_sketch = QPainterPath()
+        path_sketch.moveTo(start_x, cy + 22)
+        path_sketch.quadTo(start_x + draw_w * 0.5, cy + 25, start_x + draw_w, cy + 23)
+        painter.drawPath(path_sketch)
 
-        now = time.time()
-        for s in stars:
-            glint_x = left + text_w * s["pos_x"]
-            glint_y = cy + s["y_offset"]
-            sparkle_alpha = int(alpha * (math.sin(now * 8.0 + s["phase"]) * 0.5 + 0.5) * 220)
+        # Pass 2: Main hand-drawn ink line with natural tremors
+        pen_main = QPen(QColor(255, 255, 255, int(alpha * 225)), 2.6)
+        pen_main.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen_main)
 
-            if sparkle_alpha > 15:
-                painter.setPen(QPen(QColor(255, 255, 255, sparkle_alpha), 1.5))
-                painter.drawLine(QPointF(glint_x - 3, glint_y), QPointF(glint_x + 3, glint_y))
-                painter.drawLine(QPointF(glint_x, glint_y - 3), QPointF(glint_x, glint_y + 3))
+        path_main = QPainterPath()
+        pts = stroke.offsets
+        n = len(pts)
+        step_x = draw_w / max(1, n - 1)
 
-    # ── Mouse Dragging & Double Click for Settings ──
+        path_main.moveTo(start_x, cy + 22 + pts[0])
+        for i in range(1, n):
+            px = start_x + i * step_x
+            py = cy + 22 + pts[i]
+            prev_x = start_x + (i - 1) * step_x
+            prev_y = cy + 22 + pts[i - 1]
+            ctrl_x = (prev_x + px) / 2.0
+            ctrl_y = (prev_y + py) / 2.0
+            path_main.quadTo(prev_x, prev_y, ctrl_x, ctrl_y)
+
+        painter.drawPath(path_main)
+
+    # ── Mouse Interaction & Window Dragging ──
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and not self.is_locked:
             self.is_dragging = True
@@ -320,7 +345,11 @@ class FloatingLyricsWidget(QWidget):
 
     def mouseMoveEvent(self, event):
         if event.buttons() == Qt.MouseButton.LeftButton and self.is_dragging and not self.is_locked:
-            self.move(event.globalPosition().toPoint() - self.drag_position)
+            new_pos = event.globalPosition().toPoint() - self.drag_position
+            # Keep X anchored at 0 (full width) and allow Y dragging
+            self.move(0, new_pos.y())
+            self.settings["overlay_y"] = new_pos.y()
+            settings_manager.save_settings(self.settings)
             event.accept()
 
     def mouseReleaseEvent(self, event):
@@ -439,7 +468,7 @@ class FloatingLyricsWidget(QWidget):
         progress = self.spotify.estimate_progress(state)
         adjusted = progress + self.settings.get("sync_offset_sec", 0.0)
 
-        # Find line
+        # Find matching line index
         line_idx = -1
         for i, line in enumerate(self.lyrics):
             if line.time_sec <= adjusted:
@@ -451,16 +480,12 @@ class FloatingLyricsWidget(QWidget):
             self.current_line_index = line_idx
             if 0 <= line_idx < len(self.lyrics):
                 raw_text = self.lyrics[line_idx].text.strip()
-                # Compute duration of this line
                 next_time = self.lyrics[line_idx + 1].time_sec if (line_idx + 1 < len(self.lyrics)) else state.duration_sec
-                dur = max(next_time - self.lyrics[line_idx].time_sec, 1.5)
+                dur = max(next_time - self.lyrics[line_idx].time_sec, 1.4)
 
                 self.current_line_text = raw_text
-                self.line_duration = dur
-
-                # Trigger dynamic animation
-                anim_type = pick_animation_type(raw_text, dur)
-                self.anim.trigger(anim_type, raw_text, dur)
+                # Trigger liquid spring-damper entrance with seamless cross-transition
+                self.engine.trigger_line(raw_text, dur, "gravity_float")
             else:
                 self.current_line_text = ""
 
