@@ -1,10 +1,10 @@
 """
 Settings Window for Spotify Floating Lyrics Overlay.
 - Real-time live settings synchronization (zero crashes, instant updates).
-- Dedicated interactive live preview testing 38+ animations and typography.
+- Dedicated interactive live preview testing 55+ animations and typography.
 - Rich suite of silky-smooth fade-in and fade-out animations.
-- Aesthetic soft cream color highlight: consistent for each song,
-  randomly selects a new soft cream tone for the next song.
+- Aesthetic smooth soft color highlights: rotates a new vibrant, soft pastel tone
+  for each song, consistent for the entire song, and different for the next song.
 - 100% glitch-free rendering with preserved font kerning and anchored baselines.
 - 7clouds font switcher (Edo SZ signature brush DEFAULT & Montserrat Black).
 - Focal hand-drawn underline (highlights only 1-2 key words).
@@ -34,23 +34,8 @@ from PyQt6.QtGui import (
 )
 
 import settings_manager
+from settings_manager import SMOOTH_SOFT_PALETTE, SMOOTH_SOFT_HEX_LIST
 from animation_engine import AnimationEngine, ANIMATION_CATALOG, PER_CHAR_ANIMS
-
-# Curated aesthetic soft cream / warm pastel color palette
-CREAM_SOFT_PALETTE = [
-    "#FFF4E0",  # Soft Buttercream
-    "#FFEEDB",  # Warm Cream
-    "#FDF0ED",  # Rose Linen
-    "#FDF8E2",  # Pale Honey Cream
-    "#F7EBE8",  # Almond Milk
-    "#FFF8EE",  # Soft Vanilla
-    "#F5EBE0",  # Warm Cashmere
-    "#FFE5D9",  # Peach Whipped Cream
-    "#FAF0E6",  # Antique Linen
-    "#F3E9DC",  # Soft Biscuit Latte
-    "#FFF1C5",  # Warm Primrose Cream
-    "#F0E6D2",  # Warm Oat Parchment
-]
 
 
 # ─── Material Design 3 Dark Theme Palette ─────────────────────────────
@@ -284,7 +269,7 @@ class SectionCard(QFrame):
 class LivePreview(QWidget):
     """
     Renders sharp floating lyrics with actual 7clouds font,
-    38+ animations, soft cream highlight, and focal underlines.
+    55+ animations, smooth soft color highlight, and focal underlines.
     """
 
     PREVIEW_LINES = [
@@ -303,7 +288,7 @@ class LivePreview(QWidget):
         self.engine = AnimationEngine()
         self._line_idx = 0
         self._current_anim_choice = ""
-        self._cream_color_idx = 0
+        self._color_idx = 0
 
         self.engine.trigger_line(self.PREVIEW_LINES[0], 3.8, "cinematic_crossfade")
 
@@ -324,8 +309,8 @@ class LivePreview(QWidget):
     def next_line(self):
         self._line_idx = (self._line_idx + 1) % len(self.PREVIEW_LINES)
         text = self.PREVIEW_LINES[self._line_idx]
-        # Simulate new song change soft cream color pick
-        self._cream_color_idx = (self._cream_color_idx + 1) % len(CREAM_SOFT_PALETTE)
+        # Simulate new song change by picking next distinct smooth soft color
+        self._color_idx = (self._color_idx + 1) % len(SMOOTH_SOFT_HEX_LIST)
         self.engine.trigger_line(text, 3.8, self._current_anim_choice)
 
     def update_settings(self, settings: dict):
@@ -391,11 +376,14 @@ class LivePreview(QWidget):
         p.setFont(font)
 
         hl_enabled = self.settings.get("highlight_enabled", True)
-        # Use aesthetic soft cream
-        hl_color = QColor(CREAM_SOFT_PALETTE[self._cream_color_idx])
+        # Use smooth soft colorful highlight
+        if self.settings.get("highlight_mode", "per_song") == "per_song":
+            hl_color = QColor(SMOOTH_SOFT_HEX_LIST[self._color_idx])
+        else:
+            hl_color = QColor(self.settings.get("highlight_color", SMOOTH_SOFT_HEX_LIST[0]))
         hl_idx = data.get("highlight_word_idx", -1)
 
-        # ── 1. Outgoing Line Cross-Transition ──
+        # ── 1. Outgoing Line Cross-Transition (Anti-Overlap: lifts cleanly away) ──
         if prev_data and prev_data["alpha"] > 0.02:
             p_text = prev_data["text"]
             p_alpha = int(prev_data["alpha"] * 255)
@@ -403,7 +391,7 @@ class LivePreview(QWidget):
             p_w = metrics.horizontalAdvance(p_text)
             p_baseline = (metrics.ascent() - metrics.descent()) / 2.0
             p.save()
-            p.translate(cx, cy + prev_data["offset_y"])
+            p.translate(cx, cy - 24.0 + prev_data["offset_y"])
             if prev_data["scale"] != 1.0:
                 p.scale(prev_data["scale"], prev_data["scale"])
             p.drawText(QPointF(-p_w / 2.0, p_baseline), p_text)
@@ -428,7 +416,7 @@ class LivePreview(QWidget):
             p.setPen(QColor(255, 255, 255, in_alpha))
             p.drawText(QPointF(start_x, baseline_y), curr_text)
 
-            # Soft cream highlight on currently spoken word
+            # Smooth soft highlight on currently spoken word + rounded glowing pill
             if hl_enabled and hl_idx >= 0:
                 words = []
                 idx = 0
@@ -445,8 +433,25 @@ class LivePreview(QWidget):
                 if 0 <= hl_idx < len(words):
                     w_str, w_start, _ = words[hl_idx]
                     w_x = start_x + metrics.horizontalAdvance(curr_text[:w_start])
-                    cream_a = int(in_alpha * 0.95)
-                    p.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), cream_a))
+                    w_w = metrics.horizontalAdvance(w_str)
+
+                    # Draw rounded glowing highlight block/pill behind the active word
+                    if self.settings.get("highlight_block_enabled", True):
+                        pill_pad_x = 6.0
+                        pill_pad_y = 3.0
+                        pill_rect = QRectF(
+                            w_x - pill_pad_x,
+                            baseline_y - metrics.ascent() - pill_pad_y,
+                            w_w + pill_pad_x * 2.0,
+                            metrics.ascent() + metrics.descent() + pill_pad_y * 2.0
+                        )
+                        pill_alpha = int(in_alpha * 0.30)
+                        p.setPen(Qt.PenStyle.NoPen)
+                        p.setBrush(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), pill_alpha))
+                        p.drawRoundedRect(pill_rect, 6.0, 6.0)
+
+                    # Draw active word in vibrant smooth soft color
+                    p.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), in_alpha))
                     p.drawText(QPointF(w_x, baseline_y), w_str)
 
             # Focal underline
@@ -498,13 +503,13 @@ class LivePreview(QWidget):
         p.end()
 
 
-# ─── Aesthetic Soft Cream Color Swatch Button ─────────────────────────
+# ─── Aesthetic Smooth Soft Color Swatch Button ─────────────────────────
 class ColorSwatch(QPushButton):
     color_changed = pyqtSignal(str)
 
-    PALETTE = CREAM_SOFT_PALETTE + ["#A8C7FA", "#FFFFFF"]
+    PALETTE = SMOOTH_SOFT_HEX_LIST
 
-    def __init__(self, current_hex: str = "#FFF4E0", parent=None):
+    def __init__(self, current_hex: str = "#2EE59D", parent=None):
         super().__init__(parent)
         self._color = current_hex
         self._idx = 0
@@ -518,6 +523,12 @@ class ColorSwatch(QPushButton):
         self._apply_style()
 
     def _apply_style(self):
+        color_name = "Smooth Soft Color"
+        for item in SMOOTH_SOFT_PALETTE:
+            if item["hex"].upper() == self._color.upper():
+                color_name = item["name"]
+                break
+        self.setToolTip(f"{color_name} ({self._color})\nClick to cycle through colors")
         self.setStyleSheet(f"""
             QPushButton {{
                 background: {self._color};
@@ -813,7 +824,7 @@ class SettingsDialog(QDialog):
         p_c_lay.setSpacing(10)
 
         self.combo_test_anim = QComboBox()
-        self.combo_test_anim.addItem("Random 38+ Animations", "")
+        self.combo_test_anim.addItem("Random 55+ Animations", "")
         for name, _ in ANIMATION_CATALOG:
             clean_name = name.replace("_", " ").title()
             self.combo_test_anim.addItem(f"Test: {clean_name}", name)
@@ -934,21 +945,81 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(16)
 
-        fx_card = SectionCard("Visual Effects & Soft Cream Palette")
+        fx_card = SectionCard("Visual Effects & Dynamic Colors")
 
-        # Color Word Highlight
+        # 1. Active Word Highlight Enabled
         row_hl = SettingRow(
-            "Aesthetic Soft Cream Highlight",
-            "Smoothly highlights active spoken word in a warm cream tone (consistent per song)"
+            "Word Timing Highlight",
+            "Illuminates the active spoken word with high contrast and smooth vocal pacing"
         )
         self.toggle_highlight = PillToggle(self.settings.get("highlight_enabled", True))
         self.toggle_highlight.toggled.connect(lambda v: self._update_and_sync("highlight_enabled", v))
         row_hl.add_control(self.toggle_highlight)
-
-        self.color_swatch = ColorSwatch(self.settings.get("highlight_color", "#FFF4E0"))
-        self.color_swatch.color_changed.connect(lambda c: self._update_and_sync("highlight_color", c))
-        row_hl.add_control(self.color_swatch)
         fx_card.add_row(row_hl)
+        fx_card.add_separator()
+
+        # 2. Glowing Rounded Block / Pill
+        row_hl_block = SettingRow(
+            "Highlight Glowing Pill Block",
+            "Soft translucent rounded pill behind active word for 100% visibility on any background"
+        )
+        self.toggle_hl_block = PillToggle(self.settings.get("highlight_block_enabled", True))
+        self.toggle_hl_block.toggled.connect(lambda v: self._update_and_sync("highlight_block_enabled", v))
+        row_hl_block.add_control(self.toggle_hl_block)
+        fx_card.add_row(row_hl_block)
+        fx_card.add_separator()
+
+        # 3. Highlight Color Mode & Swatch
+        row_color = SettingRow(
+            "Aesthetic Color Palette",
+            "Auto rotates a different smooth soft color each song, or pin your favorite"
+        )
+        self.combo_hl_mode = QComboBox()
+        self.combo_hl_mode.addItem("🎨 Auto: Different Color Each Song", "per_song")
+        for item in SMOOTH_SOFT_PALETTE:
+            self.combo_hl_mode.addItem(f"● {item['name']}", item["hex"])
+
+        cur_mode = self.settings.get("highlight_mode", "per_song")
+        cur_color = self.settings.get("highlight_color", SMOOTH_SOFT_HEX_LIST[0])
+        if cur_mode == "per_song":
+            self.combo_hl_mode.setCurrentIndex(0)
+        else:
+            found = False
+            for i in range(1, self.combo_hl_mode.count()):
+                if self.combo_hl_mode.itemData(i).upper() == cur_color.upper():
+                    self.combo_hl_mode.setCurrentIndex(i)
+                    found = True
+                    break
+            if not found:
+                self.combo_hl_mode.setCurrentIndex(0)
+
+        self.color_swatch = ColorSwatch(cur_color)
+
+        def _on_color_combo_changed(idx):
+            mode_data = self.combo_hl_mode.currentData()
+            if mode_data == "per_song":
+                self._update_and_sync("highlight_mode", "per_song")
+            else:
+                self._update_and_sync("highlight_mode", "fixed")
+                self._update_and_sync("highlight_color", mode_data)
+                self.color_swatch.setColor(mode_data)
+
+        def _on_swatch_changed(hex_val):
+            self._update_and_sync("highlight_mode", "fixed")
+            self._update_and_sync("highlight_color", hex_val)
+            for i in range(1, self.combo_hl_mode.count()):
+                if self.combo_hl_mode.itemData(i).upper() == hex_val.upper():
+                    self.combo_hl_mode.blockSignals(True)
+                    self.combo_hl_mode.setCurrentIndex(i)
+                    self.combo_hl_mode.blockSignals(False)
+                    break
+
+        self.combo_hl_mode.currentIndexChanged.connect(_on_color_combo_changed)
+        self.color_swatch.color_changed.connect(_on_swatch_changed)
+
+        row_color.add_control(self.combo_hl_mode)
+        row_color.add_control(self.color_swatch)
+        fx_card.add_row(row_color)
         fx_card.add_separator()
 
         # Hand-Drawn Underline
@@ -974,17 +1045,18 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(fx_card)
 
-        # 38+ Animations Showcase Card
-        anim_card = SectionCard("38+ Cinematic Animation Suite")
+        # 55+ Animations Showcase Card
+        anim_card = SectionCard("55+ Dynamic Animations & Smooth Physics")
         anim_info = QLabel(
-            "🎬  <b>Smooth Fade-In & Fade-Out Transitions:</b><br>"
-            "Cinematic crossfade, whisper dissolve, gentle rise fade, gentle sink fade, "
-            "feather dissolve, luminous glow fade, smooth drift fade, ambient breathe.<br><br>"
-            "🍦  <b>Aesthetic Soft Cream Highlight:</b><br>"
-            "Active words illuminate in a warm, gentle cream pastel tone that stays consistent "
-            "for each song and dynamically chooses a new aesthetic cream tone for the next track.<br><br>"
-            "⚓  <b>100% Glitch-Free & Zero Text Loss:</b><br>"
-            "Preserved font kerning and anchored baselines eliminate micro-jitter and letter vibration."
+            "🎬  <b>Smooth Fade & Continuous 165Hz Physics:</b><br>"
+            "Whisper dissolve, silky crossfades, luminous drift, cinematic rise, "
+            "kinetic snaps, and gentle elastic springs interpolating continuously at sub-millisecond precision.<br><br>"
+            "🎨  <b>Aesthetic Smooth Soft Colors (Per-Song Rotation):</b><br>"
+            "Every song is automatically assigned a distinct, vibrant, smooth soft color (Mint Emerald, "
+            "Electric Cyan, Lavender Lilac, Coral Rose, Golden Canary, Sky Azure, Bubblegum Pink, etc.) "
+            "paired with a soft glowing background pill block for ultra-crisp visibility.<br><br>"
+            "🛡️  <b>Anti-Overlap Architecture:</b><br>"
+            "Outgoing lyrics lift cleanly away (-32px), guaranteeing zero clashing or text collision with incoming lines."
         )
         anim_info.setWordWrap(True)
         anim_info.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 13px; line-height: 1.6; padding: 16px 20px; background: transparent; border: none;")
@@ -1074,25 +1146,28 @@ class SettingsDialog(QDialog):
         card = SectionCard("One-Click Presets")
 
         presets = [
-            ("7clouds Signature", "Iconic brush style (Edo SZ) with soft cream highlight and smooth fade transitions", {
+            ("7clouds Signature", "Iconic brush style (Edo SZ) with dynamic smooth soft highlights and anti-overlap physics", {
                 "font_family": "7clouds Signature (Edo SZ)", "font_size": 42,
                 "hand_drawn_underline_enabled": True, "highlight_enabled": True,
-                "highlight_color": "#FFF4E0", "target_fps": 165, "sync_offset_sec": 0.20
+                "highlight_block_enabled": True, "highlight_mode": "per_song",
+                "highlight_color": "#2EE59D", "target_fps": 165, "sync_offset_sec": 0.20
             }),
-            ("Aesthetic Dream", "Lush cinematic crossfades with warm cream pastel highlights and subtle underlines", {
+            ("Aesthetic Dream", "Lush cinematic crossfades with soft lavender and rose highlights and subtle underlines", {
                 "font_family": "7clouds Signature (Edo SZ)", "font_size": 40,
                 "hand_drawn_underline_enabled": True, "highlight_enabled": True,
-                "highlight_color": "#FDF8E2", "target_fps": 165, "sync_offset_sec": 0.20
+                "highlight_block_enabled": True, "highlight_mode": "per_song",
+                "highlight_color": "#C084FC", "target_fps": 165, "sync_offset_sec": 0.20
             }),
-            ("7clouds Modern", "Ultra-bold sans-serif (Montserrat Black) with smooth whisper dissolve", {
+            ("7clouds Modern", "Ultra-bold sans-serif (Montserrat Black) with smooth whisper dissolve and electric cyan", {
                 "font_family": "7clouds Modern (Montserrat Black)", "font_size": 42,
                 "hand_drawn_underline_enabled": True, "highlight_enabled": True,
-                "highlight_color": "#FFF4E0", "target_fps": 165, "sync_offset_sec": 0.20
+                "highlight_block_enabled": True, "highlight_mode": "per_song",
+                "highlight_color": "#00E5FF", "target_fps": 165, "sync_offset_sec": 0.20
             }),
             ("Minimalist Pure", "Distraction-free pure white typography without highlights", {
                 "font_family": "7clouds Signature (Edo SZ)", "font_size": 38,
                 "hand_drawn_underline_enabled": False, "highlight_enabled": False,
-                "target_fps": 120, "sync_offset_sec": 0.20
+                "highlight_block_enabled": False, "target_fps": 120, "sync_offset_sec": 0.20
             }),
         ]
 
@@ -1177,9 +1252,9 @@ class SettingsDialog(QDialog):
         info_col.addWidget(app_ver)
 
         app_desc = QLabel(
-            "Hardware-accelerated desktop lyrics overlay with 38+ animations, "
-            "smooth fade transitions, aesthetic soft cream word highlight, "
-            "7clouds typography, and universal Hinglish transliteration."
+            "Hardware-accelerated desktop lyrics overlay with 55+ animations, "
+            "smooth fade transitions, dynamic aesthetic smooth soft color highlights, "
+            "anti-overlap typography, and universal Hinglish transliteration."
         )
         app_desc.setWordWrap(True)
         app_desc.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 12px; line-height: 1.5; background: transparent; border: none;")
@@ -1197,7 +1272,7 @@ class SettingsDialog(QDialog):
             ("Active Refresh Target", f"{self.settings.get('target_fps', 165)} Hz"),
             ("Media Transport", "Windows SMTC (WinRT Native)"),
             ("Sync Strategy", "Real-Time SMTC Elapsed Clock + Lead Calibration"),
-            ("Highlight Engine", "Aesthetic Soft Cream (Per-Song Consistent)"),
+            ("Highlight Engine", "Aesthetic Smooth Soft Colors (Per-Song Rotation)"),
             ("Transliteration Engine", "100% Clean Latin Hinglish (Zero Leaks)"),
             ("Lyrics Provider", "LRCLIB (Free & Open)"),
         ]
@@ -1321,8 +1396,18 @@ class SettingsDialog(QDialog):
                 self.toggle_underline.setChecked(preset["hand_drawn_underline_enabled"])
             if "highlight_enabled" in preset:
                 self.toggle_highlight.setChecked(preset["highlight_enabled"])
+            if "highlight_block_enabled" in preset and hasattr(self, "toggle_hl_block"):
+                self.toggle_hl_block.setChecked(preset["highlight_block_enabled"])
             if "highlight_color" in preset:
                 self.color_swatch.setColor(preset["highlight_color"])
+            if "highlight_mode" in preset and hasattr(self, "combo_hl_mode"):
+                if preset["highlight_mode"] == "per_song":
+                    self.combo_hl_mode.setCurrentIndex(0)
+                elif "highlight_color" in preset:
+                    for i in range(1, self.combo_hl_mode.count()):
+                        if self.combo_hl_mode.itemData(i).upper() == preset["highlight_color"].upper():
+                            self.combo_hl_mode.setCurrentIndex(i)
+                            break
             if "target_fps" in preset:
                 fps_map = {60: 0, 120: 1, 144: 2, 165: 3, 240: 4}
                 self.combo_fps.setCurrentIndex(fps_map.get(preset["target_fps"], 3))
@@ -1343,8 +1428,9 @@ class SettingsDialog(QDialog):
             "auto_hide_idle": True,
             "hand_drawn_underline_enabled": True,
             "highlight_enabled": True,
-            "highlight_color": "#FFF4E0",
-            "highlight_mode": "cream_per_song",
+            "highlight_block_enabled": True,
+            "highlight_color": "#2EE59D",
+            "highlight_mode": "per_song",
         }
         self._apply_preset(defaults)
         self.slider_sync.setValue(2)
