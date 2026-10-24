@@ -46,14 +46,14 @@ from settings_manager import BRIGHT_HIGHLIGHT_PALETTE, BRIGHT_HIGHLIGHT_HEX_LIST
 from settings_window import SettingsDialog
 from spotify_client import SpotifyClient, PlaybackState
 from lyrics_fetcher import get_lyrics, LyricLine
-from animation_engine import AnimationEngine, PER_CHAR_ANIMS
+from animation_engine import AnimationEngine, PER_CHAR_ANIMS, FADE_ANIMS
 
 IPC_SERVER_NAME = "SpotifyLyricsOverlayIPC_v1"
 
 
 class AppSignals(QObject):
     """Thread-safe signal bridge between background threads and PyQt6 GUI."""
-    lyrics_fetched = pyqtSignal(object)
+    lyrics_fetched = pyqtSignal(int, str, object)
     hotkey_lock = pyqtSignal()
     hotkey_hide = pyqtSignal()
     hotkey_quit = pyqtSignal()
@@ -88,6 +88,7 @@ class FloatingLyricsWidget(QWidget):
         self.current_line_text: str = ""
         self._last_color_idx: int = 0
         self.current_song_color: QColor = QColor(BRIGHT_HIGHLIGHT_HEX_LIST[0])
+        self._current_fetch_id: int = 0
 
         # Thread-safe Signal Bridge
         self.signals = AppSignals()
@@ -259,24 +260,24 @@ class FloatingLyricsWidget(QWidget):
             painter.setPen(QColor(255, 255, 255, p_alpha))
 
             painter.save()
-            # Lift outgoing line well up (-32px) so it NEVER collides with incoming line:
-            painter.translate(screen_cx, screen_cy - 32.0 + prev_data["offset_y"])
+            # Smooth upward lift starting strictly at 0.0 (zero teleportation or offset jump)
+            painter.translate(screen_cx, screen_cy + prev_data["offset_y"])
             if prev_data["scale"] != 1.0:
                 painter.scale(prev_data["scale"], prev_data["scale"])
 
             w = p_metrics.horizontalAdvance(p_text)
             p_baseline_y = (p_metrics.ascent() - p_metrics.descent()) / 2.0
 
-            # Outgoing motion blur streak (upward lift)
+            # Outgoing motion blur streak (subtle upward optical softening)
             if self.settings.get("motion_blur_enabled", True) and prev_data.get("blur_dy", 0.0) != 0.0:
-                p_blur_dy = prev_data["blur_dy"]
+                p_blur_dy = max(-4.0, min(0.0, prev_data["blur_dy"]))
                 blur_int = float(self.settings.get("motion_blur_intensity", 1.4))
-                for step in range(1, 4):
-                    frac = step / 3.0
-                    out_blur_a = int(p_alpha * 0.32 * (1.0 - frac * 0.55))
+                for step in range(1, 3):
+                    frac = step / 2.0
+                    out_blur_a = int(p_alpha * 0.18 * (1.0 - frac * 0.5))
                     if out_blur_a > 2:
                         painter.save()
-                        painter.translate(screen_cx, screen_cy - 32.0 + prev_data["offset_y"] - p_blur_dy * frac * blur_int)
+                        painter.translate(0.0, -p_blur_dy * frac * blur_int)
                         painter.setPen(QColor(255, 255, 255, out_blur_a))
                         painter.drawText(QPointF(-w / 2.0, p_baseline_y), p_text)
                         painter.restore()
@@ -290,21 +291,25 @@ class FloatingLyricsWidget(QWidget):
             in_font, in_metrics = self._fit_font(curr_text, avail_w, base_size, font_family)
             painter.setFont(in_font)
 
-            # ── Directional Motion Blur Shutter Passes ──
+            # ── Directional Motion Blur Shutter (Subtle optical softness on physical motion) ──
+            anim_type = data.get("anim_type", "")
             blur_enabled = self.settings.get("motion_blur_enabled", True)
             blur_dx = data.get("blur_dx", 0.0)
             blur_dy = data.get("blur_dy", 0.0)
             blur_dist = data.get("blur_dist", 0.0)
             blur_intensity = float(self.settings.get("motion_blur_intensity", 1.4))
 
-            if blur_enabled and blur_dist > 0.5:
+            # Never blur pure fade transitions; only blur genuine physical entrance motion
+            if blur_enabled and blur_dist > 0.4 and anim_type not in FADE_ANIMS:
                 total_in_w = in_metrics.horizontalAdvance(curr_text)
                 in_base_y = (in_metrics.ascent() - in_metrics.descent()) / 2.0
-                for step in range(1, 5):
-                    frac = step / 4.0
-                    trail_x = -blur_dx * frac * blur_intensity
-                    trail_y = -blur_dy * frac * blur_intensity
-                    step_a = int(in_alpha * data.get("blur_alpha", 0.35) * (1.0 - frac * 0.6))
+                clamped_dx = max(-3.5, min(3.5, blur_dx))
+                clamped_dy = max(-3.5, min(3.5, blur_dy))
+                for step in range(1, 3):
+                    frac = step / 2.0
+                    trail_x = -clamped_dx * frac * blur_intensity
+                    trail_y = -clamped_dy * frac * blur_intensity
+                    step_a = int(in_alpha * data.get("blur_alpha", 0.25) * (1.0 - frac * 0.5))
                     if step_a > 2:
                         painter.save()
                         painter.translate(
@@ -632,19 +637,26 @@ class FloatingLyricsWidget(QWidget):
             # Track changed?
             if state.track_id != self.current_track_id:
                 self.current_track_id = state.track_id
+                self.lyrics = None  # Crucial: Immediately clear old song lyrics!
                 self.current_line_index = -1
                 self.current_line_text = ""
                 self.engine.clear_line()
                 self._pick_next_song_color(state.track_id)
                 self.update()
 
+                self._current_fetch_id += 1
+                fetch_id = self._current_fetch_id
+                req_track = state.track_id
+
                 import threading
                 threading.Thread(
                     target=self._fetch_lyrics_thread,
                     args=(state.track_name, state.artist_name,
-                          state.album_name, state.duration_sec),
+                          state.album_name, state.duration_sec,
+                          fetch_id, req_track),
                     daemon=True,
                 ).start()
+                return
 
             self._check_line_update(state)
         except Exception:
@@ -655,7 +667,7 @@ class FloatingLyricsWidget(QWidget):
             self._check_line_update(self.playback)
 
     def _check_line_update(self, state: PlaybackState):
-        if not self.lyrics:
+        if not self.lyrics or state.track_id != self.current_track_id:
             return
 
         progress = self.spotify.estimate_progress(state)
@@ -706,15 +718,20 @@ class FloatingLyricsWidget(QWidget):
 
             self.engine.sync_to_audio(line_elapsed)
 
-    def _fetch_lyrics_thread(self, track: str, artist: str, album: str, duration: float):
+    def _fetch_lyrics_thread(self, track: str, artist: str, album: str, duration: float,
+                             fetch_id: int, req_track_id: str):
         lyrics = get_lyrics(track, artist, album, duration)
-        self.signals.lyrics_fetched.emit(lyrics)
+        self.signals.lyrics_fetched.emit(fetch_id, req_track_id, lyrics)
 
-    def _on_lyrics_fetched(self, lyrics: list[LyricLine] | None):
+    def _on_lyrics_fetched(self, fetch_id: int, req_track_id: str, lyrics: list[LyricLine] | None):
+        # Strict validation: Only accept if this matches the currently playing song!
+        if fetch_id != getattr(self, "_current_fetch_id", 0) or req_track_id != self.current_track_id:
+            return
+
         self.lyrics = lyrics
-        if lyrics and self.playback:
+        if lyrics and self.playback and self.playback.track_id == self.current_track_id:
             self._check_line_update(self.playback)
-        elif not lyrics:
+        else:
             self.current_line_text = ""
             self.engine.clear_line()
             self.update()

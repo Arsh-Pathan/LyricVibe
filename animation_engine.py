@@ -214,6 +214,11 @@ class AnimationEngine:
             self.focal_word_idx = -1
             self.underline_stroke = None
 
+        # Reset motion blur state for clean entrance with zero offset spikes
+        self._prev_blur_ox = None
+        self._prev_blur_oy = None
+        self._prev_blur_perf = None
+
     def clear_line(self):
         """Cleanly clears line during instrumental solos or track pauses."""
         if self.curr_text:
@@ -221,6 +226,9 @@ class AnimationEngine:
             self.prev_exit_perf = time.perf_counter()
             self.curr_text = ""
             self.highlight_word_idx = -1
+            self._prev_blur_ox = None
+            self._prev_blur_oy = None
+            self._prev_blur_perf = None
 
     def sync_to_audio(self, audio_elapsed_sec: float):
         """
@@ -477,39 +485,49 @@ class AnimationEngine:
             offset_y = (1.0 - ease_out_cubic) * 8.0
 
         # ── Directional Motion Blur Vector & Shutter Momentum ──
-        if not hasattr(self, "_prev_blur_ox"):
+        if anim in FADE_ANIMS:
+            blur_dx = 0.0
+            blur_dy = 0.0
+            blur_dist = 0.0
+            blur_alpha = 0.0
+        else:
+            if getattr(self, "_prev_blur_ox", None) is None:
+                self._prev_blur_ox = offset_x
+                self._prev_blur_oy = offset_y
+                self._prev_blur_perf = now_perf
+
+            dt = max(0.003, now_perf - self._prev_blur_perf)
+            inst_vx = (offset_x - self._prev_blur_ox) / dt
+            inst_vy = (offset_y - self._prev_blur_oy) / dt
             self._prev_blur_ox = offset_x
             self._prev_blur_oy = offset_y
             self._prev_blur_perf = now_perf
 
-        dt = max(0.002, now_perf - getattr(self, "_prev_blur_perf", now_perf))
-        inst_vx = (offset_x - self._prev_blur_ox) / dt
-        inst_vy = (offset_y - self._prev_blur_oy) / dt
-        self._prev_blur_ox = offset_x
-        self._prev_blur_oy = offset_y
-        self._prev_blur_perf = now_perf
+            # Only blur during entrance momentum, clamped to tight subtle spread
+            entrance_momentum = max(0.0, 1.0 - t_in * 2.2) if t_in < 0.45 else 0.0
+            raw_dx = (inst_vx * 0.015) + (offset_x * 0.20 * entrance_momentum)
+            raw_dy = (inst_vy * 0.015) + (offset_y * 0.20 * entrance_momentum)
+            blur_dx = max(-4.0, min(4.0, raw_dx))
+            blur_dy = max(-4.0, min(4.0, raw_dy))
+            blur_dist = math.hypot(blur_dx, blur_dy)
+            blur_alpha = min(0.35, blur_dist / 6.0) if blur_dist > 0.4 else 0.0
 
-        # Entrance momentum decay during the initial entrance
-        entrance_momentum = max(0.0, 1.0 - t_in * 2.4) if t_in < 0.42 else 0.0
-        blur_dx = (inst_vx * 0.024) + (offset_x * 0.32 * entrance_momentum)
-        blur_dy = (inst_vy * 0.024) + (offset_y * 0.32 * entrance_momentum)
-        blur_dist = math.hypot(blur_dx, blur_dy)
-        blur_alpha = min(0.70, blur_dist / 9.0) if blur_dist > 0.35 else 0.0
-
-        # ── Anti-Overlap Outgoing Line (Lifts UP and OUT in 0.16s) ──
+        # ── Anti-Overlap Outgoing Line (Smooth, continuous upward lift starting at 0px) ──
         prev_data = None
         if self.prev_text:
             elapsed_out = now_perf - self.prev_exit_perf
-            exit_dur = 0.16  # Quick clean lift & fade out
+            exit_dur = 0.18  # Smooth clean lift & fade out
             t_out = min(elapsed_out / exit_dur, 1.0)
             if t_out < 1.0:
-                out_fade = 1.0 - t_out * t_out
+                # Easing curve for upward lift: starts strictly at 0.0 (ZERO jump!)
+                lift_curve = math.pow(t_out, 1.3)
+                out_fade = 1.0 - math.pow(t_out, 1.6)
                 prev_data = {
                     "text": self.prev_text,
                     "alpha": max(0.0, out_fade),
-                    "offset_y": -t_out * 28.0,  # Slides UP away from center
-                    "blur_dy": -20.0 * (1.0 - t_out),
-                    "scale": 1.0 - t_out * 0.03,
+                    "offset_y": -lift_curve * 22.0,  # Continuous glide from 0.0px to -22.0px
+                    "blur_dy": -4.0 * (1.0 - t_out),
+                    "scale": 1.0 - t_out * 0.02,
                 }
             else:
                 self.prev_text = ""

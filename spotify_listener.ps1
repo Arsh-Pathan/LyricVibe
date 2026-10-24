@@ -4,7 +4,7 @@ $asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-O
 function Await($asyncOp, $type) {
     $asTask = $asTaskGeneric.MakeGenericMethod($type)
     $netTask = $asTask.Invoke($null, @($asyncOp))
-    $netTask.Wait(400) | Out-Null
+    $netTask.Wait(1200) | Out-Null
     if ($netTask.IsCompleted) { return $netTask.Result }
     return $null
 }
@@ -16,9 +16,18 @@ $manager = Await $managerOp ([Windows.Media.Control.GlobalSystemMediaTransportCo
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $epoch = [DateTimeOffset]::new(1970, 1, 1, 0, 0, 0, [TimeSpan]::Zero)
 
+$lastTitle = ""
+$lastArtist = ""
+$lastAlbum = ""
+
 while ($true) {
     try {
-        $sessions = $manager.GetSessions()
+        if (-not $manager) {
+            $managerOp = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()
+            $manager = Await $managerOp ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
+        }
+
+        $sessions = if ($manager) { $manager.GetSessions() } else { @() }
         $spotifySession = $null
         foreach ($s in $sessions) {
             if ($s.SourceAppUserModelId -match "Spotify") {
@@ -26,7 +35,7 @@ while ($true) {
                 break
             }
         }
-        if (-not $spotifySession) {
+        if (-not $spotifySession -and $manager) {
             $curr = $manager.GetCurrentSession()
             if ($curr -and $curr.SourceAppUserModelId -match "Spotify") {
                 $spotifySession = $curr
@@ -41,6 +50,16 @@ while ($true) {
 
             $isPlaying = ($playbackInfo -and $playbackInfo.PlaybackStatus -eq [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus]::Playing)
             
+            if ($media -and $media.Title) {
+                $lastTitle = $media.Title
+                $lastArtist = $media.Artist
+                $lastAlbum = $media.AlbumTitle
+            }
+
+            $currentTrack = if ($media -and $media.Title) { $media.Title } elseif ($isPlaying -and $lastTitle) { $lastTitle } else { "" }
+            $currentArtist = if ($media -and $media.Artist) { $media.Artist } elseif ($isPlaying -and $lastArtist) { $lastArtist } else { "" }
+            $currentAlbum = if ($media -and $media.AlbumTitle) { $media.AlbumTitle } elseif ($isPlaying -and $lastAlbum) { $lastAlbum } else { "" }
+
             $pos = 0.0
             $updatedEpoch = 0.0
             if ($timeline) {
@@ -65,18 +84,22 @@ while ($true) {
 
             $data = @{
                 is_playing = $isPlaying
-                track = if ($media) { $media.Title } else { "" }
-                artist = if ($media) { $media.Artist } else { "" }
-                album = if ($media) { $media.AlbumTitle } else { "" }
+                track = $currentTrack
+                artist = $currentArtist
+                album = $currentAlbum
                 position = [math]::Round($pos, 3)
                 updated_at = [math]::Round($updatedEpoch, 3)
                 duration = [math]::Round($dur, 3)
             }
             [Console]::WriteLine(($data | ConvertTo-Json -Compress))
         } else {
+            $lastTitle = ""
+            $lastArtist = ""
+            $lastAlbum = ""
             [Console]::WriteLine('{"is_playing":false,"track":"","artist":"","album":"","position":0,"updated_at":0,"duration":0}')
         }
     } catch {
+        $manager = $null
         [Console]::WriteLine('{"is_playing":false,"track":"","artist":"","album":"","position":0,"updated_at":0,"duration":0}')
     }
     Start-Sleep -Milliseconds 250

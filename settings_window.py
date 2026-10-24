@@ -38,7 +38,7 @@ from settings_manager import (
     BRIGHT_HIGHLIGHT_PALETTE, BRIGHT_HIGHLIGHT_HEX_LIST,
     SMOOTH_SOFT_PALETTE, SMOOTH_SOFT_HEX_LIST
 )
-from animation_engine import AnimationEngine, ANIMATION_CATALOG, PER_CHAR_ANIMS
+from animation_engine import AnimationEngine, ANIMATION_CATALOG, PER_CHAR_ANIMS, FADE_ANIMS
 
 
 # ─── Material Design 3 Dark Theme Palette ─────────────────────────────
@@ -393,22 +393,23 @@ class LivePreview(QWidget):
             p_w = metrics.horizontalAdvance(p_text)
             p_baseline = (metrics.ascent() - metrics.descent()) / 2.0
 
-            # Outgoing motion blur streak
+            # Outgoing motion blur streak (subtle upward optical softening)
             if self.settings.get("motion_blur_enabled", True) and prev_data.get("blur_dy", 0.0) != 0.0:
-                p_blur_dy = prev_data["blur_dy"]
+                p_blur_dy = max(-4.0, min(0.0, prev_data["blur_dy"]))
                 blur_int = float(self.settings.get("motion_blur_intensity", 1.4))
-                for step in range(1, 4):
-                    frac = step / 3.0
-                    out_blur_a = int(p_alpha * 0.28 * (1.0 - frac * 0.55))
+                for step in range(1, 3):
+                    frac = step / 2.0
+                    out_blur_a = int(p_alpha * 0.18 * (1.0 - frac * 0.5))
                     if out_blur_a > 2:
                         p.save()
-                        p.translate(cx, cy - 24.0 + prev_data["offset_y"] - p_blur_dy * frac * blur_int)
+                        p.translate(cx, cy + prev_data["offset_y"] - p_blur_dy * frac * blur_int)
                         p.setPen(QColor(255, 255, 255, out_blur_a))
                         p.drawText(QPointF(-p_w / 2.0, p_baseline), p_text)
                         p.restore()
 
             p.save()
-            p.translate(cx, cy - 24.0 + prev_data["offset_y"])
+            # Smooth upward lift starting strictly at 0.0 (zero jump!)
+            p.translate(cx, cy + prev_data["offset_y"])
             if prev_data["scale"] != 1.0:
                 p.scale(prev_data["scale"], prev_data["scale"])
             p.setPen(QColor(255, 255, 255, p_alpha))
@@ -422,19 +423,22 @@ class LivePreview(QWidget):
             start_x = -total_w / 2.0
             baseline_y = (metrics.ascent() - metrics.descent()) / 2.0
 
-            # Incoming directional motion blur shutter passes
+            # Incoming directional motion blur (subtle optical softness on physical motion only)
+            anim_type = data.get("anim_type", "")
             blur_enabled = self.settings.get("motion_blur_enabled", True)
             blur_dx = data.get("blur_dx", 0.0)
             blur_dy = data.get("blur_dy", 0.0)
             blur_dist = data.get("blur_dist", 0.0)
             blur_intensity = float(self.settings.get("motion_blur_intensity", 1.4))
 
-            if blur_enabled and blur_dist > 0.5:
-                for step in range(1, 5):
-                    frac = step / 4.0
-                    trail_x = -blur_dx * frac * blur_intensity
-                    trail_y = -blur_dy * frac * blur_intensity
-                    step_a = int(in_alpha * data.get("blur_alpha", 0.35) * (1.0 - frac * 0.6))
+            if blur_enabled and blur_dist > 0.4 and anim_type not in FADE_ANIMS:
+                clamped_dx = max(-3.5, min(3.5, blur_dx))
+                clamped_dy = max(-3.5, min(3.5, blur_dy))
+                for step in range(1, 3):
+                    frac = step / 2.0
+                    trail_x = -clamped_dx * frac * blur_intensity
+                    trail_y = -clamped_dy * frac * blur_intensity
+                    step_a = int(in_alpha * data.get("blur_alpha", 0.25) * (1.0 - frac * 0.5))
                     if step_a > 2:
                         p.save()
                         p.translate(

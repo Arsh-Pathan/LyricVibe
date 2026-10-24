@@ -161,8 +161,16 @@ def _try_search(query: str, duration_sec: float = 0) -> list[LyricLine] | None:
     return None
 
 
+# In-memory lyrics cache for instant 0ms responses on repeated / skipped tracks
+_LYRICS_CACHE: dict[str, list[LyricLine] | None] = {}
+
+
 def get_lyrics(track_name: str, artist_name: str, album_name: str = "",
                duration_sec: float = 0) -> list[LyricLine] | None:
+    cache_key = f"{track_name.strip().lower()}||{artist_name.strip().lower()}"
+    if cache_key in _LYRICS_CACHE:
+        return _LYRICS_CACHE[cache_key]
+
     clean_title = clean_track_title(track_name)
     primary_artist = get_primary_artist(artist_name)
 
@@ -177,6 +185,7 @@ def get_lyrics(track_name: str, artist_name: str, album_name: str = "",
             p["duration"] = int(duration_sec)
         lyrics = _try_get(p)
         if lyrics:
+            _LYRICS_CACHE[cache_key] = lyrics
             return lyrics
 
     # 2. Try duration-aware search
@@ -188,6 +197,7 @@ def get_lyrics(track_name: str, artist_name: str, album_name: str = "",
     for q in queries:
         lyrics = _try_search(q, duration_sec)
         if lyrics:
+            _LYRICS_CACHE[cache_key] = lyrics
             return lyrics
 
     # 3. Fallback GET without duration constraint
@@ -195,6 +205,8 @@ def get_lyrics(track_name: str, artist_name: str, album_name: str = "",
         p_no_dur = {k: v for k, v in p.items() if k != "duration"}
         lyrics = _try_get(p_no_dur)
         if lyrics:
+            _LYRICS_CACHE[cache_key] = lyrics
             return lyrics
 
+    _LYRICS_CACHE[cache_key] = None
     return None
