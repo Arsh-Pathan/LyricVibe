@@ -33,12 +33,21 @@ from PyQt6.QtGui import (
     QFontDatabase, QLinearGradient, QIcon, QPixmap, QFontMetrics
 )
 
-import settings_manager
-from settings_manager import (
-    BRIGHT_HIGHLIGHT_PALETTE, BRIGHT_HIGHLIGHT_HEX_LIST,
-    SMOOTH_SOFT_PALETTE, SMOOTH_SOFT_HEX_LIST
-)
-from animation_engine import AnimationEngine, ANIMATION_CATALOG, PER_CHAR_ANIMS, FADE_ANIMS
+try:
+    from lyricvibe.utils.settings import (
+        BRIGHT_HIGHLIGHT_PALETTE, BRIGHT_HIGHLIGHT_HEX_LIST,
+        SMOOTH_SOFT_PALETTE, SMOOTH_SOFT_HEX_LIST
+    )
+    from lyricvibe.core.animation import AnimationEngine, ANIMATION_CATALOG, PER_CHAR_ANIMS, FADE_ANIMS
+    from lyricvibe.core.paths import get_asset_path
+except ImportError:
+    import settings_manager
+    from settings_manager import (
+        BRIGHT_HIGHLIGHT_PALETTE, BRIGHT_HIGHLIGHT_HEX_LIST,
+        SMOOTH_SOFT_PALETTE, SMOOTH_SOFT_HEX_LIST
+    )
+    from animation_engine import AnimationEngine, ANIMATION_CATALOG, PER_CHAR_ANIMS, FADE_ANIMS
+    get_asset_path = lambda p: p
 
 
 # ─── Material Design 3 Dark Theme Palette ─────────────────────────────
@@ -607,9 +616,8 @@ class SettingsDialog(QDialog):
         self._build_ui()
 
     def _load_icon(self):
-        icon_dir = os.path.dirname(os.path.abspath(__file__))
         for icon_name in ("icon.ico", "icon.png"):
-            fp = os.path.join(icon_dir, icon_name)
+            fp = get_asset_path(icon_name)
             if os.path.exists(fp):
                 self.setWindowIcon(QIcon(fp))
                 break

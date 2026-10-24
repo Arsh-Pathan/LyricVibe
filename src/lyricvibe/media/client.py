@@ -15,7 +15,10 @@ import time
 from dataclasses import dataclass
 import requests
 
-import config
+try:
+    from lyricvibe.core import config
+except ImportError:
+    pass
 
 
 @dataclass
@@ -43,6 +46,12 @@ class SpotifyClient:
 
     def _resolve_ps_script(self) -> str:
         candidates = []
+        try:
+            from lyricvibe.core.paths import get_asset_path
+            candidates.append(get_asset_path("spotify_listener.ps1"))
+        except ImportError:
+            pass
+
         if getattr(sys, "frozen", False):
             meipass = getattr(sys, "_MEIPASS", None)
             if meipass:

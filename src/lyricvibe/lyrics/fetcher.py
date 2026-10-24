@@ -7,7 +7,10 @@ and converts Hindi/Urdu to clean Roman Hinglish.
 import re
 import requests
 from dataclasses import dataclass
-from hinglish_converter import to_hinglish
+try:
+    from lyricvibe.core.transliteration import to_hinglish
+except ImportError:
+    from hinglish_converter import to_hinglish
 
 
 @dataclass
@@ -210,3 +213,6 @@ def get_lyrics(track_name: str, artist_name: str, album_name: str = "",
 
     _LYRICS_CACHE[cache_key] = None
     return None
+
+
+fetch_lyrics_smart = get_lyrics

@@ -6,7 +6,11 @@ Supports runtime updates via the Settings Window.
 import os
 import json
 
-SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
+try:
+    from lyricvibe.core.paths import get_settings_file_path
+    SETTINGS_FILE = get_settings_file_path()
+except ImportError:
+    SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
 
 # Ultra-bright, vivid, luminous neon/electric highlight color palette
 BRIGHT_HIGHLIGHT_PALETTE = [
