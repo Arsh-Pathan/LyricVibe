@@ -8,30 +8,30 @@ import json
 
 SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
 
-# Curated aesthetic smooth soft color palette (rich chroma, soft luminous pastels, high visibility)
-SMOOTH_SOFT_PALETTE = [
-    {"name": "Mint Emerald",    "hex": "#2EE59D"},  # Fresh soft neon green
-    {"name": "Electric Cyan",   "hex": "#00E5FF"},  # Luminous cyber aqua
-    {"name": "Lavender Lilac",  "hex": "#C084FC"},  # Dreamy soft purple
-    {"name": "Coral Rose",      "hex": "#FF758C"},  # Warm soft strawberry pink
-    {"name": "Golden Canary",   "hex": "#FCD34D"},  # Smooth warm amber gold
-    {"name": "Sky Azure",       "hex": "#38BDF8"},  # Silky vibrant blue
-    {"name": "Candy Bubblegum", "hex": "#FF77A9"},  # Sweet vibrant pastel pink
-    {"name": "Electric Lime",   "hex": "#A8FF78"},  # Crisp pastel lime
-    {"name": "Sunset Tangerine","hex": "#FF9F43"},  # Warm soft orange
-    {"name": "Orchid Violet",   "hex": "#E879F9"},  # Vivid soft magenta
-    {"name": "Seafoam Aqua",    "hex": "#20E3B2"},  # Cool smooth mint
-    {"name": "Strawberry Melon","hex": "#FB7185"},  # Punchy pastel red
-    {"name": "Periwinkle Blue", "hex": "#70A6FF"},  # Soft denim electric
-    {"name": "Warm Honey",      "hex": "#FFD166"},  # Mellow sunshine
-    {"name": "Jade Neon",       "hex": "#1DD1A1"},  # Luminous sea emerald
-    {"name": "Apricot Peach",   "hex": "#FFA07A"},  # Cozy soft coral
-    {"name": "Electric Indigo", "hex": "#818CF8"},  # Modern velvet violet
-    {"name": "Blossom Pink",    "hex": "#FF6EA7"},  # Vibrant spring petal
-    {"name": "Spotify Green",   "hex": "#1DB954"},  # Iconic Spotify vibrant
+# Ultra-bright, vivid, luminous neon/electric highlight color palette
+BRIGHT_HIGHLIGHT_PALETTE = [
+    {"name": "Laser Neon Green",   "hex": "#00FF66"},  # Ultra-bright electric green
+    {"name": "Electric Cyan",       "hex": "#00FFFF"},  # Pure luminous bright cyan
+    {"name": "Vivid Neon Yellow",   "hex": "#FFE600"},  # Ultra-bright golden canary
+    {"name": "Neon Hot Pink",       "hex": "#FF1493"},  # Brilliant electric pink
+    {"name": "Electric Violet",     "hex": "#B026FF"},  # High-chroma glowing purple
+    {"name": "Neon Tangerine",      "hex": "#FF6600"},  # Ultra-vivid bright orange
+    {"name": "Luminous Aqua",       "hex": "#00F5D4"},  # Super-bright mint turquoise
+    {"name": "Neon Strawberry",     "hex": "#FF2D55"},  # Intense bright coral red
+    {"name": "Electric Sky",        "hex": "#00C8FF"},  # Deep vivid radiant sky blue
+    {"name": "Neon Lime",           "hex": "#A6FF00"},  # Electric chartreuse
+    {"name": "Electric Magenta",    "hex": "#FF00A0"},  # Radiant high-contrast magenta
+    {"name": "Neon Amber",          "hex": "#FFB800"},  # Bright warm electric amber
+    {"name": "Electric Lilac",      "hex": "#C75CFF"},  # Bright electric violet lilac
+    {"name": "Neon Seafoam",        "hex": "#14FFB2"},  # Brilliant glowing teal
+    {"name": "Electric Rose",       "hex": "#FF3B81"},  # Bright vibrant punch rose
+    {"name": "Spotify High-Neon",   "hex": "#1ED760"},  # Official high-vibrancy Spotify green
 ]
 
-SMOOTH_SOFT_HEX_LIST = [c["hex"] for c in SMOOTH_SOFT_PALETTE]
+BRIGHT_HIGHLIGHT_HEX_LIST = [c["hex"] for c in BRIGHT_HIGHLIGHT_PALETTE]
+# Aliases for compatibility
+SMOOTH_SOFT_PALETTE = BRIGHT_HIGHLIGHT_PALETTE
+SMOOTH_SOFT_HEX_LIST = BRIGHT_HIGHLIGHT_HEX_LIST
 
 DEFAULT_SETTINGS = {
     "target_fps": 165,             # 165 Hz smooth motion
@@ -40,10 +40,11 @@ DEFAULT_SETTINGS = {
     "font_weight": "bold",
     "text_color": "#FFFFFF",
     "highlight_mode": "per_song",  # "per_song" (changes each song) or "fixed"
-    "highlight_color": "#2EE59D",  # Active / default smooth soft highlight
-    "highlight_block_enabled": True, # Translucent rounded pill behind active word
+    "highlight_color": "#00FF66",  # Active / default ultra-bright laser green
+    "highlight_block_enabled": False, # Box removed per user preference
     "highlight_enabled": True,
-    "motion_blur_enabled": True,
+    "motion_blur_enabled": True,   # Multi-pass directional motion blur
+    "motion_blur_intensity": 1.4,  # Motion blur streak intensity (0.5 to 2.5)
     "glow_enabled": True,
     "hand_drawn_underline_enabled": True,
     "word_reveal_enabled": True,

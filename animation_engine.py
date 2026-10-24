@@ -476,6 +476,26 @@ class AnimationEngine:
             alpha = ease_out_cubic
             offset_y = (1.0 - ease_out_cubic) * 8.0
 
+        # ── Directional Motion Blur Vector & Shutter Momentum ──
+        if not hasattr(self, "_prev_blur_ox"):
+            self._prev_blur_ox = offset_x
+            self._prev_blur_oy = offset_y
+            self._prev_blur_perf = now_perf
+
+        dt = max(0.002, now_perf - getattr(self, "_prev_blur_perf", now_perf))
+        inst_vx = (offset_x - self._prev_blur_ox) / dt
+        inst_vy = (offset_y - self._prev_blur_oy) / dt
+        self._prev_blur_ox = offset_x
+        self._prev_blur_oy = offset_y
+        self._prev_blur_perf = now_perf
+
+        # Entrance momentum decay during the initial entrance
+        entrance_momentum = max(0.0, 1.0 - t_in * 2.4) if t_in < 0.42 else 0.0
+        blur_dx = (inst_vx * 0.024) + (offset_x * 0.32 * entrance_momentum)
+        blur_dy = (inst_vy * 0.024) + (offset_y * 0.32 * entrance_momentum)
+        blur_dist = math.hypot(blur_dx, blur_dy)
+        blur_alpha = min(0.70, blur_dist / 9.0) if blur_dist > 0.35 else 0.0
+
         # ── Anti-Overlap Outgoing Line (Lifts UP and OUT in 0.16s) ──
         prev_data = None
         if self.prev_text:
@@ -488,6 +508,7 @@ class AnimationEngine:
                     "text": self.prev_text,
                     "alpha": max(0.0, out_fade),
                     "offset_y": -t_out * 28.0,  # Slides UP away from center
+                    "blur_dy": -20.0 * (1.0 - t_out),
                     "scale": 1.0 - t_out * 0.03,
                 }
             else:
@@ -598,7 +619,9 @@ class AnimationEngine:
             "skew_x": skew_x,
             "chroma": chroma,
             "blur_alpha": blur_alpha,
-            "blur_offset_x": blur_offset_x,
+            "blur_dx": blur_dx,
+            "blur_dy": blur_dy,
+            "blur_dist": blur_dist,
             "prev": prev_data,
             "word_alphas": self.word_alphas,
             "highlight_word_idx": self.highlight_word_idx,

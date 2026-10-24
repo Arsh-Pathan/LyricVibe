@@ -42,7 +42,7 @@ from PyQt6.QtGui import (
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 
 import settings_manager
-from settings_manager import SMOOTH_SOFT_PALETTE, SMOOTH_SOFT_HEX_LIST
+from settings_manager import BRIGHT_HIGHLIGHT_PALETTE, BRIGHT_HIGHLIGHT_HEX_LIST
 from settings_window import SettingsDialog
 from spotify_client import SpotifyClient, PlaybackState
 from lyrics_fetcher import get_lyrics, LyricLine
@@ -87,7 +87,7 @@ class FloatingLyricsWidget(QWidget):
         self.current_line_index: int = -1
         self.current_line_text: str = ""
         self._last_color_idx: int = 0
-        self.current_song_color: QColor = QColor(SMOOTH_SOFT_HEX_LIST[0])
+        self.current_song_color: QColor = QColor(BRIGHT_HIGHLIGHT_HEX_LIST[0])
 
         # Thread-safe Signal Bridge
         self.signals = AppSignals()
@@ -175,8 +175,8 @@ class FloatingLyricsWidget(QWidget):
         return "Montserrat"
 
     def _pick_next_song_color(self, track_identifier: str):
-        """Picks a distinct, vibrant, aesthetic smooth soft color for each song."""
-        palette_len = len(SMOOTH_SOFT_HEX_LIST)
+        """Picks a distinct, ultra-bright neon color for each song."""
+        palette_len = len(BRIGHT_HIGHLIGHT_HEX_LIST)
         if not palette_len:
             return
         # Calculate pseudo-random seed from track identifier
@@ -186,17 +186,17 @@ class FloatingLyricsWidget(QWidget):
         if chosen_idx == getattr(self, "_last_color_idx", -1):
             chosen_idx = (chosen_idx + 1) % palette_len
         self._last_color_idx = chosen_idx
-        self.current_song_color = QColor(SMOOTH_SOFT_HEX_LIST[chosen_idx])
+        self.current_song_color = QColor(BRIGHT_HIGHLIGHT_HEX_LIST[chosen_idx])
 
     def _get_highlight_color(self) -> QColor:
         """
-        Returns the vibrant smooth soft highlight color for the active spoken word.
+        Returns the vibrant ultra-bright highlight color for the active spoken word.
         Rotates automatically per song or uses fixed user selection.
         """
         mode = self.settings.get("highlight_mode", "per_song")
         if mode == "per_song":
-            return getattr(self, "current_song_color", QColor(SMOOTH_SOFT_HEX_LIST[0]))
-        hex_color = self.settings.get("highlight_color", SMOOTH_SOFT_HEX_LIST[0])
+            return getattr(self, "current_song_color", QColor(BRIGHT_HIGHLIGHT_HEX_LIST[0]))
+        hex_color = self.settings.get("highlight_color", BRIGHT_HIGHLIGHT_HEX_LIST[0])
         return QColor(hex_color)
 
     def apply_settings(self, new_settings: dict):
@@ -266,6 +266,21 @@ class FloatingLyricsWidget(QWidget):
 
             w = p_metrics.horizontalAdvance(p_text)
             p_baseline_y = (p_metrics.ascent() - p_metrics.descent()) / 2.0
+
+            # Outgoing motion blur streak (upward lift)
+            if self.settings.get("motion_blur_enabled", True) and prev_data.get("blur_dy", 0.0) != 0.0:
+                p_blur_dy = prev_data["blur_dy"]
+                blur_int = float(self.settings.get("motion_blur_intensity", 1.4))
+                for step in range(1, 4):
+                    frac = step / 3.0
+                    out_blur_a = int(p_alpha * 0.32 * (1.0 - frac * 0.55))
+                    if out_blur_a > 2:
+                        painter.save()
+                        painter.translate(screen_cx, screen_cy - 32.0 + prev_data["offset_y"] - p_blur_dy * frac * blur_int)
+                        painter.setPen(QColor(255, 255, 255, out_blur_a))
+                        painter.drawText(QPointF(-w / 2.0, p_baseline_y), p_text)
+                        painter.restore()
+
             painter.drawText(QPointF(-w / 2.0, p_baseline_y), p_text)
             painter.restore()
 
@@ -274,6 +289,35 @@ class FloatingLyricsWidget(QWidget):
             in_alpha = int(data["curr_alpha"] * 255)
             in_font, in_metrics = self._fit_font(curr_text, avail_w, base_size, font_family)
             painter.setFont(in_font)
+
+            # ── Directional Motion Blur Shutter Passes ──
+            blur_enabled = self.settings.get("motion_blur_enabled", True)
+            blur_dx = data.get("blur_dx", 0.0)
+            blur_dy = data.get("blur_dy", 0.0)
+            blur_dist = data.get("blur_dist", 0.0)
+            blur_intensity = float(self.settings.get("motion_blur_intensity", 1.4))
+
+            if blur_enabled and blur_dist > 0.5:
+                total_in_w = in_metrics.horizontalAdvance(curr_text)
+                in_base_y = (in_metrics.ascent() - in_metrics.descent()) / 2.0
+                for step in range(1, 5):
+                    frac = step / 4.0
+                    trail_x = -blur_dx * frac * blur_intensity
+                    trail_y = -blur_dy * frac * blur_intensity
+                    step_a = int(in_alpha * data.get("blur_alpha", 0.35) * (1.0 - frac * 0.6))
+                    if step_a > 2:
+                        painter.save()
+                        painter.translate(
+                            screen_cx + data.get("curr_offset_x", 0.0) + trail_x,
+                            screen_cy + data["curr_offset_y"] + trail_y
+                        )
+                        if data.get("rotation", 0.0) != 0.0:
+                            painter.rotate(data["rotation"])
+                        if data["curr_scale"] != 1.0:
+                            painter.scale(data["curr_scale"], data["curr_scale"])
+                        painter.setPen(QColor(255, 255, 255, step_a))
+                        painter.drawText(QPointF(-total_in_w / 2.0, in_base_y), curr_text)
+                        painter.restore()
 
             painter.save()
             painter.translate(screen_cx + data.get("curr_offset_x", 0.0), screen_cy + data["curr_offset_y"])
@@ -366,29 +410,10 @@ class FloatingLyricsWidget(QWidget):
             w_end = idx
             words.append((text[w_start:w_end], w_start, w_end))
 
-        # Pass 2: Active word highlight with rounded glowing background block + vibrant text
+        # Pass 2: Active word highlight in ultra-bright vivid color
         if 0 <= hl_word_idx < len(words):
             word_str, w_start, w_end = words[hl_word_idx]
             word_x = start_x + metrics.horizontalAdvance(text[:w_start])
-            word_w = metrics.horizontalAdvance(word_str)
-
-            # Draw rounded glowing highlight block/pill behind the active word
-            if self.settings.get("highlight_block_enabled", True):
-                pill_pad_x = 6.0
-                pill_pad_y = 3.0
-                pill_rect = QRectF(
-                    word_x - pill_pad_x,
-                    baseline_y - metrics.ascent() - pill_pad_y,
-                    word_w + pill_pad_x * 2.0,
-                    metrics.ascent() + metrics.descent() + pill_pad_y * 2.0
-                )
-                pill_alpha = int(master_alpha * 0.30)
-                pill_brush = QColor(hl_color.red(), hl_color.green(), hl_color.blue(), pill_alpha)
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(pill_brush)
-                painter.drawRoundedRect(pill_rect, 7.0, 7.0)
-
-            # Draw the active word in vibrant high-contrast color!
             painter.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), master_alpha))
             painter.drawText(QPointF(word_x, baseline_y), word_str)
 
@@ -414,28 +439,6 @@ class FloatingLyricsWidget(QWidget):
                 for _ in word:
                     word_char_map.append(wi)
                     char_idx += 1
-
-            # Draw rounded glowing pill block behind active word in per-char mode as well
-            if 0 <= hl_word_idx < len(words) and self.settings.get("highlight_block_enabled", True):
-                w_start_idx = 0
-                for wi in range(hl_word_idx):
-                    w_start_idx += len(words[wi]) + 1
-                w_str = words[hl_word_idx]
-                word_x = start_x + metrics.horizontalAdvance(text[:w_start_idx])
-                word_w = metrics.horizontalAdvance(w_str)
-                pill_pad_x = 7.0
-                pill_pad_y = 4.0
-                pill_rect = QRectF(
-                    word_x - pill_pad_x,
-                    baseline_y - metrics.ascent() - pill_pad_y,
-                    word_w + pill_pad_x * 2.0,
-                    metrics.ascent() + metrics.descent() + pill_pad_y * 2.0
-                )
-                pill_alpha = int(master_alpha * 0.32)
-                pill_brush = QColor(hl_color.red(), hl_color.green(), hl_color.blue(), pill_alpha)
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(pill_brush)
-                painter.drawRoundedRect(pill_rect, 8.0, 8.0)
 
         for i, ch in enumerate(text):
             ch_w = metrics.horizontalAdvance(ch)

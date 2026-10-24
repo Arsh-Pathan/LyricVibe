@@ -34,7 +34,10 @@ from PyQt6.QtGui import (
 )
 
 import settings_manager
-from settings_manager import SMOOTH_SOFT_PALETTE, SMOOTH_SOFT_HEX_LIST
+from settings_manager import (
+    BRIGHT_HIGHLIGHT_PALETTE, BRIGHT_HIGHLIGHT_HEX_LIST,
+    SMOOTH_SOFT_PALETTE, SMOOTH_SOFT_HEX_LIST
+)
 from animation_engine import AnimationEngine, ANIMATION_CATALOG, PER_CHAR_ANIMS
 
 
@@ -309,8 +312,8 @@ class LivePreview(QWidget):
     def next_line(self):
         self._line_idx = (self._line_idx + 1) % len(self.PREVIEW_LINES)
         text = self.PREVIEW_LINES[self._line_idx]
-        # Simulate new song change by picking next distinct smooth soft color
-        self._color_idx = (self._color_idx + 1) % len(SMOOTH_SOFT_HEX_LIST)
+        # Simulate new song change by picking next distinct ultra-bright color
+        self._color_idx = (self._color_idx + 1) % len(BRIGHT_HIGHLIGHT_HEX_LIST)
         self.engine.trigger_line(text, 3.8, self._current_anim_choice)
 
     def update_settings(self, settings: dict):
@@ -376,24 +379,39 @@ class LivePreview(QWidget):
         p.setFont(font)
 
         hl_enabled = self.settings.get("highlight_enabled", True)
-        # Use smooth soft colorful highlight
+        # Use ultra-bright neon colorful highlight
         if self.settings.get("highlight_mode", "per_song") == "per_song":
-            hl_color = QColor(SMOOTH_SOFT_HEX_LIST[self._color_idx])
+            hl_color = QColor(BRIGHT_HIGHLIGHT_HEX_LIST[self._color_idx])
         else:
-            hl_color = QColor(self.settings.get("highlight_color", SMOOTH_SOFT_HEX_LIST[0]))
+            hl_color = QColor(self.settings.get("highlight_color", BRIGHT_HIGHLIGHT_HEX_LIST[0]))
         hl_idx = data.get("highlight_word_idx", -1)
 
         # ── 1. Outgoing Line Cross-Transition (Anti-Overlap: lifts cleanly away) ──
         if prev_data and prev_data["alpha"] > 0.02:
             p_text = prev_data["text"]
             p_alpha = int(prev_data["alpha"] * 255)
-            p.setPen(QColor(255, 255, 255, p_alpha))
             p_w = metrics.horizontalAdvance(p_text)
             p_baseline = (metrics.ascent() - metrics.descent()) / 2.0
+
+            # Outgoing motion blur streak
+            if self.settings.get("motion_blur_enabled", True) and prev_data.get("blur_dy", 0.0) != 0.0:
+                p_blur_dy = prev_data["blur_dy"]
+                blur_int = float(self.settings.get("motion_blur_intensity", 1.4))
+                for step in range(1, 4):
+                    frac = step / 3.0
+                    out_blur_a = int(p_alpha * 0.28 * (1.0 - frac * 0.55))
+                    if out_blur_a > 2:
+                        p.save()
+                        p.translate(cx, cy - 24.0 + prev_data["offset_y"] - p_blur_dy * frac * blur_int)
+                        p.setPen(QColor(255, 255, 255, out_blur_a))
+                        p.drawText(QPointF(-p_w / 2.0, p_baseline), p_text)
+                        p.restore()
+
             p.save()
             p.translate(cx, cy - 24.0 + prev_data["offset_y"])
             if prev_data["scale"] != 1.0:
                 p.scale(prev_data["scale"], prev_data["scale"])
+            p.setPen(QColor(255, 255, 255, p_alpha))
             p.drawText(QPointF(-p_w / 2.0, p_baseline), p_text)
             p.restore()
 
@@ -403,6 +421,33 @@ class LivePreview(QWidget):
             total_w = metrics.horizontalAdvance(curr_text)
             start_x = -total_w / 2.0
             baseline_y = (metrics.ascent() - metrics.descent()) / 2.0
+
+            # Incoming directional motion blur shutter passes
+            blur_enabled = self.settings.get("motion_blur_enabled", True)
+            blur_dx = data.get("blur_dx", 0.0)
+            blur_dy = data.get("blur_dy", 0.0)
+            blur_dist = data.get("blur_dist", 0.0)
+            blur_intensity = float(self.settings.get("motion_blur_intensity", 1.4))
+
+            if blur_enabled and blur_dist > 0.5:
+                for step in range(1, 5):
+                    frac = step / 4.0
+                    trail_x = -blur_dx * frac * blur_intensity
+                    trail_y = -blur_dy * frac * blur_intensity
+                    step_a = int(in_alpha * data.get("blur_alpha", 0.35) * (1.0 - frac * 0.6))
+                    if step_a > 2:
+                        p.save()
+                        p.translate(
+                            cx + data.get("curr_offset_x", 0.0) + trail_x,
+                            cy + data["curr_offset_y"] + trail_y
+                        )
+                        if data.get("rotation", 0.0) != 0.0:
+                            p.rotate(data["rotation"])
+                        if data["curr_scale"] != 1.0:
+                            p.scale(data["curr_scale"], data["curr_scale"])
+                        p.setPen(QColor(255, 255, 255, step_a))
+                        p.drawText(QPointF(start_x, baseline_y), curr_text)
+                        p.restore()
 
             p.save()
             p.translate(cx + data.get("curr_offset_x", 0.0), cy + data["curr_offset_y"])
@@ -416,7 +461,7 @@ class LivePreview(QWidget):
             p.setPen(QColor(255, 255, 255, in_alpha))
             p.drawText(QPointF(start_x, baseline_y), curr_text)
 
-            # Smooth soft highlight on currently spoken word + rounded glowing pill
+            # Ultra-bright highlight on currently spoken word (clean, razor-sharp, NO box)
             if hl_enabled and hl_idx >= 0:
                 words = []
                 idx = 0
@@ -433,24 +478,7 @@ class LivePreview(QWidget):
                 if 0 <= hl_idx < len(words):
                     w_str, w_start, _ = words[hl_idx]
                     w_x = start_x + metrics.horizontalAdvance(curr_text[:w_start])
-                    w_w = metrics.horizontalAdvance(w_str)
-
-                    # Draw rounded glowing highlight block/pill behind the active word
-                    if self.settings.get("highlight_block_enabled", True):
-                        pill_pad_x = 6.0
-                        pill_pad_y = 3.0
-                        pill_rect = QRectF(
-                            w_x - pill_pad_x,
-                            baseline_y - metrics.ascent() - pill_pad_y,
-                            w_w + pill_pad_x * 2.0,
-                            metrics.ascent() + metrics.descent() + pill_pad_y * 2.0
-                        )
-                        pill_alpha = int(in_alpha * 0.30)
-                        p.setPen(Qt.PenStyle.NoPen)
-                        p.setBrush(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), pill_alpha))
-                        p.drawRoundedRect(pill_rect, 6.0, 6.0)
-
-                    # Draw active word in vibrant smooth soft color
+                    # Draw active word in vibrant ultra-bright color
                     p.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), in_alpha))
                     p.drawText(QPointF(w_x, baseline_y), w_str)
 
@@ -503,13 +531,13 @@ class LivePreview(QWidget):
         p.end()
 
 
-# ─── Aesthetic Smooth Soft Color Swatch Button ─────────────────────────
+# ─── Aesthetic Ultra-Bright Color Swatch Button ─────────────────────────
 class ColorSwatch(QPushButton):
     color_changed = pyqtSignal(str)
 
-    PALETTE = SMOOTH_SOFT_HEX_LIST
+    PALETTE = BRIGHT_HIGHLIGHT_HEX_LIST
 
-    def __init__(self, current_hex: str = "#2EE59D", parent=None):
+    def __init__(self, current_hex: str = "#00FF66", parent=None):
         super().__init__(parent)
         self._color = current_hex
         self._idx = 0
@@ -523,12 +551,12 @@ class ColorSwatch(QPushButton):
         self._apply_style()
 
     def _apply_style(self):
-        color_name = "Smooth Soft Color"
-        for item in SMOOTH_SOFT_PALETTE:
+        color_name = "Bright Neon Color"
+        for item in BRIGHT_HIGHLIGHT_PALETTE:
             if item["hex"].upper() == self._color.upper():
                 color_name = item["name"]
                 break
-        self.setToolTip(f"{color_name} ({self._color})\nClick to cycle through colors")
+        self.setToolTip(f"{color_name} ({self._color})\nClick to cycle through bright colors")
         self.setStyleSheet(f"""
             QPushButton {{
                 background: {self._color};
@@ -945,12 +973,12 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(16)
 
-        fx_card = SectionCard("Visual Effects & Dynamic Colors")
+        fx_card = SectionCard("Visual Effects & Motion Blur Physics")
 
         # 1. Active Word Highlight Enabled
         row_hl = SettingRow(
             "Word Timing Highlight",
-            "Illuminates the active spoken word with high contrast and smooth vocal pacing"
+            "Illuminates the active spoken word with high-contrast bright color"
         )
         self.toggle_highlight = PillToggle(self.settings.get("highlight_enabled", True))
         self.toggle_highlight.toggled.connect(lambda v: self._update_and_sync("highlight_enabled", v))
@@ -958,29 +986,18 @@ class SettingsDialog(QDialog):
         fx_card.add_row(row_hl)
         fx_card.add_separator()
 
-        # 2. Glowing Rounded Block / Pill
-        row_hl_block = SettingRow(
-            "Highlight Glowing Pill Block",
-            "Soft translucent rounded pill behind active word for 100% visibility on any background"
-        )
-        self.toggle_hl_block = PillToggle(self.settings.get("highlight_block_enabled", True))
-        self.toggle_hl_block.toggled.connect(lambda v: self._update_and_sync("highlight_block_enabled", v))
-        row_hl_block.add_control(self.toggle_hl_block)
-        fx_card.add_row(row_hl_block)
-        fx_card.add_separator()
-
-        # 3. Highlight Color Mode & Swatch
+        # 2. Highlight Color Mode & Swatch (Ultra-bright vibrant palette)
         row_color = SettingRow(
-            "Aesthetic Color Palette",
-            "Auto rotates a different smooth soft color each song, or pin your favorite"
+            "Bright Highlight Palette",
+            "Rotates an ultra-bright neon color each song, or pin your favorite"
         )
         self.combo_hl_mode = QComboBox()
-        self.combo_hl_mode.addItem("🎨 Auto: Different Color Each Song", "per_song")
-        for item in SMOOTH_SOFT_PALETTE:
+        self.combo_hl_mode.addItem("🎨 Auto: Different Bright Color Each Song", "per_song")
+        for item in BRIGHT_HIGHLIGHT_PALETTE:
             self.combo_hl_mode.addItem(f"● {item['name']}", item["hex"])
 
         cur_mode = self.settings.get("highlight_mode", "per_song")
-        cur_color = self.settings.get("highlight_color", SMOOTH_SOFT_HEX_LIST[0])
+        cur_color = self.settings.get("highlight_color", BRIGHT_HIGHLIGHT_HEX_LIST[0])
         if cur_mode == "per_song":
             self.combo_hl_mode.setCurrentIndex(0)
         else:
@@ -1020,6 +1037,26 @@ class SettingsDialog(QDialog):
         row_color.add_control(self.combo_hl_mode)
         row_color.add_control(self.color_swatch)
         fx_card.add_row(row_color)
+        fx_card.add_separator()
+
+        # 3. Cinematic Motion Blur Toggle & Slider
+        row_blur = SettingRow(
+            "Cinematic Motion Blur",
+            "Hardware-accelerated sub-frame shutter streaks on fast entrances and exits"
+        )
+        self.toggle_motion_blur = PillToggle(self.settings.get("motion_blur_enabled", True))
+        self.toggle_motion_blur.toggled.connect(lambda v: self._update_and_sync("motion_blur_enabled", v))
+        row_blur.add_control(self.toggle_motion_blur)
+        fx_card.add_row(row_blur)
+        fx_card.add_separator()
+
+        cur_blur = float(self.settings.get("motion_blur_intensity", 1.4))
+        self.slider_blur = SliderRow(
+            "Motion Blur Streak Length", "Controls the intensity of camera shutter motion trails",
+            5, 25, int(cur_blur * 10), "×0.1"
+        )
+        self.slider_blur.value_changed.connect(self._on_slider_blur_changed)
+        fx_card.add_row(self.slider_blur)
         fx_card.add_separator()
 
         # Hand-Drawn Underline
@@ -1368,6 +1405,10 @@ class SettingsDialog(QDialog):
         offset = round(val / 10.0, 2)
         self._update_and_sync("sync_offset_sec", offset)
 
+    def _on_slider_blur_changed(self, val: int):
+        strength = round(val / 10.0, 1)
+        self._update_and_sync("motion_blur_intensity", strength)
+
     def _on_fps_changed(self, idx):
         fps_values = [60, 120, 144, 165, 240]
         chosen = fps_values[self.combo_fps.currentIndex()]
@@ -1396,8 +1437,10 @@ class SettingsDialog(QDialog):
                 self.toggle_underline.setChecked(preset["hand_drawn_underline_enabled"])
             if "highlight_enabled" in preset:
                 self.toggle_highlight.setChecked(preset["highlight_enabled"])
-            if "highlight_block_enabled" in preset and hasattr(self, "toggle_hl_block"):
-                self.toggle_hl_block.setChecked(preset["highlight_block_enabled"])
+            if "motion_blur_enabled" in preset and hasattr(self, "toggle_motion_blur"):
+                self.toggle_motion_blur.setChecked(preset["motion_blur_enabled"])
+            if "motion_blur_intensity" in preset and hasattr(self, "slider_blur"):
+                self.slider_blur.setValue(int(float(preset["motion_blur_intensity"]) * 10))
             if "highlight_color" in preset:
                 self.color_swatch.setColor(preset["highlight_color"])
             if "highlight_mode" in preset and hasattr(self, "combo_hl_mode"):
@@ -1428,12 +1471,16 @@ class SettingsDialog(QDialog):
             "auto_hide_idle": True,
             "hand_drawn_underline_enabled": True,
             "highlight_enabled": True,
-            "highlight_block_enabled": True,
-            "highlight_color": "#2EE59D",
+            "highlight_block_enabled": False,
+            "highlight_color": "#00FF66",
             "highlight_mode": "per_song",
+            "motion_blur_enabled": True,
+            "motion_blur_intensity": 1.4,
         }
         self._apply_preset(defaults)
         self.slider_sync.setValue(2)
+        if hasattr(self, "slider_blur"):
+            self.slider_blur.setValue(14)
         self.toggle_hide.setChecked(True)
 
     def _on_done_clicked(self):
