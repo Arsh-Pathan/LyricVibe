@@ -598,7 +598,7 @@ class SettingsDialog(QDialog):
     def __init__(self, current_settings: dict, parent=None):
         super().__init__(parent)
         self.settings = current_settings.copy()
-        self.setWindowTitle("Lyric Flow — Settings")
+        self.setWindowTitle("LyricVibe — Settings")
         self.setFixedSize(580, 790)
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.WindowStaysOnTopHint)
 
@@ -727,7 +727,7 @@ class SettingsDialog(QDialog):
 
         title_col = QVBoxLayout()
         title_col.setSpacing(0)
-        title = QLabel("Lyric Flow")
+        title = QLabel("LyricVibe")
         title.setStyleSheet(f"color: {MD3.ON_SURFACE}; font-size: 18px; font-weight: 600; background: transparent;")
         title_col.addWidget(title)
         subtitle = QLabel("165Hz Desktop Lyrics Customizer")
@@ -884,7 +884,7 @@ class SettingsDialog(QDialog):
         btn_test.clicked.connect(lambda: self.preview_widget.trigger_animation(self.combo_test_anim.currentData()))
         p_c_lay.addWidget(btn_test)
 
-        btn_next = QPushButton("Next Line ⏭")
+        btn_next = QPushButton("Next Line →")
         btn_next.setStyleSheet(f"""
             QPushButton {{
                 background: {MD3.SURFACE_CONTAINER_HIGH};
@@ -996,7 +996,7 @@ class SettingsDialog(QDialog):
             "Rotates an ultra-bright neon color each song, or pin your favorite"
         )
         self.combo_hl_mode = QComboBox()
-        self.combo_hl_mode.addItem("🎨 Auto: Different Bright Color Each Song", "per_song")
+        self.combo_hl_mode.addItem("Auto: Different Bright Color Each Song", "per_song")
         for item in BRIGHT_HIGHLIGHT_PALETTE:
             self.combo_hl_mode.addItem(f"● {item['name']}", item["hex"])
 
@@ -1089,15 +1089,15 @@ class SettingsDialog(QDialog):
         # 55+ Animations Showcase Card
         anim_card = SectionCard("55+ Dynamic Animations & Smooth Physics")
         anim_info = QLabel(
-            "🎬  <b>Smooth Fade & Continuous 165Hz Physics:</b><br>"
+            "<b>Smooth Fade & Continuous 165Hz Physics:</b><br>"
             "Whisper dissolve, silky crossfades, luminous drift, cinematic rise, "
             "kinetic snaps, and gentle elastic springs interpolating continuously at sub-millisecond precision.<br><br>"
-            "🎨  <b>Aesthetic Smooth Soft Colors (Per-Song Rotation):</b><br>"
+            "<b>Aesthetic Smooth Soft Colors (Per-Song Rotation):</b><br>"
             "Every song is automatically assigned a distinct, vibrant, smooth soft color (Mint Emerald, "
             "Electric Cyan, Lavender Lilac, Coral Rose, Golden Canary, Sky Azure, Bubblegum Pink, etc.) "
-            "paired with a soft glowing background pill block for ultra-crisp visibility.<br><br>"
-            "🛡️  <b>Anti-Overlap Architecture:</b><br>"
-            "Outgoing lyrics lift cleanly away (-32px), guaranteeing zero clashing or text collision with incoming lines."
+            "with ultra-crisp word highlights.<br><br>"
+            "<b>Anti-Overlap Architecture:</b><br>"
+            "Outgoing lyrics lift cleanly away, guaranteeing zero clashing or text collision with incoming lines."
         )
         anim_info.setWordWrap(True)
         anim_info.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 13px; line-height: 1.6; padding: 16px 20px; background: transparent; border: none;")
@@ -1159,7 +1159,7 @@ class SettingsDialog(QDialog):
 
         tip_card = SectionCard("Live Adjustments")
         tip_lbl = QLabel(
-            "⚡  While listening to music, you can fine-tune timing on the fly:\n\n"
+            "While listening to music, you can fine-tune timing on the fly:\n\n"
             "• Press [  to shift lyrics 0.5s earlier\n"
             "• Press ]  to shift lyrics 0.5s later\n"
             "• Press Ctrl+Alt+L to lock overlay so clicks pass straight through"
@@ -1284,7 +1284,7 @@ class SettingsDialog(QDialog):
 
         info_col = QVBoxLayout()
         info_col.setSpacing(4)
-        app_name = QLabel("Lyric Flow")
+        app_name = QLabel("LyricVibe")
         app_name.setStyleSheet(f"color: {MD3.ON_SURFACE}; font-size: 22px; font-weight: 600; background: transparent; border: none;")
         info_col.addWidget(app_name)
 

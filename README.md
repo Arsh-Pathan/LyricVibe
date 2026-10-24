@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="icon.svg" width="110" height="110" alt="Lyric Flow Icon" />
+  <img src="icon.svg" width="110" height="110" alt="LyricVibe Icon" />
 </p>
 
-<h1 align="center">Lyric Flow</h1>
+<h1 align="center">LyricVibe</h1>
 <p align="center">
   <b>Cinematic 165Hz Floating Lyrics Overlay for Spotify</b><br>
   <i>Real-time synchronized lyrics floating borderless on your screen — no Spotify Premium required.</i>
@@ -12,20 +12,50 @@
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D6?logo=windows&logoColor=white" alt="Windows" />
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/Framerate-165Hz%20Fluid-00C853" alt="165Hz" />
+  <img src="https://img.shields.io/badge/Release-v1.0.0-blue" alt="Release" />
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License" />
 </p>
 
 ---
 
-## ✨ Features
+## Demo Video
+
+<p align="center">
+  <video src="https://github.com/Arsh-Pathan/LyricVibe/releases/download/v1.0.0/Spoty.mp4" controls="controls" width="100%" poster="assets/demo-preview.png">
+    <source src="https://github.com/Arsh-Pathan/LyricVibe/releases/download/v1.0.0/Spoty.mp4" type="video/mp4">
+    <a href="https://github.com/Arsh-Pathan/LyricVibe/releases/download/v1.0.0/Spoty.mp4"><img src="assets/demo.gif" alt="LyricVibe Video Demo" width="100%" /></a>
+  </video>
+</p>
+
+<p align="center">
+  <sub>Full 1080p Demo: <a href="https://github.com/Arsh-Pathan/LyricVibe/releases/download/v1.0.0/Spoty.mp4">Spoty.mp4</a> | Animated Preview: <a href="assets/demo.gif">assets/demo.gif</a></sub>
+</p>
+
+---
+
+## Screenshots
+
+<p align="center">
+  <b>Synchronized Floating Overlay</b><br>
+  <img src="assets/overlay-preview.png" width="100%" alt="LyricVibe Floating Lyrics Overlay" />
+</p>
+
+<p align="center">
+  <b>Modern Customizer Panel</b><br>
+  <img src="assets/settings-preview.png" width="520" alt="LyricVibe Settings Window" />
+</p>
+
+---
+
+## Features
 
 | Feature | Description |
 |:---|:---|
-| **Pure Floating Text** | Frameless, transparent overlay — no window borders, no background. Just clean white text on your screen. |
-| **No Premium Required** | Reads playback data from Windows SMTC (System Media Transport Controls) — works with Spotify Free & Premium. |
+| **Pure Floating Text** | Frameless, transparent overlay — no window borders, no background. Clean text floating seamlessly on your screen. |
+| **No Premium Required** | Reads playback data from Windows SMTC (System Media Transport Controls) — works with Spotify Free and Premium. |
 | **No API Keys / Login** | Zero configuration. No Spotify developer credentials needed. |
 | **165Hz Smooth Rendering** | Hardware-accelerated PyQt6 rendering at your monitor's native refresh rate (60–240Hz). |
-| **18 Cinematic Animations** | Scale fade, word reveal, kinetic snap, chromatic split, motion blur, glow bloom, star glints, hand-drawn underlines, and more — with weighted rarity. |
+| **55+ Cinematic Animations** | Scale fade, word reveal, kinetic snap, chromatic split, motion blur, glow bloom, star glints, hand-drawn underlines, and more — with weighted rarity. |
 | **Hindi → Hinglish** | Automatically converts Devanagari & Urdu lyrics into natural Roman Hinglish (like Spotify). |
 | **Smart Track Matching** | Strips Spotify movie tags (`From "Dabangg"`, `Remastered`, etc.) for accurate LRCLIB lookups. |
 | **7clouds Typography** | Montserrat & Poppins fonts — the same style used by popular lyric channels. |
@@ -35,11 +65,12 @@
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Option 1: Standalone EXE (Recommended)
+Download the latest executable from [Releases](https://github.com/Arsh-Pathan/LyricVibe/releases):
 ```
-dist\SpotifyLyrics.exe
+dist\LyricVibe.exe
 ```
 Double-click to run. No Python installation needed.
 
@@ -60,7 +91,7 @@ Run `enable_autostart.bat` once — the overlay will launch silently with Window
 
 ---
 
-## ⌨️ Controls & Hotkeys
+## Controls & Hotkeys
 
 | Action | Shortcut |
 |:---|:---|
@@ -72,9 +103,9 @@ Run `enable_autostart.bat` once — the overlay will launch silently with Window
 
 ---
 
-## 🎬 Animation System
+## Animation System
 
-The overlay ships with **18 animation types** selected by weighted rarity:
+The overlay ships with a library of dynamic animation types selected by weighted rarity:
 
 | Frequency | Animations |
 |:---|:---|
@@ -87,24 +118,30 @@ Animations adapt to lyric pacing — fast bursts trigger kinetic snaps, slow voc
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
-lyric-flow/
+lyric-vibe/
 ├── main.py                  # PyQt6 overlay window & IPC entry point
 ├── spotify_client.py        # SMTC-based playback reader (PowerShell subprocess)
 ├── spotify_listener.ps1     # WinRT PowerShell script for SMTC data
 ├── lyrics_fetcher.py        # LRCLIB lyrics fetcher with smart title cleaning
 ├── hinglish_converter.py    # Devanagari & Urdu → Roman transliteration engine
-├── animation_engine.py      # 18 weighted animation types & easing curves
+├── animation_engine.py      # Weighted animation types & easing curves
 ├── settings_window.py       # Dark-themed PyQt6 settings dialog
 ├── settings_manager.py      # JSON-based persistent settings
 ├── config.py                # Static configuration defaults
+├── assets/
+│   ├── Spoty.mp4            # Demo video recording
+│   ├── demo.gif             # Animated preview
+│   ├── demo-preview.png     # Video poster frame
+│   ├── overlay-preview.png  # Floating lyrics screenshot
+│   └── settings-preview.png # Settings customizer screenshot
 ├── fonts/
 │   ├── Montserrat.ttf       # 7clouds-style primary font
 │   └── Poppins-Bold.ttf     # Bold accent font
 ├── build_exe.bat            # PyInstaller build script
-├── run.bat                  # Quick dev launcher
+├── run.bat                  # Quick launcher
 ├── enable_autostart.bat     # Add to Windows Startup
 ├── disable_autostart.bat    # Remove from Windows Startup
 ├── Start Spotify + Lyrics.bat
@@ -114,7 +151,7 @@ lyric-flow/
 
 ---
 
-## 🔧 Building the EXE
+## Building the EXE
 
 ```bash
 # Install dependencies
@@ -122,12 +159,12 @@ pip install -r requirements.txt
 
 # Build standalone executable
 build_exe.bat
-# → Output: dist/SpotifyLyrics.exe
+# Output: dist/LyricVibe.exe
 ```
 
 ---
 
-## 🛠️ How It Works
+## How It Works
 
 1. **Playback Detection** — A background PowerShell script reads Windows SMTC via WinRT APIs, streaming JSON lines with track info, position, and timestamps every 250ms.
 
@@ -139,7 +176,7 @@ build_exe.bat
 
 ---
 
-## 📋 Requirements
+## Requirements
 
 - **OS:** Windows 10 / 11
 - **Python:** 3.10+ (only if running from source)
@@ -147,6 +184,6 @@ build_exe.bat
 
 ---
 
-## 📄 License
+## License
 
 MIT License — see [LICENSE](LICENSE) for details.

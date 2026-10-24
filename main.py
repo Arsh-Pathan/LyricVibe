@@ -1,5 +1,5 @@
 """
-Lyric Flow — 165Hz Floating Lyrics Overlay for Spotify.
+LyricVibe — 165Hz Floating Lyrics Overlay for Spotify.
 - 55+ dynamic, varied cinematic text entrance animations with weighted rarity.
 - Anti-overlap architecture: exiting lines lift cleanly away (-35px),
   guaranteeing zero text collision with incoming lines.

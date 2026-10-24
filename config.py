@@ -1,11 +1,11 @@
 """
 Spotify Floating Lyrics Overlay Configuration — White Animated Edition
 
-✨ Pure White Text (#FFFFFF)
-✨ Smooth Fade In & Fade Out Transitions
-✨ Dynamic Rhythmic Audio Wave Vibration & Micro-Bounce
-✨ Clean Hindi / Bollywood Title Detection & Hinglish Transliteration
-✨ Top-of-screen zero window floating overlay
+- Pure White Text (#FFFFFF)
+- Smooth Fade In & Fade Out Transitions
+- Dynamic Rhythmic Audio Wave Vibration & Micro-Bounce
+- Clean Hindi / Bollywood Title Detection & Hinglish Transliteration
+- Top-of-screen zero window floating overlay
 """
 
 # Color Theme: Clean Pure White
