@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="icon.svg" width="110" height="110" alt="LyricVibe Icon" />
+  <img src="icon.svg" width="100" height="100" alt="LyricVibe Logo" />
 </p>
 
 <h1 align="center">LyricVibe</h1>
+
 <p align="center">
   <b>Cinematic 165Hz Floating Lyrics Overlay for Spotify</b><br>
   <i>Real-time synchronized lyrics floating borderless on your screen — no Spotify Premium required.</i>
@@ -28,7 +29,7 @@
 
 <p align="center">
   <a href="https://youtu.be/0j6qynWk0WA" target="_blank" rel="noopener noreferrer">
-    <b>Watch the Full 1080p 60FPS Video Demonstration on YouTube &rarr;</b>
+    <b>Watch the Full 1080p 60FPS Demonstration on YouTube &rarr;</b>
   </a>
 </p>
 
@@ -54,138 +55,63 @@
 
 ## Features
 
-| Feature | Description |
-|:---|:---|
-| **Pure Floating Text** | Frameless, transparent overlay — no window borders, no background. Clean text floating seamlessly on your screen. |
-| **No Premium Required** | Reads playback data from Windows SMTC (System Media Transport Controls) — works with Spotify Free and Premium. |
-| **No API Keys / Login** | Zero configuration. No Spotify developer credentials needed. |
-| **165Hz Smooth Rendering** | Hardware-accelerated PyQt6 rendering at your monitor's native refresh rate (60–240Hz). |
-| **55+ Cinematic Animations** | Scale fade, word reveal, kinetic snap, chromatic split, motion blur, glow bloom, star glints, hand-drawn underlines, and more — with weighted rarity. |
-| **Hindi → Hinglish** | Automatically converts Devanagari & Urdu lyrics into natural Roman Hinglish (like Spotify). |
-| **Smart Track Matching** | Strips Spotify movie tags (`From "Dabangg"`, `Remastered`, etc.) for accurate LRCLIB lookups. |
-| **7clouds Typography** | Montserrat & Poppins fonts — the same style used by popular lyric channels. |
-| **Settings Window** | Run the app a second time (or press `Ctrl+S`) to open a dark-themed customization panel. |
-| **Auto Wake/Hide** | Appears when Spotify plays, vanishes when paused or closed. |
-| **Global Hotkeys** | Lock overlay, toggle visibility, adjust sync, and quit — all via keyboard shortcuts. |
+- **Pure Floating Overlay**: Zero window borders, zero background — only clean typography floating seamlessly over games, browsers, and desktop apps.
+- **No Spotify Premium Required**: Intercepts Windows SMTC telemetry directly; works out of the box with Spotify Free and Premium.
+- **Zero Configuration**: No API keys, developer tokens, or Spotify login credentials required.
+- **165Hz Smooth Rendering**: Hardware-accelerated PyQt6 rendering at your monitor's native refresh rate (60–240Hz).
+- **55+ Dynamic Animations**: Scale fades, kinetic snaps, word-by-word reveals, soft glows, star glints, and directional motion blur.
+- **Vibrant Highlight Palette**: 16 ultra-bright neon colors that rotate automatically per song, or can be pinned in settings.
+- **Hindi to Hinglish Transliteration**: Automatically converts Devanagari and Urdu lyrics into natural Roman Hinglish.
+- **Smart LRCLIB Matching**: Automatically strips movie tags, featured artists, and remaster suffixes for accurate lyrics retrieval.
+- **Settings Customizer**: Double-click or press `Ctrl + S` to customize fonts, colors, physics, and timing offsets.
 
 ---
 
 ## Quick Start
 
-### Option 1: Standalone EXE (Recommended)
-Download the latest executable from [Releases](https://github.com/Arsh-Pathan/LyricVibe/releases):
+### Standalone Executable (Recommended)
+Download the latest pre-built binary from [Releases](https://github.com/Arsh-Pathan/LyricVibe/releases):
 ```
 dist\LyricVibe.exe
 ```
-Double-click to run. No Python installation needed.
+Double-click to run. No Python installation required.
 
-### Option 2: Python Script
+### One-Click Spotify + Overlay Launcher
+Run `Start LyricVibe.bat` in the root folder to open Spotify and the overlay together in one click.
+
+### Run from Source
 ```bash
+git clone https://github.com/Arsh-Pathan/LyricVibe.git
+cd LyricVibe
 pip install -r requirements.txt
 python main.py
 ```
 
-### Option 3: Start Spotify + Lyrics Together
-```
-Start Spotify + Lyrics.bat
-```
-Opens both Spotify and the overlay in one click.
-
-### Option 4: Auto-Start with Windows
-Run `enable_autostart.bat` once — the overlay will launch silently with Windows and appear only when Spotify plays.
-
 ---
 
-## Controls & Hotkeys
+## Essential Controls
 
-| Action | Shortcut |
+| Shortcut | Action |
 |:---|:---|
-| **Drag Lyrics** | Click and drag the text |
-| **Lock / Click-Through** | `Ctrl + Alt + L` |
-| **Hide / Show** | `Ctrl + Alt + H` |
-| **Open Settings** | `Ctrl + S` or double-click text |
-| **Quit** | `Ctrl + Alt + Q` |
+| **Click & Drag** | Move lyrics anywhere on screen |
+| **`Ctrl + S`** | Open Settings Customizer (or double-click text) |
+| **`Ctrl + Alt + L`** | Lock / Click-through mode (clicks pass through text) |
+| **`Ctrl + Alt + H`** | Hide / Show overlay |
+| **`[` / `]`** | Shift lyrics 0.5s earlier / later |
+| **`Ctrl + Alt + Q`** | Quit overlay cleanly |
 
 ---
 
-## Animation System
+## Documentation
 
-The overlay ships with a library of dynamic animation types selected by weighted rarity:
+Comprehensive guides and architectural specifications are available in the [`docs/`](docs/) directory:
 
-| Frequency | Animations |
-|:---|:---|
-| **Common** | Scale Fade, Slide Up, Word Reveal, Kinetic Snap, Drift Dissolve |
-| **Uncommon** | Glow Bloom, Hand-Drawn Underline, Smooth Crossfade |
-| **Rare** | Chromatic Split, Shimmer Sweep, Wave Ripple, Star Glint, Elastic Slingshot |
-| **Very Rare** | Horizontal Blur Streak, Drop Settle, Spotlight Halo, Letter Tracking, Strobe Pulse |
-
-Animations adapt to lyric pacing — fast bursts trigger kinetic snaps, slow vocal lines get word-by-word reveals.
-
----
-
-## Architecture
-
-```
-lyric-vibe/
-├── main.py                  # PyQt6 overlay window & IPC entry point
-├── spotify_client.py        # SMTC-based playback reader (PowerShell subprocess)
-├── spotify_listener.ps1     # WinRT PowerShell script for SMTC data
-├── lyrics_fetcher.py        # LRCLIB lyrics fetcher with smart title cleaning
-├── hinglish_converter.py    # Devanagari & Urdu → Roman transliteration engine
-├── animation_engine.py      # Weighted animation types & easing curves
-├── settings_window.py       # Dark-themed PyQt6 settings dialog
-├── settings_manager.py      # JSON-based persistent settings
-├── config.py                # Static configuration defaults
-├── assets/
-│   ├── youtube-preview.png  # YouTube video demo banner
-│   ├── demo.gif             # Animated preview
-│   ├── demo-preview.png     # Video poster frame
-│   ├── overlay-preview.png  # Floating lyrics screenshot
-│   └── settings-preview.png # Settings customizer screenshot
-├── fonts/
-│   ├── Montserrat.ttf       # 7clouds-style primary font
-│   └── Poppins-Bold.ttf     # Bold accent font
-├── build_exe.bat            # PyInstaller build script
-├── run.bat                  # Quick launcher
-├── enable_autostart.bat     # Add to Windows Startup
-├── disable_autostart.bat    # Remove from Windows Startup
-├── Start Spotify + Lyrics.bat
-├── requirements.txt
-└── README.md
-```
-
----
-
-## Building the EXE
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Build standalone executable
-build_exe.bat
-# Output: dist/LyricVibe.exe
-```
-
----
-
-## How It Works
-
-1. **Playback Detection** — A background PowerShell script reads Windows SMTC via WinRT APIs, streaming JSON lines with track info, position, and timestamps every 250ms.
-
-2. **Lyrics Fetching** — Track names are cleaned (stripping movie tags, featured artists, remaster notes) and queried against [LRCLIB](https://lrclib.net) — a free, open lyrics database with no API key required.
-
-3. **Hinglish Transliteration** — Hindi (Devanagari) and Urdu (Perso-Arabic) lyrics are converted to natural Roman Hinglish with comprehensive nukta handling, schwa deletion, and a safety-net sanitizer that guarantees zero non-Latin characters leak through.
-
-4. **Rendering** — PyQt6 paints the overlay at your monitor's native refresh rate using cubic ease-out and elastic bounce easing curves, with per-frame motion blur, glow bloom, and procedural effects.
-
----
-
-## Requirements
-
-- **OS:** Windows 10 / 11
-- **Python:** 3.10+ (only if running from source)
-- **Spotify Desktop App** (Free or Premium)
+- [**Architecture & Pipeline**](docs/ARCHITECTURE.md) — WinRT SMTC telemetry, LRCLIB API, Hinglish parser, and 165Hz rendering engine.
+- [**Setup & Installation Guide**](docs/SETUP.md) — Detailed installation methods, virtual environments, startup automation, and troubleshooting.
+- [**Animation System & Physics**](docs/ANIMATIONS.md) — Breakdown of all 55+ animations, cubic easing curves, motion blur, and neon palettes.
+- [**Controls & Customization**](docs/CONTROLS.md) — Full hotkey index, mouse gestures, timing calibration, and settings guide.
+- [**Building the Executable**](docs/BUILDING.md) — Packaging into a standalone `.exe` using PyInstaller.
+- [**Release Notes**](docs/RELEASE_NOTES.md) — Changelog and highlights for v1.0.0.
 
 ---
 
