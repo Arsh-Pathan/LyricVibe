@@ -1,9 +1,11 @@
 """
 Settings Window for Spotify Floating Lyrics Overlay.
 - Real-time live settings synchronization (zero crashes, instant updates).
-- Dedicated interactive live preview testing 35+ animations and typography.
-- Per-character animation preview (letter_drop, burst, scatter, erase).
-- Color word highlighting with accent color picker.
+- Dedicated interactive live preview testing 38+ animations and typography.
+- Rich suite of silky-smooth fade-in and fade-out animations.
+- Aesthetic soft cream color highlight: consistent for each song,
+  randomly selects a new soft cream tone for the next song.
+- 100% glitch-free rendering with preserved font kerning and anchored baselines.
 - 7clouds font switcher (Edo SZ signature brush DEFAULT & Montserrat Black).
 - Focal hand-drawn underline (highlights only 1-2 key words).
 - Zero continuous float (firmly anchored lyrics).
@@ -33,6 +35,22 @@ from PyQt6.QtGui import (
 
 import settings_manager
 from animation_engine import AnimationEngine, ANIMATION_CATALOG, PER_CHAR_ANIMS
+
+# Curated aesthetic soft cream / warm pastel color palette
+CREAM_SOFT_PALETTE = [
+    "#FFF4E0",  # Soft Buttercream
+    "#FFEEDB",  # Warm Cream
+    "#FDF0ED",  # Rose Linen
+    "#FDF8E2",  # Pale Honey Cream
+    "#F7EBE8",  # Almond Milk
+    "#FFF8EE",  # Soft Vanilla
+    "#F5EBE0",  # Warm Cashmere
+    "#FFE5D9",  # Peach Whipped Cream
+    "#FAF0E6",  # Antique Linen
+    "#F3E9DC",  # Soft Biscuit Latte
+    "#FFF1C5",  # Warm Primrose Cream
+    "#F0E6D2",  # Warm Oat Parchment
+]
 
 
 # ─── Material Design 3 Dark Theme Palette ─────────────────────────────
@@ -266,7 +284,7 @@ class SectionCard(QFrame):
 class LivePreview(QWidget):
     """
     Renders sharp floating lyrics with actual 7clouds font,
-    35+ animations, per-char physics, color highlight, and focal underlines.
+    38+ animations, soft cream highlight, and focal underlines.
     """
 
     PREVIEW_LINES = [
@@ -285,8 +303,9 @@ class LivePreview(QWidget):
         self.engine = AnimationEngine()
         self._line_idx = 0
         self._current_anim_choice = ""
+        self._cream_color_idx = 0
 
-        self.engine.trigger_line(self.PREVIEW_LINES[0], 3.8, "gravity_drop")
+        self.engine.trigger_line(self.PREVIEW_LINES[0], 3.8, "cinematic_crossfade")
 
         self._render_timer = QTimer(self)
         self._render_timer.timeout.connect(self.update)
@@ -305,6 +324,8 @@ class LivePreview(QWidget):
     def next_line(self):
         self._line_idx = (self._line_idx + 1) % len(self.PREVIEW_LINES)
         text = self.PREVIEW_LINES[self._line_idx]
+        # Simulate new song change soft cream color pick
+        self._cream_color_idx = (self._cream_color_idx + 1) % len(CREAM_SOFT_PALETTE)
         self.engine.trigger_line(text, 3.8, self._current_anim_choice)
 
     def update_settings(self, settings: dict):
@@ -370,7 +391,8 @@ class LivePreview(QWidget):
         p.setFont(font)
 
         hl_enabled = self.settings.get("highlight_enabled", True)
-        hl_color = QColor(self.settings.get("highlight_color", "#1DB954"))
+        # Use aesthetic soft cream
+        hl_color = QColor(CREAM_SOFT_PALETTE[self._cream_color_idx])
         hl_idx = data.get("highlight_word_idx", -1)
 
         # ── 1. Outgoing Line Cross-Transition ──
@@ -379,12 +401,20 @@ class LivePreview(QWidget):
             p_alpha = int(prev_data["alpha"] * 255)
             p.setPen(QColor(255, 255, 255, p_alpha))
             p_w = metrics.horizontalAdvance(p_text)
-            p.drawText(QRectF(cx - p_w / 2.0, cy + prev_data["offset_y"] - 25, p_w, 50), Qt.AlignmentFlag.AlignCenter, p_text)
+            p_baseline = (metrics.ascent() - metrics.descent()) / 2.0
+            p.save()
+            p.translate(cx, cy + prev_data["offset_y"])
+            if prev_data["scale"] != 1.0:
+                p.scale(prev_data["scale"], prev_data["scale"])
+            p.drawText(QPointF(-p_w / 2.0, p_baseline), p_text)
+            p.restore()
 
         # ── 2. Incoming Line ──
         if curr_text and data["curr_alpha"] > 0.02:
             in_alpha = int(data["curr_alpha"] * 255)
             total_w = metrics.horizontalAdvance(curr_text)
+            start_x = -total_w / 2.0
+            baseline_y = (metrics.ascent() - metrics.descent()) / 2.0
 
             p.save()
             p.translate(cx + data.get("curr_offset_x", 0.0), cy + data["curr_offset_y"])
@@ -394,37 +424,30 @@ class LivePreview(QWidget):
             if data["curr_scale"] != 1.0:
                 p.scale(data["curr_scale"], data["curr_scale"])
 
-            # ── Per-Character Rendering ──
-            if anim_type in PER_CHAR_ANIMS and data.get("char_alphas"):
-                self._draw_per_char_preview(
-                    p, metrics, curr_text,
-                    data.get("char_offsets_x", []),
-                    data.get("char_offsets_y", []),
-                    data["char_alphas"],
-                    data.get("char_scales", []),
-                    in_alpha, hl_enabled, hl_color, hl_idx
-                )
-            # ── Word reveal with highlight ──
-            elif (anim_type == "word_reveal" or self.settings.get("word_reveal_enabled", True)) and data.get("word_alphas"):
-                words = curr_text.split()
-                space_w = metrics.horizontalAdvance(" ")
-                w_widths = [metrics.horizontalAdvance(wd) for wd in words]
-                t_w = sum(w_widths) + (len(words) - 1) * space_w
-                curr_x = -t_w / 2.0
-                text_y = metrics.ascent() - metrics.height() / 2.0
+            # Render complete line in pure white (100% kerning accuracy)
+            p.setPen(QColor(255, 255, 255, in_alpha))
+            p.drawText(QPointF(start_x, baseline_y), curr_text)
 
-                for idx, word in enumerate(words):
-                    raw_w = data["word_alphas"][idx] if idx < len(data["word_alphas"]) else 1.0
-                    f_a = max(0, min(255, int(in_alpha * raw_w)))
-                    if hl_enabled and idx == hl_idx:
-                        p.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), f_a))
-                    else:
-                        p.setPen(QColor(255, 255, 255, f_a))
-                    p.drawText(QPointF(curr_x, text_y), word)
-                    curr_x += w_widths[idx] + space_w
-            else:
-                p.setPen(QColor(255, 255, 255, in_alpha))
-                p.drawText(QRectF(-total_w / 2.0, -25, total_w, 50), Qt.AlignmentFlag.AlignCenter, curr_text)
+            # Soft cream highlight on currently spoken word
+            if hl_enabled and hl_idx >= 0:
+                words = []
+                idx = 0
+                while idx < len(curr_text):
+                    if curr_text[idx].isspace():
+                        idx += 1
+                        continue
+                    w_start = idx
+                    while idx < len(curr_text) and not curr_text[idx].isspace():
+                        idx += 1
+                    w_end = idx
+                    words.append((curr_text[w_start:w_end], w_start, w_end))
+
+                if 0 <= hl_idx < len(words):
+                    w_str, w_start, _ = words[hl_idx]
+                    w_x = start_x + metrics.horizontalAdvance(curr_text[:w_start])
+                    cream_a = int(in_alpha * 0.95)
+                    p.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), cream_a))
+                    p.drawText(QPointF(w_x, baseline_y), w_str)
 
             # Focal underline
             if (self.settings.get("hand_drawn_underline_enabled", True) and
@@ -433,26 +456,36 @@ class LivePreview(QWidget):
                     data.get("focal_word_idx", -1) >= 0):
 
                 focal_idx = data["focal_word_idx"]
-                words = curr_text.split()
-                if focal_idx < len(words):
-                    space_w = metrics.horizontalAdvance(" ")
-                    w_widths = [metrics.horizontalAdvance(wd) for wd in words]
-                    t_w = sum(w_widths) + (len(words) - 1) * space_w
-                    w_start_x = -t_w / 2.0 + sum(w_widths[:focal_idx]) + focal_idx * space_w
-                    target_w = w_widths[focal_idx]
+                words = []
+                idx = 0
+                while idx < len(curr_text):
+                    if curr_text[idx].isspace():
+                        idx += 1
+                        continue
+                    w_start = idx
+                    while idx < len(curr_text) and not curr_text[idx].isspace():
+                        idx += 1
+                    w_end = idx
+                    words.append((curr_text[w_start:w_end], w_start, w_end))
+
+                if 0 <= focal_idx < len(words):
+                    w_str, w_start, _ = words[focal_idx]
+                    w_start_x = start_x + metrics.horizontalAdvance(curr_text[:w_start])
+                    target_w = metrics.horizontalAdvance(w_str)
                     draw_w = target_w * data["underline_progress"]
 
                     if draw_w > 6:
+                        y_line = baseline_y + 8.0
                         p.setPen(QPen(QColor(255, 255, 255, int(data["curr_alpha"] * 75)), 1.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
                         path1 = QPainterPath()
-                        path1.moveTo(w_start_x - 2, 18)
-                        path1.quadTo(w_start_x + draw_w * 0.5, 21, w_start_x + draw_w + 2, 19)
+                        path1.moveTo(w_start_x - 2, y_line)
+                        path1.quadTo(w_start_x + draw_w * 0.5, y_line + 3, w_start_x + draw_w + 2, y_line + 1)
                         p.drawPath(path1)
 
                         p.setPen(QPen(QColor(255, 255, 255, int(data["curr_alpha"] * 225)), 2.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
                         path2 = QPainterPath()
-                        path2.moveTo(w_start_x, 18)
-                        path2.quadTo(w_start_x + draw_w * 0.5, 21.5, w_start_x + draw_w, 18.5)
+                        path2.moveTo(w_start_x, y_line)
+                        path2.quadTo(w_start_x + draw_w * 0.5, y_line + 3.5, w_start_x + draw_w, y_line + 0.5)
                         p.drawPath(path2)
 
             p.restore()
@@ -464,58 +497,14 @@ class LivePreview(QWidget):
 
         p.end()
 
-    def _draw_per_char_preview(self, p: QPainter, metrics: QFontMetrics,
-                                text: str, offsets_x, offsets_y, char_alphas, char_scales,
-                                master_alpha: int, hl_enabled: bool, hl_color: QColor, hl_idx: int):
-        """Per-character rendering for letter_drop, burst, scatter, erase animations."""
-        total_w = metrics.horizontalAdvance(text)
-        base_x = -total_w / 2.0
-        base_y = metrics.ascent() - metrics.height() / 2.0
 
-        # Build word map
-        word_char_map = []
-        words = text.strip().split()
-        if hl_enabled and hl_idx >= 0 and words:
-            for wi, word in enumerate(words):
-                if wi > 0:
-                    word_char_map.append(-1)
-                for _ in word:
-                    word_char_map.append(wi)
-
-        curr_x = base_x
-        for i, ch in enumerate(text):
-            ch_w = metrics.horizontalAdvance(ch)
-            ca = char_alphas[i] if i < len(char_alphas) else 1.0
-            ox = offsets_x[i] if i < len(offsets_x) else 0.0
-            oy = offsets_y[i] if i < len(offsets_y) else 0.0
-            cs = char_scales[i] if i < len(char_scales) else 1.0
-            final_a = max(0, min(255, int(master_alpha * ca)))
-
-            if hl_enabled and hl_idx >= 0 and i < len(word_char_map) and word_char_map[i] == hl_idx:
-                p.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), final_a))
-            else:
-                p.setPen(QColor(255, 255, 255, final_a))
-
-            if cs != 1.0:
-                p.save()
-                p.translate(curr_x + ch_w / 2.0 + ox, base_y + oy)
-                p.scale(cs, cs)
-                p.drawText(QPointF(-ch_w / 2.0, 0), ch)
-                p.restore()
-            else:
-                p.drawText(QPointF(curr_x + ox, base_y + oy), ch)
-
-            curr_x += ch_w
-
-
-# ─── Highlight Color Swatch Button ────────────────────────────────────
+# ─── Aesthetic Soft Cream Color Swatch Button ─────────────────────────
 class ColorSwatch(QPushButton):
     color_changed = pyqtSignal(str)
 
-    PALETTE = ["#1DB954", "#FF6B6B", "#4ECDC4", "#FFE66D", "#A8C7FA",
-               "#FF8A65", "#CE93D8", "#80CBC4", "#FFFFFF"]
+    PALETTE = CREAM_SOFT_PALETTE + ["#A8C7FA", "#FFFFFF"]
 
-    def __init__(self, current_hex: str = "#1DB954", parent=None):
+    def __init__(self, current_hex: str = "#FFF4E0", parent=None):
         super().__init__(parent)
         self._color = current_hex
         self._idx = 0
@@ -728,7 +717,7 @@ class SettingsDialog(QDialog):
         tabs.addTab(self._build_about_tab(), "About")
         root.addWidget(tabs, 1)
 
-        # Bottom Bar — Done only hides dialog, Exit quits overlay
+        # Bottom Bar
         bottom_bar = QWidget()
         bottom_bar.setFixedHeight(72)
         bottom_bar.setStyleSheet(f"""
@@ -797,7 +786,6 @@ class SettingsDialog(QDialog):
             }}
         """)
         btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
-        # Done = just hide the dialog, NOT quit the app
         btn_close.clicked.connect(self._on_done_clicked)
         b_lay.addWidget(btn_close)
 
@@ -825,7 +813,7 @@ class SettingsDialog(QDialog):
         p_c_lay.setSpacing(10)
 
         self.combo_test_anim = QComboBox()
-        self.combo_test_anim.addItem("Random 35+ Animations", "")
+        self.combo_test_anim.addItem("Random 38+ Animations", "")
         for name, _ in ANIMATION_CATALOG:
             clean_name = name.replace("_", " ").title()
             self.combo_test_anim.addItem(f"Test: {clean_name}", name)
@@ -946,18 +934,18 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(16)
 
-        fx_card = SectionCard("Visual Effects & Flourishes")
+        fx_card = SectionCard("Visual Effects & Soft Cream Palette")
 
         # Color Word Highlight
         row_hl = SettingRow(
-            "Active Word Color Highlight",
-            "Highlights the currently spoken word with an accent color"
+            "Aesthetic Soft Cream Highlight",
+            "Smoothly highlights active spoken word in a warm cream tone (consistent per song)"
         )
         self.toggle_highlight = PillToggle(self.settings.get("highlight_enabled", True))
         self.toggle_highlight.toggled.connect(lambda v: self._update_and_sync("highlight_enabled", v))
         row_hl.add_control(self.toggle_highlight)
 
-        self.color_swatch = ColorSwatch(self.settings.get("highlight_color", "#1DB954"))
+        self.color_swatch = ColorSwatch(self.settings.get("highlight_color", "#FFF4E0"))
         self.color_swatch.color_changed.connect(lambda c: self._update_and_sync("highlight_color", c))
         row_hl.add_control(self.color_swatch)
         fx_card.add_row(row_hl)
@@ -974,17 +962,6 @@ class SettingsDialog(QDialog):
         fx_card.add_row(row_line)
         fx_card.add_separator()
 
-        # Word-by-Word Reveal
-        row_word = SettingRow(
-            "Word-by-Word Syllable Reveal",
-            "Sharp high-contrast word illumination tracking vocal pacing"
-        )
-        self.toggle_word = PillToggle(self.settings.get("word_reveal_enabled", True))
-        self.toggle_word.toggled.connect(lambda v: self._update_and_sync("word_reveal_enabled", v))
-        row_word.add_control(self.toggle_word)
-        fx_card.add_row(row_word)
-        fx_card.add_separator()
-
         # Auto-Hide When Idle
         row_hide = SettingRow(
             "Auto-Hide When Idle",
@@ -997,19 +974,17 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(fx_card)
 
-        # 35+ Animations Showcase Card
-        anim_card = SectionCard("35+ Dynamic Animation Suite")
+        # 38+ Animations Showcase Card
+        anim_card = SectionCard("38+ Cinematic Animation Suite")
         anim_info = QLabel(
-            "🎬  <b>35+ Cinematic Text Animations:</b><br>"
-            "Gravity drop, kinetic snap, scale pop, drift, overshoot rise, magnetic snap, "
-            "zoom settle, focus pull, typewriter, curtain reveal, skew slide, flip drop, "
-            "pendulum swing, impact slam, wave cascade, chromatic split, and more.<br><br>"
-            "🔤  <b>Per-Character Physics:</b><br>"
-            "Letter drop (gravity fall as spoken), letter burst (explode outward), "
-            "letter scatter (fly in from random), erase reveal (wipe left-to-right), "
-            "balloon inflate (tiny to full with bounce).<br><br>"
-            "🎨  <b>Color Word Highlight:</b><br>"
-            "The currently spoken word illuminates in your chosen accent color."
+            "🎬  <b>Smooth Fade-In & Fade-Out Transitions:</b><br>"
+            "Cinematic crossfade, whisper dissolve, gentle rise fade, gentle sink fade, "
+            "feather dissolve, luminous glow fade, smooth drift fade, ambient breathe.<br><br>"
+            "🍦  <b>Aesthetic Soft Cream Highlight:</b><br>"
+            "Active words illuminate in a warm, gentle cream pastel tone that stays consistent "
+            "for each song and dynamically chooses a new aesthetic cream tone for the next track.<br><br>"
+            "⚓  <b>100% Glitch-Free & Zero Text Loss:</b><br>"
+            "Preserved font kerning and anchored baselines eliminate micro-jitter and letter vibration."
         )
         anim_info.setWordWrap(True)
         anim_info.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 13px; line-height: 1.6; padding: 16px 20px; background: transparent; border: none;")
@@ -1033,7 +1008,7 @@ class SettingsDialog(QDialog):
 
         sync_card = SectionCard("Audio Synchronization")
 
-        cur_offset = float(self.settings.get("sync_offset_sec", 0.0))
+        cur_offset = float(self.settings.get("sync_offset_sec", 0.20))
         self.slider_sync = SliderRow(
             "Sync Calibration", "Shift lyrics earlier (−) or later (+) relative to the audio",
             -20, 20, int(cur_offset * 10), "×0.1s"
@@ -1046,7 +1021,7 @@ class SettingsDialog(QDialog):
         q_lay.setContentsMargins(20, 4, 20, 14)
         q_lay.setSpacing(8)
 
-        for label, val in [("−0.5s", -5), ("Exact 0.0s", 0), ("+0.5s", 5)]:
+        for label, val in [("−0.5s", -5), ("Exact 0.0s", 0), ("+0.2s (Vocal Lead)", 2), ("+0.5s", 5)]:
             btn = QPushButton(label)
             btn.setStyleSheet(f"""
                 QPushButton {{
@@ -1099,25 +1074,25 @@ class SettingsDialog(QDialog):
         card = SectionCard("One-Click Presets")
 
         presets = [
-            ("7clouds Signature", "Iconic brush style (Edo SZ) with focal underlines and color highlights", {
+            ("7clouds Signature", "Iconic brush style (Edo SZ) with soft cream highlight and smooth fade transitions", {
                 "font_family": "7clouds Signature (Edo SZ)", "font_size": 42,
-                "hand_drawn_underline_enabled": True, "word_reveal_enabled": True,
-                "highlight_enabled": True, "highlight_color": "#1DB954", "target_fps": 165
+                "hand_drawn_underline_enabled": True, "highlight_enabled": True,
+                "highlight_color": "#FFF4E0", "target_fps": 165, "sync_offset_sec": 0.20
             }),
-            ("7clouds Modern", "Ultra-bold sans-serif (Montserrat Black) with razor-sharp word reveal", {
-                "font_family": "7clouds Modern (Montserrat Black)", "font_size": 42,
-                "hand_drawn_underline_enabled": True, "word_reveal_enabled": True,
-                "highlight_enabled": True, "highlight_color": "#A8C7FA", "target_fps": 165
-            }),
-            ("Minimalist Pure", "Distraction-free pure white typography without underlines or highlights", {
-                "font_family": "7clouds Signature (Edo SZ)", "font_size": 38,
-                "hand_drawn_underline_enabled": False, "word_reveal_enabled": False,
-                "highlight_enabled": False, "target_fps": 120
-            }),
-            ("High Velocity 240Hz", "Maximum fluid 240Hz refresh rate with snappy transitions", {
+            ("Aesthetic Dream", "Lush cinematic crossfades with warm cream pastel highlights and subtle underlines", {
                 "font_family": "7clouds Signature (Edo SZ)", "font_size": 40,
-                "hand_drawn_underline_enabled": True, "word_reveal_enabled": True,
-                "highlight_enabled": True, "highlight_color": "#FFE66D", "target_fps": 240
+                "hand_drawn_underline_enabled": True, "highlight_enabled": True,
+                "highlight_color": "#FDF8E2", "target_fps": 165, "sync_offset_sec": 0.20
+            }),
+            ("7clouds Modern", "Ultra-bold sans-serif (Montserrat Black) with smooth whisper dissolve", {
+                "font_family": "7clouds Modern (Montserrat Black)", "font_size": 42,
+                "hand_drawn_underline_enabled": True, "highlight_enabled": True,
+                "highlight_color": "#FFF4E0", "target_fps": 165, "sync_offset_sec": 0.20
+            }),
+            ("Minimalist Pure", "Distraction-free pure white typography without highlights", {
+                "font_family": "7clouds Signature (Edo SZ)", "font_size": 38,
+                "hand_drawn_underline_enabled": False, "highlight_enabled": False,
+                "target_fps": 120, "sync_offset_sec": 0.20
             }),
         ]
 
@@ -1202,9 +1177,9 @@ class SettingsDialog(QDialog):
         info_col.addWidget(app_ver)
 
         app_desc = QLabel(
-            "Hardware-accelerated desktop lyrics overlay with 35+ animations, "
-            "per-character physics, color word highlight, 7clouds typography, "
-            "focal underlines, and universal Hinglish transliteration."
+            "Hardware-accelerated desktop lyrics overlay with 38+ animations, "
+            "smooth fade transitions, aesthetic soft cream word highlight, "
+            "7clouds typography, and universal Hinglish transliteration."
         )
         app_desc.setWordWrap(True)
         app_desc.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 12px; line-height: 1.5; background: transparent; border: none;")
@@ -1221,7 +1196,8 @@ class SettingsDialog(QDialog):
             ("Rendering Engine", "PyQt6 QPainter (Hardware-Accelerated)"),
             ("Active Refresh Target", f"{self.settings.get('target_fps', 165)} Hz"),
             ("Media Transport", "Windows SMTC (WinRT Native)"),
-            ("Sync Strategy", "Fresh SMTC Position + Local Clock Delta"),
+            ("Sync Strategy", "Real-Time SMTC Elapsed Clock + Lead Calibration"),
+            ("Highlight Engine", "Aesthetic Soft Cream (Per-Song Consistent)"),
             ("Transliteration Engine", "100% Clean Latin Hinglish (Zero Leaks)"),
             ("Lyrics Provider", "LRCLIB (Free & Open)"),
         ]
@@ -1343,8 +1319,6 @@ class SettingsDialog(QDialog):
                 self.combo_font.setCurrentIndex(idx)
             if "hand_drawn_underline_enabled" in preset:
                 self.toggle_underline.setChecked(preset["hand_drawn_underline_enabled"])
-            if "word_reveal_enabled" in preset:
-                self.toggle_word.setChecked(preset["word_reveal_enabled"])
             if "highlight_enabled" in preset:
                 self.toggle_highlight.setChecked(preset["highlight_enabled"])
             if "highlight_color" in preset:
@@ -1365,15 +1339,15 @@ class SettingsDialog(QDialog):
             "font_size": 42,
             "font_family": "7clouds Signature (Edo SZ)",
             "overlay_y": 55,
-            "sync_offset_sec": 0.0,
+            "sync_offset_sec": 0.20,
             "auto_hide_idle": True,
             "hand_drawn_underline_enabled": True,
-            "word_reveal_enabled": True,
             "highlight_enabled": True,
-            "highlight_color": "#1DB954",
+            "highlight_color": "#FFF4E0",
+            "highlight_mode": "cream_per_song",
         }
         self._apply_preset(defaults)
-        self.slider_sync.setValue(0)
+        self.slider_sync.setValue(2)
         self.toggle_hide.setChecked(True)
 
     def _on_done_clicked(self):

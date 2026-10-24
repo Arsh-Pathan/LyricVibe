@@ -14,14 +14,15 @@ DEFAULT_SETTINGS = {
     "font_family": "7clouds Signature (Edo SZ)",
     "font_weight": "bold",
     "text_color": "#FFFFFF",
-    "highlight_color": "#1DB954",  # Spotify green active word highlight
+    "highlight_color": "#FFF4E0",  # Soft cream aesthetic highlight
+    "highlight_mode": "cream_per_song", # Picks a soft cream tone per song
     "highlight_enabled": True,
     "motion_blur_enabled": True,
     "glow_enabled": True,
     "hand_drawn_underline_enabled": True,
     "word_reveal_enabled": True,
     "overlay_y": 55,               # Distance from top of screen
-    "sync_offset_sec": 0.0,
+    "sync_offset_sec": 0.20,       # 200ms audio lead time for perfect vocal sync
     "auto_hide_idle": True,
     "animation_intensity": 1.0,    # 0.5 (subtle) to 1.5 (dynamic)
 }

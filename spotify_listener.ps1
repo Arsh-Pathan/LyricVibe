@@ -48,9 +48,20 @@ while ($true) {
                 if ($timeline.LastUpdatedTime) {
                     $updatedEpoch = ($timeline.LastUpdatedTime - $epoch).TotalSeconds
                 }
+                # SMTC Position is FROZEN at last state-change (play/pause/seek).
+                # Compute TRUE real-time position by adding elapsed since LastUpdatedTime.
+                if ($isPlaying -and $timeline.LastUpdatedTime) {
+                    $nowOffset = [DateTimeOffset]::UtcNow
+                    $elapsed = ($nowOffset - $timeline.LastUpdatedTime).TotalSeconds
+                    if ($elapsed -gt 0 -and $elapsed -lt 600) {
+                        $pos = $pos + $elapsed
+                    }
+                }
             }
 
             $dur = if ($timeline) { $timeline.EndTime.TotalSeconds } else { 0.0 }
+            # Clamp position to duration
+            if ($dur -gt 0 -and $pos -gt $dur) { $pos = $dur }
 
             $data = @{
                 is_playing = $isPlaying

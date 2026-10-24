@@ -98,7 +98,7 @@ def _try_get(params: dict) -> list[LyricLine] | None:
     return None
 
 
-def _try_search(query: str) -> list[LyricLine] | None:
+def _try_search(query: str, duration_sec: float = 0) -> list[LyricLine] | None:
     try:
         resp = requests.get(
             "https://lrclib.net/api/search",
@@ -109,19 +109,48 @@ def _try_search(query: str) -> list[LyricLine] | None:
         if resp.status_code == 200:
             results = resp.json()
             if results and isinstance(results, list):
-                # 1. Prefer Romanized synced lyrics
-                for item in results:
+                # Score results to find the EXACT version matching playback duration
+                def score_item(item):
+                    score = 0
                     synced = item.get("syncedLyrics")
-                    if synced and is_romanized(synced):
-                        return parse_lrc(synced)
-                # 2. Prefer any synced lyrics
-                for item in results:
-                    synced = item.get("syncedLyrics")
+                    if not synced:
+                        return -1000
+                    score += 100
+                    # Duration match (+/- 3 seconds is ideal)
+                    item_dur = float(item.get("duration", 0))
+                    if duration_sec > 0 and item_dur > 0:
+                        diff = abs(item_dur - duration_sec)
+                        if diff <= 1.5:
+                            score += 80
+                        elif diff <= 3.5:
+                            score += 50
+                        elif diff <= 8.0:
+                            score += 10
+                        else:
+                            score -= min(int(diff * 5), 100)
+                    # Romanized preference
+                    if is_romanized(synced):
+                        score += 30
+                    return score
+
+                scored = [(score_item(it), it) for it in results]
+                scored.sort(key=lambda x: x[0], reverse=True)
+
+                for sc, best_item in scored:
+                    if sc > 0:
+                        synced = best_item.get("syncedLyrics")
+                        if synced:
+                            return parse_lrc(synced)
+
+                # Fallback to any synced
+                for it in results:
+                    synced = it.get("syncedLyrics")
                     if synced:
                         return parse_lrc(synced)
-                # 3. Plain lyrics fallback
-                for item in results:
-                    plain = item.get("plainLyrics")
+
+                # Fallback to plain
+                for it in results:
+                    plain = it.get("plainLyrics")
                     if plain:
                         lines = []
                         for i, line_text in enumerate(plain.strip().splitlines()):
@@ -137,18 +166,7 @@ def get_lyrics(track_name: str, artist_name: str, album_name: str = "",
     clean_title = clean_track_title(track_name)
     primary_artist = get_primary_artist(artist_name)
 
-    # 1. Try search with clean title and primary artist (highest success for Bollywood)
-    queries = [
-        f"{primary_artist} {clean_title}",
-        f"{artist_name} {clean_title}",
-        f"{clean_title}",
-    ]
-    for q in queries:
-        lyrics = _try_search(q)
-        if lyrics:
-            return lyrics
-
-    # 2. Try exact GET with clean title
+    # 1. First try exact GET by title, artist and duration (highest accuracy)
     exact_params = [
         {"track_name": clean_title, "artist_name": primary_artist},
         {"track_name": clean_title, "artist_name": artist_name},
@@ -158,6 +176,24 @@ def get_lyrics(track_name: str, artist_name: str, album_name: str = "",
         if duration_sec > 0:
             p["duration"] = int(duration_sec)
         lyrics = _try_get(p)
+        if lyrics:
+            return lyrics
+
+    # 2. Try duration-aware search
+    queries = [
+        f"{primary_artist} {clean_title}",
+        f"{artist_name} {clean_title}",
+        f"{clean_title}",
+    ]
+    for q in queries:
+        lyrics = _try_search(q, duration_sec)
+        if lyrics:
+            return lyrics
+
+    # 3. Fallback GET without duration constraint
+    for p in exact_params:
+        p_no_dur = {k: v for k, v in p.items() if k != "duration"}
+        lyrics = _try_get(p_no_dur)
         if lyrics:
             return lyrics
 

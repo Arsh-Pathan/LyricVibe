@@ -1,12 +1,16 @@
 """
 Comprehensive 165Hz Physics & Animation Engine for Spotify Lyrics.
-- 35+ dynamic, varied cinematic text entrance animations with weighted rarity.
-- Per-character physics: letter_drop, letter_burst, balloon_inflate, erase_reveal.
-- Color word highlighting: active spoken word gets accent color.
+- 38+ dynamic cinematic entrance & transition animations with weighted rarity.
+- Rich suite of silky-smooth fade-in and fade-out transitions:
+  cinematic_crossfade, gentle_rise_fade, gentle_sink_fade, whisper_dissolve,
+  luminous_glow_fade, feather_dissolve, smooth_drift_fade, ambient_breathe.
+- Glitch-free word timing: active spoken word tracks vocal cadence smoothly
+  and NEVER jumps back or glitches.
+- ZERO loss of text: all lyrics remain visible, sharp, and anchored.
+- Frame-accurate audio synchronization via direct song elapsed feedback.
 - Rock-solid anchored positioning (ZERO continuous float / wobble).
 - Dual-buffer seamless cross-transitions between lyric lines.
 - Focal hand-drawn marker underline: underlines only 1 or 2 key words.
-- Razor-sharp, high-contrast typography (no blurry glow).
 """
 
 import math
@@ -29,9 +33,19 @@ class HandDrawnStroke:
         self.offsets[-1] -= 2.2
 
 
-# ─── 35+ Weighted Animation Styles ───────────────────────────────────
+# ─── 38+ Weighted Animation Styles ───────────────────────────────────
 ANIMATION_CATALOG = [
-    # Fast / Punchy (Common)
+    # ── Silky Smooth Fade-In & Fade-Out Transitions (Common & Aesthetic) ──
+    ("cinematic_crossfade", 22),
+    ("whisper_dissolve", 20),
+    ("gentle_rise_fade", 20),
+    ("gentle_sink_fade", 18),
+    ("feather_dissolve", 18),
+    ("luminous_glow_fade", 16),
+    ("smooth_drift_fade", 16),
+    ("ambient_breathe", 16),
+
+    # ── Fast / Punchy & Kinetic (Common) ──
     ("gravity_drop", 18),
     ("slide_up", 18),
     ("kinetic_snap", 16),
@@ -41,17 +55,17 @@ ANIMATION_CATALOG = [
     ("overshoot_rise", 14),
     ("magnetic_snap", 12),
 
-    # Vocal / Lyric Flow (Common)
-    ("word_reveal", 22),
-    ("soft_dissolve", 14),
+    # ── Vocal / Lyric Flow ──
+    ("word_reveal", 24),
+    ("soft_dissolve", 16),
     ("zoom_in", 14),
     ("zoom_out_settle", 12),
     ("focus_pull", 12),
     ("curtain_reveal", 10),
     ("letter_tracking", 10),
 
-    # Dynamic & Expressive (Uncommon)
-    ("hand_drawn_flourish", 16),
+    # ── Expressive & Flourish ──
+    ("hand_drawn_flourish", 18),
     ("bounce_land", 12),
     ("impact_slam", 10),
     ("skew_slide", 10),
@@ -60,77 +74,82 @@ ANIMATION_CATALOG = [
     ("pendulum_swing", 8),
     ("split_horizon", 8),
 
-    # Per-Character Physics (Distinctive)
-    ("letter_drop", 14),
+    # ── Per-Character Physics (Glitch-Free) ──
+    ("letter_drop", 16),
     ("letter_burst", 10),
-    ("balloon_inflate", 10),
+    ("balloon_inflate", 12),
     ("erase_reveal", 12),
     ("letter_scatter", 8),
 
-    # Rare & Dramatic
-    ("chromatic_split", 5),
+    # ── Rare & Dramatic ──
     ("velocity_streak", 5),
     ("elastic_twang", 5),
     ("wave_cascade", 5),
     ("shimmer_sweep", 5),
     ("spiral_settle", 4),
     ("strobe_snap", 3),
-    ("glitch_flicker", 3),
 ]
 
-# Animations that need per-character rendering
 PER_CHAR_ANIMS = {"letter_drop", "letter_burst", "letter_scatter", "erase_reveal"}
+
+FADE_ANIMS = {
+    "cinematic_crossfade", "whisper_dissolve", "gentle_rise_fade",
+    "gentle_sink_fade", "feather_dissolve", "luminous_glow_fade",
+    "smooth_drift_fade", "ambient_breathe", "soft_dissolve"
+}
 
 
 def pick_animation(line_text: str, duration: float) -> str:
-    """Dynamically picks from the 35+ animation catalog based on line pacing and rarity."""
+    """Dynamically picks from the 38+ animation catalog based on line pacing and rarity."""
     words = line_text.strip().split()
 
-    # Fast short line (<1.6s) -> favor punchy snaps
+    # Fast short line (<1.6s) -> punchy or quick fade
     if duration > 0 and duration < 1.6:
-        fast_pool = ["kinetic_snap", "impact_slam", "scale_pop", "velocity_streak",
-                     "strobe_snap", "overshoot_rise", "letter_burst"]
+        fast_pool = ["kinetic_snap", "cinematic_crossfade", "scale_pop", "overshoot_rise", "whisper_dissolve"]
         return random.choice(fast_pool)
 
-    # Slow vocal line with 4+ words -> favor word reveal or smooth transitions
-    if duration >= 3.2 and len(words) >= 4 and random.random() < 0.50:
-        return random.choice(["word_reveal", "letter_drop", "erase_reveal"])
+    # Slow vocal line with 4+ words -> favor gorgeous smooth fade or word reveal
+    if duration >= 3.0 and len(words) >= 4 and random.random() < 0.55:
+        slow_pool = [
+            "cinematic_crossfade", "whisper_dissolve", "gentle_rise_fade",
+            "gentle_sink_fade", "word_reveal", "feather_dissolve", "luminous_glow_fade"
+        ]
+        return random.choice(slow_pool)
 
-    # Weighted random selection across full catalog
     types, weights = zip(*ANIMATION_CATALOG)
     return random.choices(types, weights=weights, k=1)[0]
 
 
 class AnimationEngine:
-    """Manages 165Hz physics, dual-buffer line cross-transitions, color highlight, and focal underlines."""
+    """Manages 165Hz physics, dual-buffer cross-transitions, color highlight, and focal underlines."""
 
     def __init__(self):
         # Current (incoming) line
         self.curr_text = ""
         self.curr_start_time = 0.0
         self.curr_duration = 3.0
-        self.curr_anim_type = "gravity_drop"
+        self.curr_anim_type = "cinematic_crossfade"
+        self._external_elapsed = None
 
-        # Previous (outgoing) line for seamless cross-transition
+        # Outgoing line transition
         self.prev_text = ""
         self.prev_exit_start = 0.0
-        self.transition_dur = 0.38
+        self.transition_dur = 0.28
 
         # Word reveal tracking
         self.words = []
         self.word_alphas = []
 
-        # Per-character tracking (letter_drop, letter_burst, letter_scatter, erase)
+        # Per-character tracking
         self.chars = []
         self.char_offsets_x = []
         self.char_offsets_y = []
         self.char_alphas = []
         self.char_scales = []
-        # Pre-baked random targets for burst/scatter
         self._char_burst_dx = []
         self._char_burst_dy = []
 
-        # Color highlight tracking
+        # Glitch-free color highlight tracking
         self.highlight_word_idx = -1
 
         # Focal 1-2 word underline
@@ -140,7 +159,7 @@ class AnimationEngine:
         self.underline_progress = 0.0
         self.underline_active = False
 
-    def trigger_line(self, new_text: str, duration: float, anim_type: str = ""):
+    def trigger_line(self, new_text: str, duration: float, anim_type: str = "", lead_sec: float = 0.0):
         now = time.time()
 
         if self.curr_text and self.curr_text != new_text:
@@ -148,9 +167,16 @@ class AnimationEngine:
             self.prev_exit_start = now
 
         self.curr_text = new_text
-        self.curr_start_time = now
+        self.curr_start_time = now - max(0.0, lead_sec)
         self.curr_duration = max(duration, 1.2)
         self.curr_anim_type = anim_type if anim_type else pick_animation(new_text, self.curr_duration)
+        self._external_elapsed = None
+
+        # Set transition duration based on animation style
+        if self.curr_anim_type in FADE_ANIMS:
+            self.transition_dur = 0.32
+        else:
+            self.transition_dur = 0.22
 
         # Word reveal tracking
         self.words = new_text.strip().split()
@@ -161,15 +187,14 @@ class AnimationEngine:
         n = len(self.chars)
         self.char_offsets_x = [0.0] * n
         self.char_offsets_y = [0.0] * n
-        self.char_alphas = [0.0] * n
+        self.char_alphas = [0.35] * n
         self.char_scales = [1.0] * n
 
-        # Pre-bake random burst/scatter vectors so they don't flicker
-        self._char_burst_dx = [(random.random() - 0.5) * 120.0 for _ in range(n)]
-        self._char_burst_dy = [(random.random() - 0.5) * 80.0 - 30.0 for _ in range(n)]
+        self._char_burst_dx = [(random.random() - 0.5) * 36.0 for _ in range(n)]
+        self._char_burst_dy = [(random.random() - 0.5) * 20.0 - 10.0 for _ in range(n)]
 
-        # ── Focal 1-2 Word Selection for Underline ──
-        self.underline_active = (self.curr_anim_type == "hand_drawn_flourish") or (len(self.words) >= 2 and random.random() < 0.38)
+        # Focal underline
+        self.underline_active = (self.curr_anim_type == "hand_drawn_flourish") or (len(self.words) >= 2 and random.random() < 0.35)
         self.underline_progress = 0.0
 
         if self.words:
@@ -182,17 +207,26 @@ class AnimationEngine:
             self.focal_word_idx = -1
             self.underline_stroke = None
 
+    def sync_to_audio(self, audio_elapsed_sec: float):
+        """Anchors animation directly to audio playback time."""
+        if audio_elapsed_sec >= 0:
+            self._external_elapsed = audio_elapsed_sec
+
     def update(self) -> dict:
         now = time.time()
-        elapsed_in = now - self.curr_start_time
+        if self._external_elapsed is not None:
+            elapsed_in = self._external_elapsed
+        else:
+            elapsed_in = max(0.0, now - self.curr_start_time)
+
         t_in = min(elapsed_in / self.transition_dur, 1.0) if self.transition_dur > 0 else 1.0
 
-        # Easing curves
+        # Silky smooth easing curves
         ease_out_cubic = 1.0 - math.pow(1.0 - t_in, 3)
-        ease_out_quad = 1.0 - math.pow(1.0 - t_in, 2)
         ease_out_quart = 1.0 - math.pow(1.0 - t_in, 4)
+        ease_in_out = 0.5 - 0.5 * math.cos(t_in * math.pi)
 
-        # Default transforms (ANCHORED, NO CONTINUOUS FLOAT)
+        # Baseline: smooth fade in
         scale = 1.0
         alpha = ease_out_cubic
         offset_x = 0.0
@@ -205,288 +239,311 @@ class AnimationEngine:
 
         anim = self.curr_anim_type
 
-        # ── 1. Gravity Drop ──
-        if anim == "gravity_drop":
-            damping = 5.2
-            freq = 9.5
-            offset_y = -26.0 * math.exp(-damping * t_in) * math.cos(freq * t_in) if t_in < 1.0 else 0.0
-            scale = 1.0 - 0.06 * math.exp(-damping * t_in) * math.cos(freq * t_in) if t_in < 1.0 else 1.0
-
-        # ── 2. Slide Up ──
-        elif anim == "slide_up":
-            offset_y = (1.0 - ease_out_cubic) * 28.0
-
-        # ── 3. Kinetic Snap ──
-        elif anim == "kinetic_snap":
-            elastic = 1.0 - math.pow(2.0, -10 * t_in) * math.cos((t_in * 10 - 0.75) * ((2 * math.pi) / 3)) if t_in < 1.0 else 1.0
-            scale = max(0.85, min(1.12, elastic))
-            alpha = min(t_in * 3.0, 1.0)
-
-        # ── 4. Scale Pop ──
-        elif anim == "scale_pop":
-            if t_in < 0.6:
-                scale = 0.88 + 0.20 * (t_in / 0.6)
-            else:
-                scale = 1.08 - 0.08 * ((t_in - 0.6) / 0.4)
-            alpha = min(t_in * 2.5, 1.0)
-
-        # ── 5. Drift Left / Right ──
-        elif anim == "drift_left":
-            offset_x = (1.0 - ease_out_cubic) * 36.0
-        elif anim == "drift_right":
-            offset_x = (1.0 - ease_out_cubic) * -36.0
-
-        # ── 6. Overshoot Rise ──
-        elif anim == "overshoot_rise":
-            if t_in < 0.7:
-                offset_y = 26.0 * (1.0 - (t_in / 0.7)) - 4.0
-            else:
-                offset_y = -4.0 * (1.0 - ((t_in - 0.7) / 0.3))
-
-        # ── 7. Magnetic Snap ──
-        elif anim == "magnetic_snap":
-            accel = math.pow(t_in, 3)
-            offset_y = (1.0 - accel) * 32.0
-            scale = 0.94 + 0.06 * accel
-
-        # ── 8. Zoom In / Out ──
-        elif anim == "zoom_in":
-            scale = 0.82 + 0.18 * ease_out_cubic
-        elif anim == "zoom_out_settle":
-            scale = 1.16 - 0.16 * ease_out_cubic
-
-        # ── 9. Focus Pull ──
-        elif anim == "focus_pull":
-            scale = 0.92 + 0.08 * ease_out_quart
-            alpha = ease_out_quart
-
-        # ── 10. Curtain Reveal ──
-        elif anim == "curtain_reveal":
-            scale = 0.95 + 0.05 * ease_out_cubic
-
-        # ── 11. Letter Tracking ──
-        elif anim == "letter_tracking":
+        # ── 1. Cinematic Crossfade (Pure silky opacity dissolve) ──
+        if anim == "cinematic_crossfade":
+            alpha = ease_in_out
+            offset_y = 0.0
             scale = 1.0
 
-        # ── 12. Hand-Drawn Flourish ──
-        elif anim == "hand_drawn_flourish":
+        # ── 2. Whisper Dissolve (Ethereal 1% breathe) ──
+        elif anim == "whisper_dissolve":
+            alpha = ease_out_quart
+            scale = 0.985 + 0.015 * ease_out_quart
+            offset_y = 0.0
+
+        # ── 3. Gentle Rise Fade (Soft 6px lift with smooth fade) ──
+        elif anim == "gentle_rise_fade":
+            alpha = ease_out_cubic
+            offset_y = (1.0 - ease_out_cubic) * 6.0
+            scale = 1.0
+
+        # ── 4. Gentle Sink Fade (Soft 6px descent with smooth fade) ──
+        elif anim == "gentle_sink_fade":
+            alpha = ease_out_cubic
+            offset_y = (1.0 - ease_out_cubic) * -6.0
+            scale = 1.0
+
+        # ── 5. Feather Dissolve (Seamless feathered blend) ──
+        elif anim == "feather_dissolve":
+            alpha = ease_out_cubic
+            scale = 0.99 + 0.01 * ease_out_cubic
+            offset_y = (1.0 - ease_out_cubic) * 3.0
+
+        # ── 6. Luminous Glow Fade (Radiant ease-in) ──
+        elif anim == "luminous_glow_fade":
+            alpha = math.sin(t_in * math.pi * 0.5)
+            scale = 1.0
+            offset_y = 0.0
+
+        # ── 7. Smooth Drift Fade (Subtle 8px glide) ──
+        elif anim == "smooth_drift_fade":
+            alpha = ease_out_cubic
+            offset_x = (1.0 - ease_out_cubic) * 8.0
+            scale = 1.0
+
+        # ── 8. Ambient Breathe ──
+        elif anim == "ambient_breathe":
+            alpha = ease_out_cubic
+            scale = 0.975 + 0.025 * ease_out_cubic
+            offset_y = 0.0
+
+        # ── 9. Soft Dissolve ──
+        elif anim == "soft_dissolve":
+            alpha = ease_in_out
+            offset_y = (1.0 - ease_in_out) * 4.0
+
+        # ── 10. Gravity Drop (Crisp Drop & Land) ──
+        elif anim == "gravity_drop":
+            alpha = 0.75 + 0.25 * ease_out_cubic
+            damping = 6.5
+            freq = 11.0
+            offset_y = -18.0 * math.exp(-damping * t_in) * math.cos(freq * t_in) if t_in < 1.0 else 0.0
+            scale = 1.0 - 0.03 * math.exp(-damping * t_in) * math.cos(freq * t_in) if t_in < 1.0 else 1.0
+
+        # ── 11. Slide Up ──
+        elif anim == "slide_up":
+            alpha = 0.70 + 0.30 * ease_out_cubic
             offset_y = (1.0 - ease_out_cubic) * 16.0
 
-        # ── 13. Bounce Land ──
-        elif anim == "bounce_land":
+        # ── 12. Kinetic Snap ──
+        elif anim == "kinetic_snap":
+            alpha = 0.80 + 0.20 * ease_out_cubic
+            elastic = 1.0 - math.pow(2.0, -12 * t_in) * math.cos((t_in * 12 - 0.75) * ((2 * math.pi) / 3)) if t_in < 1.0 else 1.0
+            scale = max(0.94, min(1.06, elastic))
+
+        # ── 13. Scale Pop ──
+        elif anim == "scale_pop":
+            alpha = 0.75 + 0.25 * ease_out_cubic
             if t_in < 0.5:
-                offset_y = -30.0 * (1.0 - t_in / 0.5)
-            elif t_in < 0.75:
-                offset_y = -10.0 * math.sin((t_in - 0.5) / 0.25 * math.pi)
+                scale = 0.94 + 0.10 * (t_in / 0.5)
             else:
-                offset_y = -3.0 * math.sin((t_in - 0.75) / 0.25 * math.pi)
+                scale = 1.04 - 0.04 * ((t_in - 0.5) / 0.5)
+
+        # ── 14. Drift Left / Right ──
+        elif anim == "drift_left":
+            alpha = 0.70 + 0.30 * ease_out_cubic
+            offset_x = (1.0 - ease_out_cubic) * 20.0
+        elif anim == "drift_right":
+            alpha = 0.70 + 0.30 * ease_out_cubic
+            offset_x = (1.0 - ease_out_cubic) * -20.0
+
+        # ── 15. Overshoot Rise ──
+        elif anim == "overshoot_rise":
+            alpha = 0.75 + 0.25 * ease_out_cubic
+            if t_in < 0.7:
+                offset_y = 14.0 * (1.0 - (t_in / 0.7)) - 2.5
+            else:
+                offset_y = -2.5 * (1.0 - ((t_in - 0.7) / 0.3))
+
+        # ── 16. Magnetic Snap ──
+        elif anim == "magnetic_snap":
+            alpha = 0.75 + 0.25 * ease_out_cubic
+            accel = math.pow(t_in, 3)
+            offset_y = (1.0 - accel) * 18.0
+            scale = 0.96 + 0.04 * accel
+
+        # ── 17. Zoom In / Out ──
+        elif anim == "zoom_in":
+            alpha = ease_out_cubic
+            scale = 0.90 + 0.10 * ease_out_cubic
+        elif anim == "zoom_out_settle":
+            alpha = ease_out_cubic
+            scale = 1.08 - 0.08 * ease_out_cubic
+
+        # ── 18. Focus Pull ──
+        elif anim == "focus_pull":
+            alpha = ease_out_quart
+            scale = 0.95 + 0.05 * ease_out_quart
+
+        # ── 19. Curtain Reveal ──
+        elif anim == "curtain_reveal":
+            alpha = ease_out_cubic
+            scale = 0.97 + 0.03 * ease_out_cubic
+
+        # ── 20. Letter Tracking ──
+        elif anim == "letter_tracking":
+            alpha = ease_out_cubic
+            scale = 1.0
+
+        # ── 21. Hand-Drawn Flourish ──
+        elif anim == "hand_drawn_flourish":
+            alpha = ease_out_cubic
+            offset_y = (1.0 - ease_out_cubic) * 10.0
+
+        # ── 22. Bounce Land ──
+        elif anim == "bounce_land":
+            alpha = 0.80 + 0.20 * ease_out_cubic
+            if t_in < 0.5:
+                offset_y = -16.0 * (1.0 - t_in / 0.5)
+            elif t_in < 0.75:
+                offset_y = -4.0 * math.sin((t_in - 0.5) / 0.25 * math.pi)
+            else:
+                offset_y = -1.5 * math.sin((t_in - 0.75) / 0.25 * math.pi)
             if t_in >= 1.0:
                 offset_y = 0.0
 
-        # ── 14. Impact Slam ──
+        # ── 23. Impact Slam ──
         elif anim == "impact_slam":
+            alpha = 0.85 + 0.15 * ease_out_cubic
             if t_in < 0.4:
-                scale = 1.35 - 0.35 * (t_in / 0.4)
-                offset_y = -18.0 * (1.0 - t_in / 0.4)
+                scale = 1.15 - 0.15 * (t_in / 0.4)
+                offset_y = -10.0 * (1.0 - t_in / 0.4)
             else:
                 scale = 1.0
                 offset_y = 0.0
 
-        # ── 15. Skew Slide ──
+        # ── 24. Skew Slide ──
         elif anim == "skew_slide":
-            offset_x = (1.0 - ease_out_cubic) * 30.0
-            skew_x = (1.0 - ease_out_cubic) * -8.0
+            alpha = 0.75 + 0.25 * ease_out_cubic
+            offset_x = (1.0 - ease_out_cubic) * 16.0
+            skew_x = (1.0 - ease_out_cubic) * -4.0
 
-        # ── 16. Flip Drop ──
+        # ── 25. Flip Drop ──
         elif anim == "flip_drop":
-            scale = 0.88 + 0.12 * ease_out_cubic
-            offset_y = (1.0 - ease_out_cubic) * -24.0
+            alpha = 0.80 + 0.20 * ease_out_cubic
+            scale = 0.94 + 0.06 * ease_out_cubic
+            offset_y = (1.0 - ease_out_cubic) * -12.0
 
-        # ── 17. Pendulum Swing ──
+        # ── 26. Pendulum Swing ──
         elif anim == "pendulum_swing":
-            rotation = math.sin((1.0 - t_in) * math.pi * 2.0) * 2.5 if t_in < 1.0 else 0.0
+            alpha = ease_out_cubic
+            rotation = math.sin((1.0 - t_in) * math.pi * 2.0) * 1.5 if t_in < 1.0 else 0.0
 
-        # ── 18. Chromatic Split (Rare) ──
-        elif anim == "chromatic_split":
-            chroma = (1.0 - ease_out_cubic) * 6.0
-
-        # ── 19. Velocity Streak (Rare) ──
-        elif anim == "velocity_streak":
-            offset_x = (1.0 - ease_out_cubic) * 45.0
-            blur_offset_x = offset_x * 0.5
-            blur_alpha = (1.0 - ease_out_cubic) * 0.4
-
-        # ── 20. Strobe Snap (Rare) ──
-        elif anim == "strobe_snap":
-            if t_in < 0.15:
-                alpha = 0.2 if (int(t_in * 60) % 2 == 0) else 1.0
-            else:
-                alpha = 1.0
-
-        # ── 21. Glitch Flicker (Rare) ──
-        elif anim == "glitch_flicker":
-            if t_in < 0.2:
-                offset_x = (random.random() - 0.5) * 8.0
-            else:
-                offset_x = 0.0
-
-        # ── 22. Word Reveal (Common) ──
+        # ── 27. Word Reveal ──
         elif anim == "word_reveal":
             alpha = 1.0
-            offset_y = (1.0 - ease_out_cubic) * 12.0
+            offset_y = (1.0 - ease_out_cubic) * 6.0
 
-        # ── 23. Letter Drop — Spoken Gravity (per-char) ──
-        elif anim == "letter_drop":
-            alpha = 1.0
-            offset_y = 0.0
-
-        # ── 24. Letter Burst — Explode Outward Then Settle (per-char) ──
-        elif anim == "letter_burst":
-            alpha = 1.0
-            offset_y = 0.0
-
-        # ── 25. Balloon Inflate — Tiny to Full with Overshoot ──
+        # ── 28. Balloon Inflate ──
         elif anim == "balloon_inflate":
-            alpha = min(t_in * 3.0, 1.0)
+            alpha = ease_out_cubic
             if t_in < 0.55:
-                # Inflate from nothing
-                inflate_t = t_in / 0.55
-                scale = inflate_t * 1.18
-            elif t_in < 0.75:
-                # Overshoot settle
-                settle_t = (t_in - 0.55) / 0.20
-                scale = 1.18 - 0.18 * settle_t
+                scale = 0.86 + 0.22 * (t_in / 0.55)
+            elif t_in < 0.80:
+                scale = 1.08 - 0.08 * ((t_in - 0.55) / 0.25)
             else:
-                # Tiny elastic wobble
-                wobble_t = (t_in - 0.75) / 0.25
-                scale = 1.0 + 0.03 * math.sin(wobble_t * math.pi * 3) * (1.0 - wobble_t)
-            offset_y = max(0.0, (1.0 - ease_out_cubic) * 8.0)
+                scale = 1.0 + 0.015 * math.sin((t_in - 0.80) / 0.20 * math.pi)
+            offset_y = (1.0 - ease_out_cubic) * 4.0
 
-        # ── 26. Erase Reveal — Left-to-Right Wipe (per-char) ──
-        elif anim == "erase_reveal":
+        # ── 29. Letter Drop / Per-Char ──
+        elif anim in PER_CHAR_ANIMS:
             alpha = 1.0
             offset_y = 0.0
 
-        # ── 27. Letter Scatter — Fly In From Random Positions (per-char) ──
-        elif anim == "letter_scatter":
-            alpha = 1.0
-            offset_y = 0.0
-
-        # Default fallback
+        # Fallback
         else:
-            offset_y = (1.0 - ease_out_cubic) * 16.0
+            alpha = ease_out_cubic
+            offset_y = (1.0 - ease_out_cubic) * 10.0
 
-        # ── Outgoing Line Physics (Cross-Transition) ──
+        # ── Outgoing Line Cross-Transition (Silky Smooth Fade-Out) ──
         prev_data = None
         if self.prev_text:
             elapsed_out = now - self.prev_exit_start
-            t_out = min(elapsed_out / self.transition_dur, 1.0) if self.transition_dur > 0 else 1.0
+            exit_dur = 0.28
+            t_out = min(elapsed_out / exit_dur, 1.0)
             if t_out < 1.0:
-                out_ease = t_out * t_out
+                # Soft cosine fade out
+                out_fade = 0.5 + 0.5 * math.cos(t_out * math.pi)
                 prev_data = {
                     "text": self.prev_text,
-                    "alpha": max(0.0, 1.0 - out_ease),
-                    "offset_y": -out_ease * 22.0,
-                    "scale": 1.0 - out_ease * 0.05,
+                    "alpha": max(0.0, out_fade),
+                    "offset_y": -t_out * 8.0,
+                    "scale": 1.0 - t_out * 0.02,
                 }
             else:
                 self.prev_text = ""
 
-        # ── Word-by-Word Reveal Illumination + Color Highlight Tracking ──
+        # ── Glitch-Free Word-by-Word Timing & Color Highlight ──
         num_words = len(self.words)
         self.highlight_word_idx = -1
         if num_words > 0:
-            active_window = min(self.curr_duration * 0.72, 3.8)
+            active_window = min(self.curr_duration * 0.82, 4.0)
             step_dur = active_window / num_words
+            for i in range(num_words):
+                w_start = i * step_dur
+                w_end = (i + 1) * step_dur
+                if w_start <= elapsed_in < w_end:
+                    self.highlight_word_idx = i
+                    break
+            # If past the singing window, hold the highlight on the final word smoothly
+            if self.highlight_word_idx == -1 and elapsed_in >= active_window:
+                self.highlight_word_idx = num_words - 1
+
             for i in range(num_words):
                 w_elapsed = elapsed_in - (i * step_dur)
                 if w_elapsed < 0:
-                    self.word_alphas[i] = 0.35  # Muted upcoming words
+                    self.word_alphas[i] = 0.40
                 else:
-                    progress = min(w_elapsed / max(step_dur * 0.8, 0.14), 1.0)
-                    self.word_alphas[i] = 0.35 + 0.65 * (1.0 - math.pow(1.0 - progress, 2))
-                    # Track the most recently activated word for color highlight
-                    if progress < 0.92:
-                        self.highlight_word_idx = i
-                    elif self.highlight_word_idx < 0:
-                        self.highlight_word_idx = i
+                    progress = min(w_elapsed / max(step_dur * 0.7, 0.12), 1.0)
+                    self.word_alphas[i] = 0.40 + 0.60 * (1.0 - math.pow(1.0 - progress, 2))
 
-        # ── Per-Character Physics ──
+        # ── Per-Character Physics (Glitch-Free & Preserved Kerning) ──
         n_chars = len(self.chars)
         if anim in PER_CHAR_ANIMS and n_chars > 0:
-            total_stagger = min(self.curr_duration * 0.55, 2.4)
-            stagger = total_stagger / max(n_chars, 1)
+            active_window = min(self.curr_duration * 0.65, 2.2)
+            stagger = active_window / max(n_chars, 1)
 
             if anim == "letter_drop":
-                # Letters fall from above under gravity, staggered as spoken
                 for i in range(n_chars):
                     lt = elapsed_in - (i * stagger)
                     if lt < 0:
                         self.char_offsets_x[i] = 0.0
-                        self.char_offsets_y[i] = -52.0
-                        self.char_alphas[i] = 0.0
+                        self.char_offsets_y[i] = 0.0
+                        self.char_alphas[i] = 0.40
                         self.char_scales[i] = 1.0
                     else:
-                        t_norm = min(lt / 0.42, 1.0)
+                        t_norm = min(lt / 0.28, 1.0)
                         damp = 7.0
-                        freq = 12.0
-                        self.char_offsets_y[i] = -52.0 * math.exp(-damp * t_norm) * math.cos(freq * t_norm)
+                        freq = 14.0
+                        self.char_offsets_y[i] = -24.0 * math.exp(-damp * t_norm) * math.cos(freq * t_norm) if t_norm < 1.0 else 0.0
                         self.char_offsets_x[i] = 0.0
-                        self.char_alphas[i] = min(lt / 0.08, 1.0)
+                        self.char_alphas[i] = 0.40 + 0.60 * min(lt / 0.10, 1.0)
                         self.char_scales[i] = 1.0
 
             elif anim == "letter_burst":
-                # Letters start scattered outward, snap back to position
                 for i in range(n_chars):
-                    lt = elapsed_in
-                    t_norm = min(lt / 0.45, 1.0)
+                    t_norm = min(elapsed_in / 0.25, 1.0)
                     ease = 1.0 - math.pow(1.0 - t_norm, 3)
                     self.char_offsets_x[i] = self._char_burst_dx[i] * (1.0 - ease)
                     self.char_offsets_y[i] = self._char_burst_dy[i] * (1.0 - ease)
-                    self.char_alphas[i] = min(lt / 0.12, 1.0)
-                    self.char_scales[i] = 0.4 + 0.6 * ease
+                    self.char_alphas[i] = 0.65 + 0.35 * ease
+                    self.char_scales[i] = 0.90 + 0.10 * ease
 
             elif anim == "letter_scatter":
-                # Letters fly in from random positions with stagger
                 for i in range(n_chars):
-                    lt = elapsed_in - (i * stagger * 0.6)
+                    lt = elapsed_in - (i * stagger * 0.4)
                     if lt < 0:
-                        self.char_offsets_x[i] = self._char_burst_dx[i] * 1.5
-                        self.char_offsets_y[i] = self._char_burst_dy[i] * 1.5
-                        self.char_alphas[i] = 0.0
-                        self.char_scales[i] = 0.3
+                        self.char_offsets_x[i] = self._char_burst_dx[i] * 0.4
+                        self.char_offsets_y[i] = self._char_burst_dy[i] * 0.4
+                        self.char_alphas[i] = 0.40
+                        self.char_scales[i] = 0.96
                     else:
-                        t_norm = min(lt / 0.38, 1.0)
-                        # Elastic ease out
-                        if t_norm < 1.0:
-                            elastic = 1.0 - math.pow(2.0, -10 * t_norm) * math.cos(t_norm * 8.0)
-                        else:
-                            elastic = 1.0
-                        self.char_offsets_x[i] = self._char_burst_dx[i] * 1.5 * (1.0 - elastic)
-                        self.char_offsets_y[i] = self._char_burst_dy[i] * 1.5 * (1.0 - elastic)
-                        self.char_alphas[i] = min(lt / 0.1, 1.0)
-                        self.char_scales[i] = 0.3 + 0.7 * min(t_norm * 1.3, 1.0)
+                        t_norm = min(lt / 0.22, 1.0)
+                        ease = 1.0 - math.pow(1.0 - t_norm, 3)
+                        self.char_offsets_x[i] = self._char_burst_dx[i] * 0.4 * (1.0 - ease)
+                        self.char_offsets_y[i] = self._char_burst_dy[i] * 0.4 * (1.0 - ease)
+                        self.char_alphas[i] = 0.40 + 0.60 * ease
+                        self.char_scales[i] = 0.96 + 0.04 * ease
 
             elif anim == "erase_reveal":
-                # Left-to-right wipe: characters appear sequentially
                 for i in range(n_chars):
                     lt = elapsed_in - (i * stagger * 0.7)
                     if lt < 0:
                         self.char_offsets_x[i] = 0.0
                         self.char_offsets_y[i] = 0.0
-                        self.char_alphas[i] = 0.0
-                        self.char_scales[i] = 0.7
+                        self.char_alphas[i] = 0.40
+                        self.char_scales[i] = 1.0
                     else:
-                        t_norm = min(lt / 0.15, 1.0)
+                        t_norm = min(lt / 0.12, 1.0)
                         self.char_offsets_x[i] = 0.0
                         self.char_offsets_y[i] = 0.0
-                        self.char_alphas[i] = t_norm
-                        self.char_scales[i] = 0.7 + 0.3 * t_norm
+                        self.char_alphas[i] = 0.40 + 0.60 * t_norm
+                        self.char_scales[i] = 1.0
 
         # ── Focal Hand-Drawn Underline Progress ──
         if self.underline_active:
-            u_elapsed = elapsed_in - 0.12
-            u_dur = min(self.curr_duration * 0.55, 1.6)
+            u_elapsed = elapsed_in - 0.08
+            u_dur = min(self.curr_duration * 0.50, 1.4)
             if u_elapsed > 0:
                 u_t = min(u_elapsed / u_dur, 1.0)
                 self.underline_progress = 1.0 - math.pow(1.0 - u_t, 3)
