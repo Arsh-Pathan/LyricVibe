@@ -21,14 +21,19 @@
 ## Demo Video
 
 <p align="center">
-  <video src="https://github.com/Arsh-Pathan/LyricVibe/releases/download/v1.0.0/Spoty.mp4" controls="controls" width="100%" poster="assets/demo-preview.png">
-    <source src="https://github.com/Arsh-Pathan/LyricVibe/releases/download/v1.0.0/Spoty.mp4" type="video/mp4">
-    <a href="https://github.com/Arsh-Pathan/LyricVibe/releases/download/v1.0.0/Spoty.mp4"><img src="assets/demo.gif" alt="LyricVibe Video Demo" width="100%" /></a>
-  </video>
+  <a href="https://youtu.be/0j6qynWk0WA" target="_blank" rel="noopener noreferrer">
+    <img src="assets/youtube-preview.png" alt="LyricVibe Demo Video on YouTube" width="100%" />
+  </a>
 </p>
 
 <p align="center">
-  <sub>Full 1080p Demo: <a href="https://github.com/Arsh-Pathan/LyricVibe/releases/download/v1.0.0/Spoty.mp4">Spoty.mp4</a> | Animated Preview: <a href="assets/demo.gif">assets/demo.gif</a></sub>
+  <a href="https://youtu.be/0j6qynWk0WA" target="_blank" rel="noopener noreferrer">
+    <b>Watch the Full 1080p 60FPS Video Demonstration on YouTube &rarr;</b>
+  </a>
+</p>
+
+<p align="center">
+  <img src="assets/demo.gif" alt="LyricVibe Live Animation Preview" width="100%" />
 </p>
 
 ---
@@ -132,7 +137,7 @@ lyric-vibe/
 ├── settings_manager.py      # JSON-based persistent settings
 ├── config.py                # Static configuration defaults
 ├── assets/
-│   ├── Spoty.mp4            # Demo video recording
+│   ├── youtube-preview.png  # YouTube video demo banner
 │   ├── demo.gif             # Animated preview
 │   ├── demo-preview.png     # Video poster frame
 │   ├── overlay-preview.png  # Floating lyrics screenshot

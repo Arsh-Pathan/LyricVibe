@@ -4,7 +4,14 @@
 
 ---
 
-### Demo & Screenshots
+### Demo Video & Screenshots
+
+<div align="center">
+  <a href="https://youtu.be/0j6qynWk0WA" target="_blank" rel="noopener noreferrer">
+    <img src="https://raw.githubusercontent.com/Arsh-Pathan/LyricVibe/main/assets/youtube-preview.png" width="100%" alt="Watch LyricVibe Demo on YouTube" />
+  </a>
+  <p><a href="https://youtu.be/0j6qynWk0WA" target="_blank" rel="noopener noreferrer"><b>Watch Full 1080p 60FPS Video Demonstration on YouTube &rarr;</b></a></p>
+</div>
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/Arsh-Pathan/LyricVibe/main/assets/overlay-preview.png" width="100%" alt="Floating Lyrics Overlay" />
