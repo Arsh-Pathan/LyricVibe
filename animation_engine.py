@@ -1,9 +1,11 @@
 """
 Comprehensive 165Hz Physics & Animation Engine for Spotify Lyrics.
-- 30+ dynamic, varied cinematic text entrance animations with weighted rarity.
+- 35+ dynamic, varied cinematic text entrance animations with weighted rarity.
+- Per-character physics: letter_drop, letter_burst, balloon_inflate, erase_reveal.
+- Color word highlighting: active spoken word gets accent color.
 - Rock-solid anchored positioning (ZERO continuous float / wobble).
 - Dual-buffer seamless cross-transitions between lyric lines.
-- Focal hand-drawn marker underline: underlines only 1 or 2 key words (not the whole sentence).
+- Focal hand-drawn marker underline: underlines only 1 or 2 key words.
 - Razor-sharp, high-contrast typography (no blurry glow).
 """
 
@@ -27,7 +29,7 @@ class HandDrawnStroke:
         self.offsets[-1] -= 2.2
 
 
-# ─── 30+ Weighted Animation Styles ───────────────────────────────────
+# ─── 35+ Weighted Animation Styles ───────────────────────────────────
 ANIMATION_CATALOG = [
     # Fast / Punchy (Common)
     ("gravity_drop", 18),
@@ -58,7 +60,14 @@ ANIMATION_CATALOG = [
     ("pendulum_swing", 8),
     ("split_horizon", 8),
 
-    # Rare & Dramatic (Rare)
+    # Per-Character Physics (Distinctive)
+    ("letter_drop", 14),
+    ("letter_burst", 10),
+    ("balloon_inflate", 10),
+    ("erase_reveal", 12),
+    ("letter_scatter", 8),
+
+    # Rare & Dramatic
     ("chromatic_split", 5),
     ("velocity_streak", 5),
     ("elastic_twang", 5),
@@ -69,27 +78,31 @@ ANIMATION_CATALOG = [
     ("glitch_flicker", 3),
 ]
 
+# Animations that need per-character rendering
+PER_CHAR_ANIMS = {"letter_drop", "letter_burst", "letter_scatter", "erase_reveal"}
+
 
 def pick_animation(line_text: str, duration: float) -> str:
-    """Dynamically picks from the 30+ animation catalog based on line pacing and rarity."""
+    """Dynamically picks from the 35+ animation catalog based on line pacing and rarity."""
     words = line_text.strip().split()
 
     # Fast short line (<1.6s) -> favor punchy snaps
     if duration > 0 and duration < 1.6:
-        fast_pool = ["kinetic_snap", "impact_slam", "scale_pop", "velocity_streak", "strobe_snap", "overshoot_rise"]
+        fast_pool = ["kinetic_snap", "impact_slam", "scale_pop", "velocity_streak",
+                     "strobe_snap", "overshoot_rise", "letter_burst"]
         return random.choice(fast_pool)
 
     # Slow vocal line with 4+ words -> favor word reveal or smooth transitions
-    if duration >= 3.2 and len(words) >= 4 and random.random() < 0.55:
-        return "word_reveal"
+    if duration >= 3.2 and len(words) >= 4 and random.random() < 0.50:
+        return random.choice(["word_reveal", "letter_drop", "erase_reveal"])
 
-    # Weighted random selection across full 30+ catalog
+    # Weighted random selection across full catalog
     types, weights = zip(*ANIMATION_CATALOG)
     return random.choices(types, weights=weights, k=1)[0]
 
 
 class AnimationEngine:
-    """Manages 165Hz physics, dual-buffer line cross-transitions, and focal underlines."""
+    """Manages 165Hz physics, dual-buffer line cross-transitions, color highlight, and focal underlines."""
 
     def __init__(self):
         # Current (incoming) line
@@ -106,6 +119,19 @@ class AnimationEngine:
         # Word reveal tracking
         self.words = []
         self.word_alphas = []
+
+        # Per-character tracking (letter_drop, letter_burst, letter_scatter, erase)
+        self.chars = []
+        self.char_offsets_x = []
+        self.char_offsets_y = []
+        self.char_alphas = []
+        self.char_scales = []
+        # Pre-baked random targets for burst/scatter
+        self._char_burst_dx = []
+        self._char_burst_dy = []
+
+        # Color highlight tracking
+        self.highlight_word_idx = -1
 
         # Focal 1-2 word underline
         self.focal_word_idx = -1
@@ -130,13 +156,23 @@ class AnimationEngine:
         self.words = new_text.strip().split()
         self.word_alphas = [0.35] * len(self.words)
 
+        # Per-character tracking
+        self.chars = list(new_text)
+        n = len(self.chars)
+        self.char_offsets_x = [0.0] * n
+        self.char_offsets_y = [0.0] * n
+        self.char_alphas = [0.0] * n
+        self.char_scales = [1.0] * n
+
+        # Pre-bake random burst/scatter vectors so they don't flicker
+        self._char_burst_dx = [(random.random() - 0.5) * 120.0 for _ in range(n)]
+        self._char_burst_dy = [(random.random() - 0.5) * 80.0 - 30.0 for _ in range(n)]
+
         # ── Focal 1-2 Word Selection for Underline ──
-        # Instead of the whole sentence, choose 1 or 2 key focal words
         self.underline_active = (self.curr_anim_type == "hand_drawn_flourish") or (len(self.words) >= 2 and random.random() < 0.38)
         self.underline_progress = 0.0
 
         if self.words:
-            # Pick the longest emotional word, or the last punchline word
             longest_idx = max(range(len(self.words)), key=lambda i: len(self.words[i]))
             last_idx = len(self.words) - 1
             self.focal_word_idx = longest_idx if (random.random() < 0.6) else last_idx
@@ -299,6 +335,43 @@ class AnimationEngine:
             alpha = 1.0
             offset_y = (1.0 - ease_out_cubic) * 12.0
 
+        # ── 23. Letter Drop — Spoken Gravity (per-char) ──
+        elif anim == "letter_drop":
+            alpha = 1.0
+            offset_y = 0.0
+
+        # ── 24. Letter Burst — Explode Outward Then Settle (per-char) ──
+        elif anim == "letter_burst":
+            alpha = 1.0
+            offset_y = 0.0
+
+        # ── 25. Balloon Inflate — Tiny to Full with Overshoot ──
+        elif anim == "balloon_inflate":
+            alpha = min(t_in * 3.0, 1.0)
+            if t_in < 0.55:
+                # Inflate from nothing
+                inflate_t = t_in / 0.55
+                scale = inflate_t * 1.18
+            elif t_in < 0.75:
+                # Overshoot settle
+                settle_t = (t_in - 0.55) / 0.20
+                scale = 1.18 - 0.18 * settle_t
+            else:
+                # Tiny elastic wobble
+                wobble_t = (t_in - 0.75) / 0.25
+                scale = 1.0 + 0.03 * math.sin(wobble_t * math.pi * 3) * (1.0 - wobble_t)
+            offset_y = max(0.0, (1.0 - ease_out_cubic) * 8.0)
+
+        # ── 26. Erase Reveal — Left-to-Right Wipe (per-char) ──
+        elif anim == "erase_reveal":
+            alpha = 1.0
+            offset_y = 0.0
+
+        # ── 27. Letter Scatter — Fly In From Random Positions (per-char) ──
+        elif anim == "letter_scatter":
+            alpha = 1.0
+            offset_y = 0.0
+
         # Default fallback
         else:
             offset_y = (1.0 - ease_out_cubic) * 16.0
@@ -319,8 +392,9 @@ class AnimationEngine:
             else:
                 self.prev_text = ""
 
-        # ── Word-by-Word Reveal Illumination ──
+        # ── Word-by-Word Reveal Illumination + Color Highlight Tracking ──
         num_words = len(self.words)
+        self.highlight_word_idx = -1
         if num_words > 0:
             active_window = min(self.curr_duration * 0.72, 3.8)
             step_dur = active_window / num_words
@@ -331,6 +405,83 @@ class AnimationEngine:
                 else:
                     progress = min(w_elapsed / max(step_dur * 0.8, 0.14), 1.0)
                     self.word_alphas[i] = 0.35 + 0.65 * (1.0 - math.pow(1.0 - progress, 2))
+                    # Track the most recently activated word for color highlight
+                    if progress < 0.92:
+                        self.highlight_word_idx = i
+                    elif self.highlight_word_idx < 0:
+                        self.highlight_word_idx = i
+
+        # ── Per-Character Physics ──
+        n_chars = len(self.chars)
+        if anim in PER_CHAR_ANIMS and n_chars > 0:
+            total_stagger = min(self.curr_duration * 0.55, 2.4)
+            stagger = total_stagger / max(n_chars, 1)
+
+            if anim == "letter_drop":
+                # Letters fall from above under gravity, staggered as spoken
+                for i in range(n_chars):
+                    lt = elapsed_in - (i * stagger)
+                    if lt < 0:
+                        self.char_offsets_x[i] = 0.0
+                        self.char_offsets_y[i] = -52.0
+                        self.char_alphas[i] = 0.0
+                        self.char_scales[i] = 1.0
+                    else:
+                        t_norm = min(lt / 0.42, 1.0)
+                        damp = 7.0
+                        freq = 12.0
+                        self.char_offsets_y[i] = -52.0 * math.exp(-damp * t_norm) * math.cos(freq * t_norm)
+                        self.char_offsets_x[i] = 0.0
+                        self.char_alphas[i] = min(lt / 0.08, 1.0)
+                        self.char_scales[i] = 1.0
+
+            elif anim == "letter_burst":
+                # Letters start scattered outward, snap back to position
+                for i in range(n_chars):
+                    lt = elapsed_in
+                    t_norm = min(lt / 0.45, 1.0)
+                    ease = 1.0 - math.pow(1.0 - t_norm, 3)
+                    self.char_offsets_x[i] = self._char_burst_dx[i] * (1.0 - ease)
+                    self.char_offsets_y[i] = self._char_burst_dy[i] * (1.0 - ease)
+                    self.char_alphas[i] = min(lt / 0.12, 1.0)
+                    self.char_scales[i] = 0.4 + 0.6 * ease
+
+            elif anim == "letter_scatter":
+                # Letters fly in from random positions with stagger
+                for i in range(n_chars):
+                    lt = elapsed_in - (i * stagger * 0.6)
+                    if lt < 0:
+                        self.char_offsets_x[i] = self._char_burst_dx[i] * 1.5
+                        self.char_offsets_y[i] = self._char_burst_dy[i] * 1.5
+                        self.char_alphas[i] = 0.0
+                        self.char_scales[i] = 0.3
+                    else:
+                        t_norm = min(lt / 0.38, 1.0)
+                        # Elastic ease out
+                        if t_norm < 1.0:
+                            elastic = 1.0 - math.pow(2.0, -10 * t_norm) * math.cos(t_norm * 8.0)
+                        else:
+                            elastic = 1.0
+                        self.char_offsets_x[i] = self._char_burst_dx[i] * 1.5 * (1.0 - elastic)
+                        self.char_offsets_y[i] = self._char_burst_dy[i] * 1.5 * (1.0 - elastic)
+                        self.char_alphas[i] = min(lt / 0.1, 1.0)
+                        self.char_scales[i] = 0.3 + 0.7 * min(t_norm * 1.3, 1.0)
+
+            elif anim == "erase_reveal":
+                # Left-to-right wipe: characters appear sequentially
+                for i in range(n_chars):
+                    lt = elapsed_in - (i * stagger * 0.7)
+                    if lt < 0:
+                        self.char_offsets_x[i] = 0.0
+                        self.char_offsets_y[i] = 0.0
+                        self.char_alphas[i] = 0.0
+                        self.char_scales[i] = 0.7
+                    else:
+                        t_norm = min(lt / 0.15, 1.0)
+                        self.char_offsets_x[i] = 0.0
+                        self.char_offsets_y[i] = 0.0
+                        self.char_alphas[i] = t_norm
+                        self.char_scales[i] = 0.7 + 0.3 * t_norm
 
         # ── Focal Hand-Drawn Underline Progress ──
         if self.underline_active:
@@ -353,6 +504,11 @@ class AnimationEngine:
             "blur_offset_x": blur_offset_x,
             "prev": prev_data,
             "word_alphas": self.word_alphas,
+            "highlight_word_idx": self.highlight_word_idx,
+            "char_offsets_x": self.char_offsets_x,
+            "char_offsets_y": self.char_offsets_y,
+            "char_alphas": self.char_alphas,
+            "char_scales": self.char_scales,
             "underline_progress": self.underline_progress,
             "underline_active": self.underline_active,
             "focal_word_idx": self.focal_word_idx,

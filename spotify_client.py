@@ -170,20 +170,23 @@ class SpotifyClient:
             return self._state
 
     def estimate_progress(self, state: PlaybackState) -> float:
-        """Calculates exact current position without drift or double-counting."""
+        """Calculates exact current position using freshly polled position + local clock delta.
+
+        The PowerShell listener re-reads SMTC position every 250ms and stores it
+        in state.progress_sec.  We add only the small delta since we *received*
+        that reading (local_received_at) — NOT since the SMTC's own
+        LastUpdatedTime, which only refreshes on play/pause/seek and causes
+        unbounded drift on long tracks.
+        """
         if not state.is_playing:
             return state.progress_sec
 
         now = time.time()
-        # Prefer elapsed time since Windows SMTC timestamp
-        if state.updated_at > 0:
-            elapsed = now - state.updated_at
-            if 0 <= elapsed < 300:
-                pos = state.progress_sec + elapsed
-                return min(pos, state.duration_sec) if state.duration_sec > 0 else pos
-
-        # Fallback to local receive clock
+        # Use local receive clock — this is refreshed every 250ms by the reader
+        # thread, keeping maximum drift to ~250ms instead of minutes.
         elapsed = now - state.local_received_at
+        # Clamp elapsed to a sane range (shouldn't exceed a few seconds)
+        elapsed = max(0.0, min(elapsed, 5.0))
         pos = state.progress_sec + elapsed
         return min(pos, state.duration_sec) if state.duration_sec > 0 else pos
 

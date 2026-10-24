@@ -1,12 +1,15 @@
 """
 Lyric Flow — 165Hz Floating Lyrics Overlay for Spotify.
-- 30+ dynamic, varied cinematic text entrance animations with weighted rarity.
+- 35+ dynamic, varied cinematic text entrance animations with weighted rarity.
+- Per-character physics: letter_drop, letter_burst, balloon_inflate, erase_reveal, letter_scatter.
+- Color word highlighting: active spoken word gets Spotify green accent.
 - Edge-to-edge screen geometry: zero text clipping or cutoff on any display.
 - Dynamic font fitting: scales gracefully so long lines never overflow.
-- 7clouds typography: Edo SZ signature brush & Montserrat Black extra bold.
+- 7clouds typography: Edo SZ signature brush (DEFAULT) & Montserrat Black extra bold.
 - Focal hand-drawn underline: elegantly underlines 1 or 2 key words (not whole sentence).
 - Dual-buffer cross-transitions between lyric lines (no abrupt cuts).
 - Rock-solid anchored text: ZERO continuous float or wobble.
+- Drift-free sync: uses fresh SMTC position + local clock delta (max 250ms error).
 - Real-time settings sync with instant live updates.
 - Pure razor-sharp text (no fuzzy glow).
 """
@@ -36,7 +39,7 @@ import settings_manager
 from settings_window import SettingsDialog
 from spotify_client import SpotifyClient, PlaybackState
 from lyrics_fetcher import get_lyrics, LyricLine
-from animation_engine import AnimationEngine
+from animation_engine import AnimationEngine, PER_CHAR_ANIMS
 
 IPC_SERVER_NAME = "SpotifyLyricsOverlayIPC_v1"
 
@@ -91,7 +94,7 @@ class FloatingLyricsWidget(QWidget):
         self.is_dragging = False
         self.drag_position = QPoint()
 
-        # Physics & Animation Engine (30+ animations, zero continuous float)
+        # Physics & Animation Engine (35+ animations, zero continuous float)
         self.engine = AnimationEngine()
 
         # Load 7clouds fonts (Edo SZ, Montserrat Black, Poppins)
@@ -153,7 +156,7 @@ class FloatingLyricsWidget(QWidget):
                 QFontDatabase.addApplicationFont(fp)
 
     def _get_active_font_family(self) -> str:
-        choice = self.settings.get("font_family", "7clouds Modern")
+        choice = self.settings.get("font_family", "7clouds Signature (Edo SZ)")
         if "Edo" in choice:
             return "Edo SZ"
         elif "Poppins" in choice:
@@ -161,6 +164,11 @@ class FloatingLyricsWidget(QWidget):
         elif "Segoe" in choice:
             return "Segoe UI"
         return "Montserrat"
+
+    def _get_highlight_color(self) -> QColor:
+        """Returns the accent color for the currently-spoken word."""
+        hex_color = self.settings.get("highlight_color", "#1DB954")
+        return QColor(hex_color)
 
     def apply_settings(self, new_settings: dict):
         """Real-time live settings sync without restarts or crashes."""
@@ -209,6 +217,10 @@ class FloatingLyricsWidget(QWidget):
         base_size = int(self.settings.get("font_size", 42))
         font_family = self._get_active_font_family()
 
+        highlight_enabled = self.settings.get("highlight_enabled", True)
+        highlight_color = self._get_highlight_color()
+        highlight_idx = data.get("highlight_word_idx", -1)
+
         # ── 1. Outgoing Line (Seamless Cross-Transition) ──
         if prev_data and prev_data["alpha"] > 0.02:
             p_text = prev_data["text"]
@@ -226,14 +238,13 @@ class FloatingLyricsWidget(QWidget):
             painter.drawText(QRectF(-w / 2.0, -40, w, 80), Qt.AlignmentFlag.AlignCenter, p_text)
             painter.restore()
 
-        # ── 2. Incoming Line (Razor Sharp Pure White with 30+ Animations) ──
+        # ── 2. Incoming Line ──
         if curr_text and data["curr_alpha"] > 0.02:
             in_alpha = int(data["curr_alpha"] * 255)
             in_font, in_metrics = self._fit_font(curr_text, avail_w, base_size, font_family)
             painter.setFont(in_font)
 
             painter.save()
-            # Position without continuous float (firmly anchored)
             painter.translate(screen_cx + data.get("curr_offset_x", 0.0), screen_cy + data["curr_offset_y"])
 
             # Rotational / Skew / Scale transforms
@@ -245,6 +256,7 @@ class FloatingLyricsWidget(QWidget):
                 painter.scale(data["curr_scale"], data["curr_scale"])
 
             total_w = in_metrics.horizontalAdvance(curr_text)
+            anim_type = data.get("anim_type", "")
 
             # Chromatic Split animation (Rare)
             chroma = data.get("chroma", 0.0)
@@ -254,9 +266,20 @@ class FloatingLyricsWidget(QWidget):
                 painter.setPen(QColor(255, 120, 140, int(data["curr_alpha"] * 140)))
                 painter.drawText(QRectF(-total_w / 2.0 + chroma, -40, total_w, 80), Qt.AlignmentFlag.AlignCenter, curr_text)
 
-            # Word-by-word reveal (Active sharp illumination)
-            if (data.get("anim_type") == "word_reveal" or self.settings.get("word_reveal_enabled", True)) and data.get("word_alphas"):
-                self._draw_sharp_word_reveal(painter, in_metrics, curr_text, data["word_alphas"], in_alpha)
+            # ── Per-Character Rendering (letter_drop, burst, scatter, erase) ──
+            if anim_type in PER_CHAR_ANIMS and data.get("char_alphas"):
+                self._draw_per_char(
+                    painter, in_metrics, curr_text,
+                    data["char_offsets_x"], data["char_offsets_y"],
+                    data["char_alphas"], data["char_scales"],
+                    in_alpha, highlight_enabled, highlight_color, highlight_idx
+                )
+            # ── Word-by-word reveal with color highlight ──
+            elif (anim_type == "word_reveal" or self.settings.get("word_reveal_enabled", True)) and data.get("word_alphas"):
+                self._draw_word_reveal_highlight(
+                    painter, in_metrics, curr_text, data["word_alphas"],
+                    in_alpha, highlight_enabled, highlight_color, highlight_idx
+                )
             else:
                 # Razor sharp pure white line
                 painter.setPen(QColor(255, 255, 255, in_alpha))
@@ -285,7 +308,6 @@ class FloatingLyricsWidget(QWidget):
         font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
         metrics = QFontMetrics(font)
 
-        # Scale down smoothly if line exceeds available width
         while metrics.horizontalAdvance(text) > max_w and size > 16:
             size -= 1
             font.setPointSize(size)
@@ -293,9 +315,61 @@ class FloatingLyricsWidget(QWidget):
 
         return font, metrics
 
-    def _draw_sharp_word_reveal(self, painter: QPainter, metrics: QFontMetrics,
-                                 text: str, word_alphas: list[float], master_alpha: int):
-        """Renders words with high-contrast sharp illumination (no fuzzy blur)."""
+    def _draw_per_char(self, painter: QPainter, metrics: QFontMetrics,
+                       text: str, offsets_x: list, offsets_y: list,
+                       char_alphas: list, char_scales: list,
+                       master_alpha: int,
+                       hl_enabled: bool, hl_color: QColor, hl_word_idx: int):
+        """Renders individual characters with their own position/alpha/scale (letter_drop, burst, scatter, erase)."""
+        total_w = metrics.horizontalAdvance(text)
+        base_x = -total_w / 2.0
+        base_y = metrics.ascent() - metrics.height() / 2.0
+
+        # Build word boundaries for highlight coloring
+        word_char_map = []  # which word index each char belongs to
+        words = text.strip().split()
+        if hl_enabled and hl_word_idx >= 0 and words:
+            char_idx = 0
+            for wi, word in enumerate(words):
+                if wi > 0:
+                    # space between words
+                    word_char_map.append(-1)
+                    char_idx += 1
+                for _ in word:
+                    word_char_map.append(wi)
+                    char_idx += 1
+
+        curr_x = base_x
+        for i, ch in enumerate(text):
+            ch_w = metrics.horizontalAdvance(ch)
+            ca = char_alphas[i] if i < len(char_alphas) else 1.0
+            ox = offsets_x[i] if i < len(offsets_x) else 0.0
+            oy = offsets_y[i] if i < len(offsets_y) else 0.0
+            cs = char_scales[i] if i < len(char_scales) else 1.0
+            final_a = max(0, min(255, int(master_alpha * ca)))
+
+            # Color highlight for active word
+            if (hl_enabled and hl_word_idx >= 0 and
+                    i < len(word_char_map) and word_char_map[i] == hl_word_idx):
+                painter.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), final_a))
+            else:
+                painter.setPen(QColor(255, 255, 255, final_a))
+
+            if cs != 1.0:
+                painter.save()
+                painter.translate(curr_x + ch_w / 2.0 + ox, base_y + oy)
+                painter.scale(cs, cs)
+                painter.drawText(QPointF(-ch_w / 2.0, 0), ch)
+                painter.restore()
+            else:
+                painter.drawText(QPointF(curr_x + ox, base_y + oy), ch)
+
+            curr_x += ch_w
+
+    def _draw_word_reveal_highlight(self, painter: QPainter, metrics: QFontMetrics,
+                                     text: str, word_alphas: list[float], master_alpha: int,
+                                     hl_enabled: bool, hl_color: QColor, hl_word_idx: int):
+        """Renders words with sharp illumination + color highlight on the active word."""
         words = text.strip().split()
         space_w = metrics.horizontalAdvance(" ")
         word_widths = [metrics.horizontalAdvance(w) for w in words]
@@ -306,9 +380,14 @@ class FloatingLyricsWidget(QWidget):
 
         for idx, word in enumerate(words):
             raw_w_alpha = word_alphas[idx] if idx < len(word_alphas) else 1.0
-            # Muted upcoming words (sharp ~35% white), active words (pure 100% white)
-            final_a = int(master_alpha * raw_w_alpha)
-            painter.setPen(QColor(255, 255, 255, max(0, min(255, final_a))))
+            final_a = max(0, min(255, int(master_alpha * raw_w_alpha)))
+
+            # Color highlight for the active spoken word
+            if hl_enabled and idx == hl_word_idx:
+                painter.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), final_a))
+            else:
+                painter.setPen(QColor(255, 255, 255, final_a))
+
             painter.drawText(QPointF(curr_x, y), word)
             curr_x += word_widths[idx] + space_w
 
@@ -326,7 +405,6 @@ class FloatingLyricsWidget(QWidget):
         w_widths = [metrics.horizontalAdvance(w) for w in words]
         total_w = sum(w_widths) + (len(words) - 1) * space_w
 
-        # Compute exact X position of the focal word within the centered line
         start_line_x = -total_w / 2.0
         word_start_x = start_line_x + sum(w_widths[:focal_idx]) + focal_idx * space_w
         target_w = w_widths[focal_idx]
@@ -376,7 +454,6 @@ class FloatingLyricsWidget(QWidget):
     def mouseMoveEvent(self, event):
         if event.buttons() == Qt.MouseButton.LeftButton and self.is_dragging and not self.is_locked:
             new_pos = event.globalPosition().toPoint() - self.drag_position
-            # Keep X anchored at 0 (full width) and allow Y dragging
             self.move(0, new_pos.y())
             self.settings["overlay_y"] = new_pos.y()
             settings_manager.save_settings(self.settings)
@@ -514,7 +591,6 @@ class FloatingLyricsWidget(QWidget):
                 dur = max(next_time - self.lyrics[line_idx].time_sec, 1.4)
 
                 self.current_line_text = raw_text
-                # Trigger dynamic animation from the 30+ catalog
                 self.engine.trigger_line(raw_text, dur)
             else:
                 self.current_line_text = ""
@@ -550,7 +626,6 @@ def main():
     socket = QLocalSocket()
     socket.connectToServer(IPC_SERVER_NAME)
     if socket.waitForConnected(400):
-        # Already running -> Ask first instance to open Settings Window
         socket.write(b"OPEN_SETTINGS\n")
         socket.waitForBytesWritten(300)
         socket.disconnectFromServer()

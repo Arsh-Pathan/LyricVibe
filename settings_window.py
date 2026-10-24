@@ -1,11 +1,14 @@
 """
 Settings Window for Spotify Floating Lyrics Overlay.
 - Real-time live settings synchronization (zero crashes, instant updates).
-- Dedicated interactive live preview testing 30+ animations and typography.
-- 7clouds font switcher (Edo SZ signature brush & Montserrat Black).
+- Dedicated interactive live preview testing 35+ animations and typography.
+- Per-character animation preview (letter_drop, burst, scatter, erase).
+- Color word highlighting with accent color picker.
+- 7clouds font switcher (Edo SZ signature brush DEFAULT & Montserrat Black).
 - Focal hand-drawn underline (highlights only 1-2 key words).
 - Zero continuous float (firmly anchored lyrics).
 - Modern Material 3 container design with clean typography and system diagnostics.
+- Done button ONLY closes settings dialog (does NOT quit the overlay app).
 """
 
 import sys
@@ -29,7 +32,7 @@ from PyQt6.QtGui import (
 )
 
 import settings_manager
-from animation_engine import AnimationEngine, ANIMATION_CATALOG
+from animation_engine import AnimationEngine, ANIMATION_CATALOG, PER_CHAR_ANIMS
 
 
 # ─── Material Design 3 Dark Theme Palette ─────────────────────────────
@@ -259,11 +262,11 @@ class SectionCard(QFrame):
         self._layout.addWidget(sep)
 
 
-# ─── Live Interactive Preview Canvas (Exact Mirror of Overlay) ────────
+# ─── Live Interactive Preview Canvas ──────────────────────────────────
 class LivePreview(QWidget):
     """
     Renders sharp floating lyrics with actual 7clouds font,
-    30+ animations, zero float, and focal 1-2 word underlines.
+    35+ animations, per-char physics, color highlight, and focal underlines.
     """
 
     PREVIEW_LINES = [
@@ -283,7 +286,6 @@ class LivePreview(QWidget):
         self._line_idx = 0
         self._current_anim_choice = ""
 
-        # Trigger first line
         self.engine.trigger_line(self.PREVIEW_LINES[0], 3.8, "gravity_drop")
 
         self._render_timer = QTimer(self)
@@ -335,12 +337,13 @@ class LivePreview(QWidget):
         data = self.engine.update()
         curr_text = data.get("curr_text", "")
         prev_data = data.get("prev")
+        anim_type = data.get("anim_type", "")
 
         cx = w / 2.0
         cy = h / 2.0
 
         # Font configuration
-        font_choice = self.settings.get("font_family", "7clouds Modern")
+        font_choice = self.settings.get("font_family", "7clouds Signature (Edo SZ)")
         if "Edo" in font_choice:
             fam = "Edo SZ"
             weight = QFont.Weight.Bold
@@ -359,13 +362,16 @@ class LivePreview(QWidget):
         font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
         metrics = QFontMetrics(font)
 
-        # Scale down if exceeds preview width
         while metrics.horizontalAdvance(curr_text) > (w - 60) and size > 15:
             size -= 1
             font.setPointSize(size)
             metrics = QFontMetrics(font)
 
         p.setFont(font)
+
+        hl_enabled = self.settings.get("highlight_enabled", True)
+        hl_color = QColor(self.settings.get("highlight_color", "#1DB954"))
+        hl_idx = data.get("highlight_word_idx", -1)
 
         # ── 1. Outgoing Line Cross-Transition ──
         if prev_data and prev_data["alpha"] > 0.02:
@@ -375,7 +381,7 @@ class LivePreview(QWidget):
             p_w = metrics.horizontalAdvance(p_text)
             p.drawText(QRectF(cx - p_w / 2.0, cy + prev_data["offset_y"] - 25, p_w, 50), Qt.AlignmentFlag.AlignCenter, p_text)
 
-        # ── 2. Incoming Line (Anchored, Zero Float) ──
+        # ── 2. Incoming Line ──
         if curr_text and data["curr_alpha"] > 0.02:
             in_alpha = int(data["curr_alpha"] * 255)
             total_w = metrics.horizontalAdvance(curr_text)
@@ -388,8 +394,18 @@ class LivePreview(QWidget):
             if data["curr_scale"] != 1.0:
                 p.scale(data["curr_scale"], data["curr_scale"])
 
-            # Word reveal
-            if (data.get("anim_type") == "word_reveal" or self.settings.get("word_reveal_enabled", True)) and data.get("word_alphas"):
+            # ── Per-Character Rendering ──
+            if anim_type in PER_CHAR_ANIMS and data.get("char_alphas"):
+                self._draw_per_char_preview(
+                    p, metrics, curr_text,
+                    data.get("char_offsets_x", []),
+                    data.get("char_offsets_y", []),
+                    data["char_alphas"],
+                    data.get("char_scales", []),
+                    in_alpha, hl_enabled, hl_color, hl_idx
+                )
+            # ── Word reveal with highlight ──
+            elif (anim_type == "word_reveal" or self.settings.get("word_reveal_enabled", True)) and data.get("word_alphas"):
                 words = curr_text.split()
                 space_w = metrics.horizontalAdvance(" ")
                 w_widths = [metrics.horizontalAdvance(wd) for wd in words]
@@ -399,15 +415,18 @@ class LivePreview(QWidget):
 
                 for idx, word in enumerate(words):
                     raw_w = data["word_alphas"][idx] if idx < len(data["word_alphas"]) else 1.0
-                    f_a = int(in_alpha * raw_w)
-                    p.setPen(QColor(255, 255, 255, max(0, min(255, f_a))))
+                    f_a = max(0, min(255, int(in_alpha * raw_w)))
+                    if hl_enabled and idx == hl_idx:
+                        p.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), f_a))
+                    else:
+                        p.setPen(QColor(255, 255, 255, f_a))
                     p.drawText(QPointF(curr_x, text_y), word)
                     curr_x += w_widths[idx] + space_w
             else:
                 p.setPen(QColor(255, 255, 255, in_alpha))
                 p.drawText(QRectF(-total_w / 2.0, -25, total_w, 50), Qt.AlignmentFlag.AlignCenter, curr_text)
 
-            # Focal 1-2 words underline
+            # Focal underline
             if (self.settings.get("hand_drawn_underline_enabled", True) and
                     data.get("underline_active") and
                     data.get("underline_progress", 0.0) > 0.02 and
@@ -417,21 +436,19 @@ class LivePreview(QWidget):
                 words = curr_text.split()
                 if focal_idx < len(words):
                     space_w = metrics.horizontalAdvance(" ")
-                    w_widths = [metrics.horizontalAdvance(w) for w in words]
+                    w_widths = [metrics.horizontalAdvance(wd) for wd in words]
                     t_w = sum(w_widths) + (len(words) - 1) * space_w
                     w_start_x = -t_w / 2.0 + sum(w_widths[:focal_idx]) + focal_idx * space_w
                     target_w = w_widths[focal_idx]
                     draw_w = target_w * data["underline_progress"]
 
                     if draw_w > 6:
-                        # Pencil sketch
                         p.setPen(QPen(QColor(255, 255, 255, int(data["curr_alpha"] * 75)), 1.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
                         path1 = QPainterPath()
                         path1.moveTo(w_start_x - 2, 18)
                         path1.quadTo(w_start_x + draw_w * 0.5, 21, w_start_x + draw_w + 2, 19)
                         p.drawPath(path1)
 
-                        # Ink stroke
                         p.setPen(QPen(QColor(255, 255, 255, int(data["curr_alpha"] * 225)), 2.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
                         path2 = QPainterPath()
                         path2.moveTo(w_start_x, 18)
@@ -446,6 +463,99 @@ class LivePreview(QWidget):
         p.drawText(QRectF(0, 10, w - 16, 20), Qt.AlignmentFlag.AlignRight, "● LIVE PREVIEW")
 
         p.end()
+
+    def _draw_per_char_preview(self, p: QPainter, metrics: QFontMetrics,
+                                text: str, offsets_x, offsets_y, char_alphas, char_scales,
+                                master_alpha: int, hl_enabled: bool, hl_color: QColor, hl_idx: int):
+        """Per-character rendering for letter_drop, burst, scatter, erase animations."""
+        total_w = metrics.horizontalAdvance(text)
+        base_x = -total_w / 2.0
+        base_y = metrics.ascent() - metrics.height() / 2.0
+
+        # Build word map
+        word_char_map = []
+        words = text.strip().split()
+        if hl_enabled and hl_idx >= 0 and words:
+            for wi, word in enumerate(words):
+                if wi > 0:
+                    word_char_map.append(-1)
+                for _ in word:
+                    word_char_map.append(wi)
+
+        curr_x = base_x
+        for i, ch in enumerate(text):
+            ch_w = metrics.horizontalAdvance(ch)
+            ca = char_alphas[i] if i < len(char_alphas) else 1.0
+            ox = offsets_x[i] if i < len(offsets_x) else 0.0
+            oy = offsets_y[i] if i < len(offsets_y) else 0.0
+            cs = char_scales[i] if i < len(char_scales) else 1.0
+            final_a = max(0, min(255, int(master_alpha * ca)))
+
+            if hl_enabled and hl_idx >= 0 and i < len(word_char_map) and word_char_map[i] == hl_idx:
+                p.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), final_a))
+            else:
+                p.setPen(QColor(255, 255, 255, final_a))
+
+            if cs != 1.0:
+                p.save()
+                p.translate(curr_x + ch_w / 2.0 + ox, base_y + oy)
+                p.scale(cs, cs)
+                p.drawText(QPointF(-ch_w / 2.0, 0), ch)
+                p.restore()
+            else:
+                p.drawText(QPointF(curr_x + ox, base_y + oy), ch)
+
+            curr_x += ch_w
+
+
+# ─── Highlight Color Swatch Button ────────────────────────────────────
+class ColorSwatch(QPushButton):
+    color_changed = pyqtSignal(str)
+
+    PALETTE = ["#1DB954", "#FF6B6B", "#4ECDC4", "#FFE66D", "#A8C7FA",
+               "#FF8A65", "#CE93D8", "#80CBC4", "#FFFFFF"]
+
+    def __init__(self, current_hex: str = "#1DB954", parent=None):
+        super().__init__(parent)
+        self._color = current_hex
+        self._idx = 0
+        for i, c in enumerate(self.PALETTE):
+            if c.upper() == current_hex.upper():
+                self._idx = i
+                break
+        self.setFixedSize(36, 36)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.clicked.connect(self._cycle_color)
+        self._apply_style()
+
+    def _apply_style(self):
+        self.setStyleSheet(f"""
+            QPushButton {{
+                background: {self._color};
+                border: 2px solid {MD3.OUTLINE_VARIANT};
+                border-radius: 18px;
+            }}
+            QPushButton:hover {{
+                border: 2px solid {MD3.PRIMARY};
+            }}
+        """)
+
+    def _cycle_color(self):
+        self._idx = (self._idx + 1) % len(self.PALETTE)
+        self._color = self.PALETTE[self._idx]
+        self._apply_style()
+        self.color_changed.emit(self._color)
+
+    def color(self) -> str:
+        return self._color
+
+    def setColor(self, hex_color: str):
+        self._color = hex_color
+        for i, c in enumerate(self.PALETTE):
+            if c.upper() == hex_color.upper():
+                self._idx = i
+                break
+        self._apply_style()
 
 
 # ─── Main Settings Window ─────────────────────────────────────────────
@@ -467,9 +577,9 @@ class SettingsDialog(QDialog):
     def _load_icon(self):
         icon_dir = os.path.dirname(os.path.abspath(__file__))
         for icon_name in ("icon.ico", "icon.png"):
-            p = os.path.join(icon_dir, icon_name)
-            if os.path.exists(p):
-                self.setWindowIcon(QIcon(p))
+            fp = os.path.join(icon_dir, icon_name)
+            if os.path.exists(fp):
+                self.setWindowIcon(QIcon(fp))
                 break
 
     def _apply_theme(self):
@@ -611,16 +721,14 @@ class SettingsDialog(QDialog):
         # Tabs
         tabs = QTabWidget()
         tabs.setDocumentMode(True)
-
         tabs.addTab(self._build_display_tab(), "Display")
         tabs.addTab(self._build_effects_tab(), "Effects")
         tabs.addTab(self._build_timing_tab(), "Sync")
         tabs.addTab(self._build_presets_tab(), "Presets")
         tabs.addTab(self._build_about_tab(), "About")
-
         root.addWidget(tabs, 1)
 
-        # Bottom Bar
+        # Bottom Bar — Done only hides dialog, Exit quits overlay
         bottom_bar = QWidget()
         bottom_bar.setFixedHeight(72)
         bottom_bar.setStyleSheet(f"""
@@ -689,7 +797,8 @@ class SettingsDialog(QDialog):
             }}
         """)
         btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_close.clicked.connect(self.accept)
+        # Done = just hide the dialog, NOT quit the app
+        btn_close.clicked.connect(self._on_done_clicked)
         b_lay.addWidget(btn_close)
 
         root.addWidget(bottom_bar)
@@ -715,9 +824,8 @@ class SettingsDialog(QDialog):
         p_c_lay.setContentsMargins(18, 6, 18, 12)
         p_c_lay.setSpacing(10)
 
-        # Animation tester dropdown
         self.combo_test_anim = QComboBox()
-        self.combo_test_anim.addItem("Random 30+ Animations", "")
+        self.combo_test_anim.addItem("Random 35+ Animations", "")
         for name, _ in ANIMATION_CATALOG:
             clean_name = name.replace("_", " ").title()
             self.combo_test_anim.addItem(f"Test: {clean_name}", name)
@@ -766,20 +874,20 @@ class SettingsDialog(QDialog):
         preview_card.add_row(p_ctrls)
         layout.addWidget(preview_card)
 
-        # 2. Typography Card (7clouds Fonts)
+        # 2. Typography Card
         typo_card = SectionCard("Typography & 7clouds Style")
 
         row_font = SettingRow("Font Style", "Choose between 7clouds signature brush and clean bold")
         self.combo_font = QComboBox()
         self.combo_font.addItems([
-            "7clouds Modern (Montserrat Black)",
             "7clouds Signature (Edo SZ)",
+            "7clouds Modern (Montserrat Black)",
             "Clean Bold (Poppins)",
             "System Clean (Segoe UI)",
         ])
-        cur_font = self.settings.get("font_family", "7clouds Modern")
+        cur_font = self.settings.get("font_family", "7clouds Signature (Edo SZ)")
         idx = 0
-        if "Edo" in cur_font:
+        if "Montserrat" in cur_font or "Modern" in cur_font:
             idx = 1
         elif "Poppins" in cur_font:
             idx = 2
@@ -840,7 +948,22 @@ class SettingsDialog(QDialog):
 
         fx_card = SectionCard("Visual Effects & Flourishes")
 
-        # Hand-Drawn Underline on 1-2 words
+        # Color Word Highlight
+        row_hl = SettingRow(
+            "Active Word Color Highlight",
+            "Highlights the currently spoken word with an accent color"
+        )
+        self.toggle_highlight = PillToggle(self.settings.get("highlight_enabled", True))
+        self.toggle_highlight.toggled.connect(lambda v: self._update_and_sync("highlight_enabled", v))
+        row_hl.add_control(self.toggle_highlight)
+
+        self.color_swatch = ColorSwatch(self.settings.get("highlight_color", "#1DB954"))
+        self.color_swatch.color_changed.connect(lambda c: self._update_and_sync("highlight_color", c))
+        row_hl.add_control(self.color_swatch)
+        fx_card.add_row(row_hl)
+        fx_card.add_separator()
+
+        # Hand-Drawn Underline
         row_line = SettingRow(
             "Hand-Drawn Focal Underlines",
             "Sketched marker stroke under 1 or 2 key focal words (not the whole sentence)"
@@ -874,16 +997,19 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(fx_card)
 
-        # 30+ Animations Showcase Card
-        anim_card = SectionCard("30+ Dynamic Animation Suite")
+        # 35+ Animations Showcase Card
+        anim_card = SectionCard("35+ Dynamic Animation Suite")
         anim_info = QLabel(
-            "🎬  <b>30+ Cinematic Text Animations:</b><br>"
+            "🎬  <b>35+ Cinematic Text Animations:</b><br>"
             "Gravity drop, kinetic snap, scale pop, drift, overshoot rise, magnetic snap, "
             "zoom settle, focus pull, typewriter, curtain reveal, skew slide, flip drop, "
             "pendulum swing, impact slam, wave cascade, chromatic split, and more.<br><br>"
-            "⚓  <b>Firmly Anchored Text:</b><br>"
-            "Zero continuous wobble or floating — text lands smoothly with physical spring damping "
-            "and stays rock-solid while you listen."
+            "🔤  <b>Per-Character Physics:</b><br>"
+            "Letter drop (gravity fall as spoken), letter burst (explode outward), "
+            "letter scatter (fly in from random), erase reveal (wipe left-to-right), "
+            "balloon inflate (tiny to full with bounce).<br><br>"
+            "🎨  <b>Color Word Highlight:</b><br>"
+            "The currently spoken word illuminates in your chosen accent color."
         )
         anim_info.setWordWrap(True)
         anim_info.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 13px; line-height: 1.6; padding: 16px 20px; background: transparent; border: none;")
@@ -973,21 +1099,25 @@ class SettingsDialog(QDialog):
         card = SectionCard("One-Click Presets")
 
         presets = [
-            ("7clouds Signature", "Iconic brush style (Edo SZ) with focal underlines and 30+ animations", {
+            ("7clouds Signature", "Iconic brush style (Edo SZ) with focal underlines and color highlights", {
                 "font_family": "7clouds Signature (Edo SZ)", "font_size": 42,
-                "hand_drawn_underline_enabled": True, "word_reveal_enabled": True, "target_fps": 165
+                "hand_drawn_underline_enabled": True, "word_reveal_enabled": True,
+                "highlight_enabled": True, "highlight_color": "#1DB954", "target_fps": 165
             }),
             ("7clouds Modern", "Ultra-bold sans-serif (Montserrat Black) with razor-sharp word reveal", {
                 "font_family": "7clouds Modern (Montserrat Black)", "font_size": 42,
-                "hand_drawn_underline_enabled": True, "word_reveal_enabled": True, "target_fps": 165
+                "hand_drawn_underline_enabled": True, "word_reveal_enabled": True,
+                "highlight_enabled": True, "highlight_color": "#A8C7FA", "target_fps": 165
             }),
-            ("Minimalist Pure", "Distraction-free pure white typography without underlines", {
-                "font_family": "7clouds Modern (Montserrat Black)", "font_size": 38,
-                "hand_drawn_underline_enabled": False, "word_reveal_enabled": False, "target_fps": 120
+            ("Minimalist Pure", "Distraction-free pure white typography without underlines or highlights", {
+                "font_family": "7clouds Signature (Edo SZ)", "font_size": 38,
+                "hand_drawn_underline_enabled": False, "word_reveal_enabled": False,
+                "highlight_enabled": False, "target_fps": 120
             }),
             ("High Velocity 240Hz", "Maximum fluid 240Hz refresh rate with snappy transitions", {
-                "font_family": "7clouds Modern (Montserrat Black)", "font_size": 40,
-                "hand_drawn_underline_enabled": True, "word_reveal_enabled": True, "target_fps": 240
+                "font_family": "7clouds Signature (Edo SZ)", "font_size": 40,
+                "hand_drawn_underline_enabled": True, "word_reveal_enabled": True,
+                "highlight_enabled": True, "highlight_color": "#FFE66D", "target_fps": 240
             }),
         ]
 
@@ -1072,8 +1202,9 @@ class SettingsDialog(QDialog):
         info_col.addWidget(app_ver)
 
         app_desc = QLabel(
-            "Hardware-accelerated desktop lyrics overlay with 30+ animations, "
-            "7clouds typography, focal underlines, and universal Hinglish transliteration."
+            "Hardware-accelerated desktop lyrics overlay with 35+ animations, "
+            "per-character physics, color word highlight, 7clouds typography, "
+            "focal underlines, and universal Hinglish transliteration."
         )
         app_desc.setWordWrap(True)
         app_desc.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 12px; line-height: 1.5; background: transparent; border: none;")
@@ -1090,6 +1221,7 @@ class SettingsDialog(QDialog):
             ("Rendering Engine", "PyQt6 QPainter (Hardware-Accelerated)"),
             ("Active Refresh Target", f"{self.settings.get('target_fps', 165)} Hz"),
             ("Media Transport", "Windows SMTC (WinRT Native)"),
+            ("Sync Strategy", "Fresh SMTC Position + Local Clock Delta"),
             ("Transliteration Engine", "100% Clean Latin Hinglish (Zero Leaks)"),
             ("Lyrics Provider", "LRCLIB (Free & Open)"),
         ]
@@ -1162,11 +1294,14 @@ class SettingsDialog(QDialog):
 
     # ── Real-Time Sync Handlers (Instant Live Update, Zero Crash) ──
     def _update_and_sync(self, key: str, val):
-        self.settings[key] = val
-        settings_manager.save_settings(self.settings)
-        if hasattr(self, 'preview_widget'):
-            self.preview_widget.update_settings(self.settings)
-        self.settings_changed.emit(self.settings)
+        try:
+            self.settings[key] = val
+            settings_manager.save_settings(self.settings)
+            if hasattr(self, 'preview_widget'):
+                self.preview_widget.update_settings(self.settings)
+            self.settings_changed.emit(self.settings)
+        except Exception:
+            pass
 
     def _on_font_changed(self, idx):
         choice = self.combo_font.currentText()
@@ -1188,49 +1323,63 @@ class SettingsDialog(QDialog):
         self._update_and_sync("target_fps", chosen)
 
     def _apply_preset(self, preset: dict):
-        self.settings.update(preset)
-        settings_manager.save_settings(self.settings)
+        try:
+            self.settings.update(preset)
+            settings_manager.save_settings(self.settings)
 
-        if "font_size" in preset:
-            self.slider_size.setValue(preset["font_size"])
-        if "overlay_y" in preset:
-            self.slider_y.setValue(preset["overlay_y"])
-        if "font_family" in preset:
-            fam = preset["font_family"]
-            idx = 0
-            if "Edo" in fam:
-                idx = 1
-            elif "Poppins" in fam:
-                idx = 2
-            elif "Segoe" in fam:
-                idx = 3
-            self.combo_font.setCurrentIndex(idx)
-        if "hand_drawn_underline_enabled" in preset:
-            self.toggle_underline.setChecked(preset["hand_drawn_underline_enabled"])
-        if "word_reveal_enabled" in preset:
-            self.toggle_word.setChecked(preset["word_reveal_enabled"])
-        if "target_fps" in preset:
-            fps_map = {60: 0, 120: 1, 144: 2, 165: 3, 240: 4}
-            self.combo_fps.setCurrentIndex(fps_map.get(preset["target_fps"], 3))
+            if "font_size" in preset:
+                self.slider_size.setValue(preset["font_size"])
+            if "overlay_y" in preset:
+                self.slider_y.setValue(preset["overlay_y"])
+            if "font_family" in preset:
+                fam = preset["font_family"]
+                idx = 0
+                if "Montserrat" in fam or "Modern" in fam:
+                    idx = 1
+                elif "Poppins" in fam:
+                    idx = 2
+                elif "Segoe" in fam:
+                    idx = 3
+                self.combo_font.setCurrentIndex(idx)
+            if "hand_drawn_underline_enabled" in preset:
+                self.toggle_underline.setChecked(preset["hand_drawn_underline_enabled"])
+            if "word_reveal_enabled" in preset:
+                self.toggle_word.setChecked(preset["word_reveal_enabled"])
+            if "highlight_enabled" in preset:
+                self.toggle_highlight.setChecked(preset["highlight_enabled"])
+            if "highlight_color" in preset:
+                self.color_swatch.setColor(preset["highlight_color"])
+            if "target_fps" in preset:
+                fps_map = {60: 0, 120: 1, 144: 2, 165: 3, 240: 4}
+                self.combo_fps.setCurrentIndex(fps_map.get(preset["target_fps"], 3))
 
-        if hasattr(self, 'preview_widget'):
-            self.preview_widget.update_settings(self.settings)
-        self.settings_changed.emit(self.settings)
+            if hasattr(self, 'preview_widget'):
+                self.preview_widget.update_settings(self.settings)
+            self.settings_changed.emit(self.settings)
+        except Exception:
+            pass
 
     def _reset_to_defaults(self):
         defaults = {
             "target_fps": 165,
             "font_size": 42,
-            "font_family": "7clouds Modern (Montserrat Black)",
+            "font_family": "7clouds Signature (Edo SZ)",
             "overlay_y": 55,
             "sync_offset_sec": 0.0,
             "auto_hide_idle": True,
             "hand_drawn_underline_enabled": True,
             "word_reveal_enabled": True,
+            "highlight_enabled": True,
+            "highlight_color": "#1DB954",
         }
         self._apply_preset(defaults)
         self.slider_sync.setValue(0)
         self.toggle_hide.setChecked(True)
+
+    def _on_done_clicked(self):
+        """Only hides the settings dialog. Does NOT quit the overlay app."""
+        settings_manager.save_settings(self.settings)
+        self.hide()
 
     def _on_quit_clicked(self):
         self.quit_requested.emit()

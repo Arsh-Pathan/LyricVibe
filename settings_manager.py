@@ -11,9 +11,11 @@ SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settin
 DEFAULT_SETTINGS = {
     "target_fps": 165,             # 165 Hz smooth motion
     "font_size": 42,
-    "font_family": "Segoe UI",
+    "font_family": "7clouds Signature (Edo SZ)",
     "font_weight": "bold",
     "text_color": "#FFFFFF",
+    "highlight_color": "#1DB954",  # Spotify green active word highlight
+    "highlight_enabled": True,
     "motion_blur_enabled": True,
     "glow_enabled": True,
     "hand_drawn_underline_enabled": True,
