@@ -20,10 +20,10 @@ if sys.stderr is None:
     sys.stderr = open(os.devnull, "w")
 
 from PyQt6.QtWidgets import QApplication, QWidget
-from PyQt6.QtCore import Qt, QTimer, QPoint, QPointF, QRectF
+from PyQt6.QtCore import Qt, QTimer, QPoint, QPointF, QRectF, QObject, pyqtSignal
 from PyQt6.QtGui import (
     QPainter, QColor, QFont, QFontDatabase, QPen,
-    QPainterPath, QTransform
+    QPainterPath, QTransform, QIcon
 )
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 
@@ -34,6 +34,15 @@ from lyrics_fetcher import get_lyrics, LyricLine
 from animation_engine import pick_animation_type, AnimationState
 
 IPC_SERVER_NAME = "SpotifyLyricsOverlayIPC_v1"
+
+
+class AppSignals(QObject):
+    """Thread-safe signal bridge between background worker threads and PyQt6 GUI."""
+    lyrics_fetched = pyqtSignal(object)
+    hotkey_lock = pyqtSignal()
+    hotkey_hide = pyqtSignal()
+    hotkey_quit = pyqtSignal()
+    hotkey_settings = pyqtSignal()
 
 
 def resolve_asset_path(relative_path: str) -> str:
@@ -64,6 +73,14 @@ class FloatingLyricsWidget(QWidget):
         self.current_line_text: str = ""
         self.line_start_time = 0.0
         self.line_duration = 3.0
+
+        # Thread-safe Signal Bridge
+        self.signals = AppSignals()
+        self.signals.lyrics_fetched.connect(self._on_lyrics_fetched)
+        self.signals.hotkey_lock.connect(self.toggle_lock)
+        self.signals.hotkey_hide.connect(self.toggle_visibility)
+        self.signals.hotkey_quit.connect(self._quit_app)
+        self.signals.hotkey_settings.connect(self.open_settings_window)
 
         # State flags
         self.is_locked = False
@@ -333,13 +350,13 @@ class FloatingLyricsWidget(QWidget):
             while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
                 if msg.message == 0x0312:
                     if msg.wParam == HOTKEY_LOCK:
-                        QTimer.singleShot(0, self.toggle_lock)
+                        self.signals.hotkey_lock.emit()
                     elif msg.wParam == HOTKEY_HIDE:
-                        QTimer.singleShot(0, self.toggle_visibility)
+                        self.signals.hotkey_hide.emit()
                     elif msg.wParam == HOTKEY_QUIT:
-                        QTimer.singleShot(0, self._quit_app)
+                        self.signals.hotkey_quit.emit()
                     elif msg.wParam == HOTKEY_SETTINGS:
-                        QTimer.singleShot(0, self.open_settings_window)
+                        self.signals.hotkey_settings.emit()
                 user32.TranslateMessage(ctypes.byref(msg))
                 user32.DispatchMessageW(ctypes.byref(msg))
 
@@ -451,7 +468,7 @@ class FloatingLyricsWidget(QWidget):
 
     def _fetch_lyrics_thread(self, track: str, artist: str, album: str, duration: float):
         lyrics = get_lyrics(track, artist, album, duration)
-        QTimer.singleShot(0, lambda: self._on_lyrics_fetched(lyrics))
+        self.signals.lyrics_fetched.emit(lyrics)
 
     def _on_lyrics_fetched(self, lyrics: list[LyricLine] | None):
         self.lyrics = lyrics
@@ -466,6 +483,13 @@ class FloatingLyricsWidget(QWidget):
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("SpotifyFloatingLyrics")
+
+    # Set Application Icon
+    for icon_name in ("icon.ico", "icon.png"):
+        icon_path = resolve_asset_path(icon_name)
+        if os.path.exists(icon_path):
+            app.setWindowIcon(QIcon(icon_path))
+            break
 
     # Single-Instance check via QLocalSocket
     socket = QLocalSocket()
