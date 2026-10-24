@@ -1,8 +1,10 @@
 """
 Settings Window for Spotify Floating Lyrics Overlay.
 - Real-time live settings synchronization (zero crashes, instant updates).
-- Dedicated interactive live preview for typography, gravity physics, and hand-drawn underlines.
+- Dedicated interactive live preview testing 30+ animations and typography.
 - 7clouds font switcher (Edo SZ signature brush & Montserrat Black).
+- Focal hand-drawn underline (highlights only 1-2 key words).
+- Zero continuous float (firmly anchored lyrics).
 - Modern Material 3 container design with clean typography and system diagnostics.
 """
 
@@ -27,11 +29,12 @@ from PyQt6.QtGui import (
 )
 
 import settings_manager
+from animation_engine import AnimationEngine, ANIMATION_CATALOG
 
 
 # ─── Material Design 3 Dark Theme Palette ─────────────────────────────
 class MD3:
-    SURFACE               = "#101318"  # Deep background
+    SURFACE               = "#101318"  # Deep canvas
     SURFACE_DIM           = "#0B0E12"
     SURFACE_CONTAINER_LOW = "#181C22"
     SURFACE_CONTAINER     = "#1E2228"  # Card surface
@@ -256,15 +259,15 @@ class SectionCard(QFrame):
         self._layout.addWidget(sep)
 
 
-# ─── Live Interactive Preview Canvas ──────────────────────────────────
+# ─── Live Interactive Preview Canvas (Exact Mirror of Overlay) ────────
 class LivePreview(QWidget):
     """
     Renders sharp floating lyrics with actual 7clouds font,
-    spring-damper gravity bounce, and sketched hand-drawn underlines.
+    30+ animations, zero float, and focal 1-2 word underlines.
     """
 
     PREVIEW_LINES = [
-        "Mere haath mein tera haath ho",
+        "Magar phir aarzoon ka bikharna bhi zaroori tha",
         "Cause you knew that I'd be at one",
         "Saari jannatein mere paas ho",
         "I fell in love with a girl I met in hell",
@@ -276,10 +279,12 @@ class LivePreview(QWidget):
         self.settings = settings.copy()
         self.setFixedHeight(180)
 
+        self.engine = AnimationEngine()
         self._line_idx = 0
-        self._text = self.PREVIEW_LINES[0]
-        self._start_time = time.time()
-        self._words = self._text.split()
+        self._current_anim_choice = ""
+
+        # Trigger first line
+        self.engine.trigger_line(self.PREVIEW_LINES[0], 3.8, "gravity_drop")
 
         self._render_timer = QTimer(self)
         self._render_timer.timeout.connect(self.update)
@@ -289,15 +294,16 @@ class LivePreview(QWidget):
         self._cycle_timer.timeout.connect(self.next_line)
         self._cycle_timer.start(3800)
 
-    def trigger_animation(self):
-        self._start_time = time.time()
-        self._words = self._text.split()
+    def trigger_animation(self, anim_name: str = ""):
+        self._current_anim_choice = anim_name
+        text = self.PREVIEW_LINES[self._line_idx]
+        self.engine.trigger_line(text, 3.8, anim_name)
         self.update()
 
     def next_line(self):
         self._line_idx = (self._line_idx + 1) % len(self.PREVIEW_LINES)
-        self._text = self.PREVIEW_LINES[self._line_idx]
-        self.trigger_animation()
+        text = self.PREVIEW_LINES[self._line_idx]
+        self.engine.trigger_line(text, 3.8, self._current_anim_choice)
 
     def update_settings(self, settings: dict):
         self.settings.update(settings)
@@ -326,20 +332,14 @@ class LivePreview(QWidget):
             for y in range(16, h, 28):
                 p.drawEllipse(QPointF(x, y), 1.2, 1.2)
 
-        # Spring-damper gravity physics
-        now = time.time()
-        elapsed = now - self._start_time
-        t = min(elapsed / 0.45, 1.0)
-        damping = 5.2
-        freq = 9.5
-        spring_y = -22.0 * math.exp(-damping * t) * math.cos(freq * t)
-        float_y = math.sin(now * 2.2) * 1.5
+        data = self.engine.update()
+        curr_text = data.get("curr_text", "")
+        prev_data = data.get("prev")
 
         cx = w / 2.0
-        cy = h / 2.0 + spring_y + float_y
-        alpha = min(t * 1.8, 1.0)
+        cy = h / 2.0
 
-        # Font configuration (7clouds Edo SZ vs Montserrat Black)
+        # Font configuration
         font_choice = self.settings.get("font_family", "7clouds Modern")
         if "Edo" in font_choice:
             fam = "Edo SZ"
@@ -354,61 +354,91 @@ class LivePreview(QWidget):
             fam = "Montserrat"
             weight = QFont.Weight.Black
 
-        size = min(int(self.settings.get("font_size", 42)), 32)
+        size = min(int(self.settings.get("font_size", 42)), 30)
         font = QFont(fam, size, weight)
         font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
         metrics = QFontMetrics(font)
 
         # Scale down if exceeds preview width
-        while metrics.horizontalAdvance(self._text) > (w - 60) and size > 16:
+        while metrics.horizontalAdvance(curr_text) > (w - 60) and size > 15:
             size -= 1
             font.setPointSize(size)
             metrics = QFontMetrics(font)
 
         p.setFont(font)
-        total_w = metrics.horizontalAdvance(self._text)
 
-        # Word-by-word reveal (Active sharp illumination)
-        if self.settings.get("word_reveal_enabled", True):
-            words = self._text.split()
-            space_w = metrics.horizontalAdvance(" ")
-            w_widths = [metrics.horizontalAdvance(wd) for wd in words]
-            t_w = sum(w_widths) + (len(words) - 1) * space_w
-            curr_x = cx - t_w / 2.0
-            text_y = cy + (metrics.ascent() - metrics.height() / 2.0)
+        # ── 1. Outgoing Line Cross-Transition ──
+        if prev_data and prev_data["alpha"] > 0.02:
+            p_text = prev_data["text"]
+            p_alpha = int(prev_data["alpha"] * 255)
+            p.setPen(QColor(255, 255, 255, p_alpha))
+            p_w = metrics.horizontalAdvance(p_text)
+            p.drawText(QRectF(cx - p_w / 2.0, cy + prev_data["offset_y"] - 25, p_w, 50), Qt.AlignmentFlag.AlignCenter, p_text)
 
-            step = 0.45 / max(1, len(words))
-            for idx, word in enumerate(words):
-                w_t = (elapsed - idx * step) / max(step * 0.8, 0.1)
-                w_prog = min(max(w_t, 0.35), 1.0)
-                final_a = int(alpha * w_prog * 255)
-                p.setPen(QColor(255, 255, 255, final_a))
-                p.drawText(QPointF(curr_x, text_y), word)
-                curr_x += w_widths[idx] + space_w
-        else:
-            p.setPen(QColor(255, 255, 255, int(alpha * 255)))
-            p.drawText(QRectF(cx - total_w / 2.0, cy - 30, total_w, 60), Qt.AlignmentFlag.AlignCenter, self._text)
+        # ── 2. Incoming Line (Anchored, Zero Float) ──
+        if curr_text and data["curr_alpha"] > 0.02:
+            in_alpha = int(data["curr_alpha"] * 255)
+            total_w = metrics.horizontalAdvance(curr_text)
 
-        # Hand-drawn underline (sketched pencil + organic ink flourish)
-        if self.settings.get("hand_drawn_underline_enabled", True) and elapsed > 0.15:
-            u_t = min((elapsed - 0.15) / 0.5, 1.0)
-            draw_w = total_w * (1.0 - math.pow(1.0 - u_t, 3))
-            start_x = cx - total_w / 2.0
+            p.save()
+            p.translate(cx + data.get("curr_offset_x", 0.0), cy + data["curr_offset_y"])
 
-            if draw_w > 8:
-                # Pencil under-stroke
-                p.setPen(QPen(QColor(255, 255, 255, int(alpha * 75)), 1.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-                path1 = QPainterPath()
-                path1.moveTo(start_x, cy + 20)
-                path1.quadTo(start_x + draw_w * 0.5, cy + 23, start_x + draw_w, cy + 21)
-                p.drawPath(path1)
+            if data.get("rotation", 0.0) != 0.0:
+                p.rotate(data["rotation"])
+            if data["curr_scale"] != 1.0:
+                p.scale(data["curr_scale"], data["curr_scale"])
 
-                # Ink stroke
-                p.setPen(QPen(QColor(255, 255, 255, int(alpha * 220)), 2.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-                path2 = QPainterPath()
-                path2.moveTo(start_x, cy + 20)
-                path2.quadTo(start_x + draw_w * 0.5, cy + 23.5, start_x + draw_w, cy + 20.5)
-                p.drawPath(path2)
+            # Word reveal
+            if (data.get("anim_type") == "word_reveal" or self.settings.get("word_reveal_enabled", True)) and data.get("word_alphas"):
+                words = curr_text.split()
+                space_w = metrics.horizontalAdvance(" ")
+                w_widths = [metrics.horizontalAdvance(wd) for wd in words]
+                t_w = sum(w_widths) + (len(words) - 1) * space_w
+                curr_x = -t_w / 2.0
+                text_y = metrics.ascent() - metrics.height() / 2.0
+
+                for idx, word in enumerate(words):
+                    raw_w = data["word_alphas"][idx] if idx < len(data["word_alphas"]) else 1.0
+                    f_a = int(in_alpha * raw_w)
+                    p.setPen(QColor(255, 255, 255, max(0, min(255, f_a))))
+                    p.drawText(QPointF(curr_x, text_y), word)
+                    curr_x += w_widths[idx] + space_w
+            else:
+                p.setPen(QColor(255, 255, 255, in_alpha))
+                p.drawText(QRectF(-total_w / 2.0, -25, total_w, 50), Qt.AlignmentFlag.AlignCenter, curr_text)
+
+            # Focal 1-2 words underline
+            if (self.settings.get("hand_drawn_underline_enabled", True) and
+                    data.get("underline_active") and
+                    data.get("underline_progress", 0.0) > 0.02 and
+                    data.get("focal_word_idx", -1) >= 0):
+
+                focal_idx = data["focal_word_idx"]
+                words = curr_text.split()
+                if focal_idx < len(words):
+                    space_w = metrics.horizontalAdvance(" ")
+                    w_widths = [metrics.horizontalAdvance(w) for w in words]
+                    t_w = sum(w_widths) + (len(words) - 1) * space_w
+                    w_start_x = -t_w / 2.0 + sum(w_widths[:focal_idx]) + focal_idx * space_w
+                    target_w = w_widths[focal_idx]
+                    draw_w = target_w * data["underline_progress"]
+
+                    if draw_w > 6:
+                        # Pencil sketch
+                        p.setPen(QPen(QColor(255, 255, 255, int(data["curr_alpha"] * 75)), 1.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                        path1 = QPainterPath()
+                        path1.moveTo(w_start_x - 2, 18)
+                        path1.quadTo(w_start_x + draw_w * 0.5, 21, w_start_x + draw_w + 2, 19)
+                        p.drawPath(path1)
+
+                        # Ink stroke
+                        p.setPen(QPen(QColor(255, 255, 255, int(data["curr_alpha"] * 225)), 2.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                        path2 = QPainterPath()
+                        path2.moveTo(w_start_x, 18)
+                        path2.quadTo(w_start_x + draw_w * 0.5, 21.5, w_start_x + draw_w, 18.5)
+                        p.drawPath(path2)
+
+            p.restore()
 
         # Header badge
         p.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
@@ -427,7 +457,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.settings = current_settings.copy()
         self.setWindowTitle("Lyric Flow — Settings")
-        self.setFixedSize(580, 780)
+        self.setFixedSize(580, 790)
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.WindowStaysOnTopHint)
 
         self._load_icon()
@@ -500,7 +530,7 @@ class SettingsDialog(QDialog):
                 padding: 6px 14px;
                 color: {MD3.ON_SURFACE};
                 font-size: 13px;
-                min-width: 170px;
+                min-width: 180px;
             }}
             QComboBox QAbstractItemView {{
                 background: {MD3.SURFACE_CONTAINER_HIGH};
@@ -685,7 +715,18 @@ class SettingsDialog(QDialog):
         p_c_lay.setContentsMargins(18, 6, 18, 12)
         p_c_lay.setSpacing(10)
 
-        btn_test = QPushButton("▶ Replay Animation")
+        # Animation tester dropdown
+        self.combo_test_anim = QComboBox()
+        self.combo_test_anim.addItem("Random 30+ Animations", "")
+        for name, _ in ANIMATION_CATALOG:
+            clean_name = name.replace("_", " ").title()
+            self.combo_test_anim.addItem(f"Test: {clean_name}", name)
+        self.combo_test_anim.currentIndexChanged.connect(
+            lambda: self.preview_widget.trigger_animation(self.combo_test_anim.currentData())
+        )
+        p_c_lay.addWidget(self.combo_test_anim, 1)
+
+        btn_test = QPushButton("▶ Replay")
         btn_test.setStyleSheet(f"""
             QPushButton {{
                 background: {MD3.PRIMARY_CONTAINER};
@@ -701,7 +742,7 @@ class SettingsDialog(QDialog):
             }}
         """)
         btn_test.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_test.clicked.connect(self.preview_widget.trigger_animation)
+        btn_test.clicked.connect(lambda: self.preview_widget.trigger_animation(self.combo_test_anim.currentData()))
         p_c_lay.addWidget(btn_test)
 
         btn_next = QPushButton("Next Line ⏭")
@@ -721,7 +762,6 @@ class SettingsDialog(QDialog):
         btn_next.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_next.clicked.connect(self.preview_widget.next_line)
         p_c_lay.addWidget(btn_next)
-        p_c_lay.addStretch()
 
         preview_card.add_row(p_ctrls)
         layout.addWidget(preview_card)
@@ -800,10 +840,10 @@ class SettingsDialog(QDialog):
 
         fx_card = SectionCard("Visual Effects & Flourishes")
 
-        # Hand-Drawn Underline
+        # Hand-Drawn Underline on 1-2 words
         row_line = SettingRow(
-            "Hand-Drawn Brush Underlines",
-            "Multi-stroke sketched pencil and marker underlines under key lyrics"
+            "Hand-Drawn Focal Underlines",
+            "Sketched marker stroke under 1 or 2 key focal words (not the whole sentence)"
         )
         self.toggle_underline = PillToggle(self.settings.get("hand_drawn_underline_enabled", True))
         self.toggle_underline.toggled.connect(lambda v: self._update_and_sync("hand_drawn_underline_enabled", v))
@@ -834,19 +874,21 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(fx_card)
 
-        # Physics Info Card
-        phys_card = SectionCard("Gravity Physics & Transitions")
-        phys_info = QLabel(
-            "🌌  <b>Dual-Buffer Cross Transitions:</b><br>"
-            "Outgoing lyric lines smoothly float upward and dissolve while incoming lines arrive "
-            "with organic spring-damper gravity momentum. No abrupt cuts or stutter.<br><br>"
-            "⚡  <b>Razor-Sharp Typography:</b><br>"
-            "Fuzzy glow and blur halos are stripped out, rendering pure #FFFFFF text with subpixel font smoothing."
+        # 30+ Animations Showcase Card
+        anim_card = SectionCard("30+ Dynamic Animation Suite")
+        anim_info = QLabel(
+            "🎬  <b>30+ Cinematic Text Animations:</b><br>"
+            "Gravity drop, kinetic snap, scale pop, drift, overshoot rise, magnetic snap, "
+            "zoom settle, focus pull, typewriter, curtain reveal, skew slide, flip drop, "
+            "pendulum swing, impact slam, wave cascade, chromatic split, and more.<br><br>"
+            "⚓  <b>Firmly Anchored Text:</b><br>"
+            "Zero continuous wobble or floating — text lands smoothly with physical spring damping "
+            "and stays rock-solid while you listen."
         )
-        phys_info.setWordWrap(True)
-        phys_info.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 13px; line-height: 1.6; padding: 16px 20px; background: transparent; border: none;")
-        phys_card.add_row(phys_info)
-        layout.addWidget(phys_card)
+        anim_info.setWordWrap(True)
+        anim_info.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 13px; line-height: 1.6; padding: 16px 20px; background: transparent; border: none;")
+        anim_card.add_row(anim_info)
+        layout.addWidget(anim_card)
 
         layout.addStretch()
         scroll.setWidget(content)
@@ -931,7 +973,7 @@ class SettingsDialog(QDialog):
         card = SectionCard("One-Click Presets")
 
         presets = [
-            ("7clouds Signature", "Iconic brush style (Edo SZ) with hand-drawn underlines and gravity physics", {
+            ("7clouds Signature", "Iconic brush style (Edo SZ) with focal underlines and 30+ animations", {
                 "font_family": "7clouds Signature (Edo SZ)", "font_size": 42,
                 "hand_drawn_underline_enabled": True, "word_reveal_enabled": True, "target_fps": 165
             }),
@@ -1030,9 +1072,8 @@ class SettingsDialog(QDialog):
         info_col.addWidget(app_ver)
 
         app_desc = QLabel(
-            "Hardware-accelerated desktop lyrics overlay with 7clouds typography, "
-            "spring-damper gravity transitions, Hindi → Hinglish transliteration, "
-            "and edge-to-edge zero-cutoff display."
+            "Hardware-accelerated desktop lyrics overlay with 30+ animations, "
+            "7clouds typography, focal underlines, and universal Hinglish transliteration."
         )
         app_desc.setWordWrap(True)
         app_desc.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 12px; line-height: 1.5; background: transparent; border: none;")
@@ -1049,7 +1090,7 @@ class SettingsDialog(QDialog):
             ("Rendering Engine", "PyQt6 QPainter (Hardware-Accelerated)"),
             ("Active Refresh Target", f"{self.settings.get('target_fps', 165)} Hz"),
             ("Media Transport", "Windows SMTC (WinRT Native)"),
-            ("Transliteration Engine", "Devanagari & Urdu → Roman Hinglish"),
+            ("Transliteration Engine", "100% Clean Latin Hinglish (Zero Leaks)"),
             ("Lyrics Provider", "LRCLIB (Free & Open)"),
         ]
         for key, val in diag_items:
@@ -1150,7 +1191,6 @@ class SettingsDialog(QDialog):
         self.settings.update(preset)
         settings_manager.save_settings(self.settings)
 
-        # Reflect in UI controls
         if "font_size" in preset:
             self.slider_size.setValue(preset["font_size"])
         if "overlay_y" in preset:

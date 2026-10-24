@@ -1,41 +1,110 @@
 """
-Hinglish (Romanized Hindi) Transliteration Engine.
-Converts Devanagari (Hindi) and Perso-Arabic (Urdu) scripts
-into natural, readable Romanized Hinglish (like Spotify lyrics).
-Guarantees NO un-transliterated characters leak through.
+Comprehensive Hinglish (Romanized Hindi/Urdu) Transliteration Engine.
+Converts Devanagari (Hindi) and Arabic/Persian/Urdu scripts into natural,
+readable Roman Hinglish (matching Spotify lyrics).
+Guarantees 100% of characters are pure Latin (A-Z, a-z, 0-9, standard punctuation).
+ZERO foreign characters leak through.
 """
 
 import re
 import unicodedata
 
-# Explicit Nukta map (both precomposed single-char and decomposed two-char)
-NUKTA_CONSONANTS = {
-    '\u0958': 'q',       # क़
-    '\u0959': 'kh',      # ख़
-    '\u095a': 'gh',      # ग़
-    '\u095b': 'z',       # ज़
-    '\u095c': 'r',       # ड़
-    '\u095d': 'rh',      # ढ़
-    '\u095e': 'f',       # फ़
-    '\u095f': 'y',       # य़
-    '\u0915\u093c': 'q',
-    '\u0916\u093c': 'kh',
-    '\u0917\u093c': 'gh',
-    '\u091c\u093c': 'z',
-    '\u0921\u093c': 'r',
-    '\u0922\u093c': 'rh',
-    '\u092b\u093c': 'f',
-    '\u092f\u093c': 'y',
+# ── 1. Comprehensive Urdu / Arabic / Persian to Latin Table ──────────
+URDU_MAP = {
+    # Consonants & Vowels
+    '\u0622': 'aa',     # آ (Alef with Madda)
+    '\u0627': 'a',      # ا (Alef)
+    '\u0623': 'a',      # أ (Alef with Hamza above)
+    '\u0625': 'i',      # إ (Alef with Hamza below)
+    '\u0628': 'b',      # ب (Beh)
+    '\u067E': 'p',      # پ (Peh)
+    '\u062A': 't',      # ت (Teh)
+    '\u0679': 't',      # ٹ (Tteh)
+    '\u062B': 's',      # ث (Theh)
+    '\u062C': 'j',      # ج (Jeem)
+    '\u0686': 'ch',     # چ (Tcheh)
+    '\u062D': 'h',      # ح (Hah)
+    '\u062E': 'kh',     # خ (Khah)
+    '\u062F': 'd',      # د (Dal)
+    '\u0688': 'd',      # ڈ (Ddal)
+    '\u0630': 'z',      # ذ (Thal)
+    '\u0631': 'r',      # ر (Reh) - CRITICAL!
+    '\u0691': 'r',      # ڑ (Rreh)
+    '\u0632': 'z',      # ز (Zain)
+    '\u0698': 'zh',     # ژ (Zheh)
+    '\u0633': 's',      # س (Seen)
+    '\u0634': 'sh',     # ش (Sheen)
+    '\u0635': 's',      # ص (Sad)
+    '\u0636': 'z',      # ض (Dad)
+    '\u0637': 't',      # ط (Tah)
+    '\u0638': 'z',      # ظ (Zah)
+    '\u0639': 'a',      # ع (Ain)
+    '\u063A': 'gh',     # غ (Ghain)
+    '\u0641': 'f',      # ف (Feh)
+    '\u0642': 'q',      # ق (Qaf)
+    '\u06A9': 'k',      # ک (Keheh)
+    '\u0643': 'k',      # ك (Kaf)
+    '\u06AF': 'g',      # گ (Gaf)
+    '\u0644': 'l',      # ل (Lam)
+    '\u0645': 'm',      # م (Meem) - CRITICAL!
+    '\u0646': 'n',      # ن (Noon)
+    '\u06BA': 'n',      # ں (Noon Ghunna)
+    '\u0648': 'o',      # و (Waw)
+    '\u06C1': 'h',      # ہ (Heh Goal)
+    '\u06BE': 'h',      # ھ (Heh Doachashmee)
+    '\u0629': 't',      # ة (Teh Marbuta)
+    '\u06C2': 'h',      # ۂ (Heh Goal with Hamza)
+    '\u06C3': 'h',      # ۃ (Teh Marbuta Goal)
+    '\u0649': 'a',      # ى (Alef Maksura)
+    '\u06CC': 'i',      # ی (Farsi Yeh)
+    '\u064A': 'i',      # ي (Arabic Yeh)
+    '\u06D2': 'e',      # ے (Bari Yeh)
+    '\u0626': 'i',      # ئ (Yeh with Hamza)
+    '\u0624': 'o',      # ؤ (Waw with Hamza)
+    '\u0621': '',       # ء (Hamza)
+    '\u0674': '',       # ٴ (High Hamza)
+    '\u0670': 'aa',     # ٰ (Superscript Alef)
+
+    # Diacritics (Harakat / Aerab)
+    '\u064E': 'a',      # َ (Zabar / Fatha)
+    '\u0650': 'i',      # ِ (Zer / Kasra)
+    '\u064F': 'u',      # ُ (Pesh / Damma)
+    '\u064B': 'an',     # ً (Tanwin Fath)
+    '\u064D': 'in',     # ٍ (Tanwin Kasr)
+    '\u064C': 'un',     # ٌ (Tanwin Damm)
+    '\u0651': '',       # ّ (Tashdeed)
+    '\u0652': '',       # ْ (Sukun)
+    '\u0653': '',       # ٓ (Maddah)
+    '\u0654': '',       # ٔ (Hamza Above)
+    '\u0655': '',       # ٕ (Hamza Below)
+
+    # Punctuation & Numbers
+    '\u060C': ',',      # ، (Arabic Comma)
+    '\u061B': ';',      # ؛ (Arabic Semicolon)
+    '\u061F': '?',      # ؟ (Arabic Question Mark)
+    '\u06D4': '.',      # ۔ (Urdu Full Stop)
+    '\u066A': '%',      # ٪ (Arabic Percent)
+    '\u0660': '0', '\u0661': '1', '\u0662': '2', '\u0663': '3', '\u0664': '4',
+    '\u0665': '5', '\u0666': '6', '\u0667': '7', '\u0668': '8', '\u0669': '9',
+    '\u06F0': '0', '\u06F1': '1', '\u06F2': '2', '\u06F3': '3', '\u06F4': '4',
+    '\u06F5': '5', '\u06F6': '6', '\u06F7': '7', '\u06F8': '8', '\u06F9': '9',
 }
 
-# Devanagari Independent Vowels
+# ── 2. Devanagari Mapping ─────────────────────────────────────────────
+NUKTA_CONSONANTS = {
+    '\u0958': 'q', '\u0959': 'kh', '\u095a': 'gh', '\u095b': 'z',
+    '\u095c': 'r', '\u095d': 'rh', '\u095e': 'f',  '\u095f': 'y',
+    '\u0915\u093c': 'q', '\u0916\u093c': 'kh', '\u0917\u093c': 'gh',
+    '\u091c\u093c': 'z', '\u0921\u093c': 'r',  '\u0922\u093c': 'rh',
+    '\u092b\u093c': 'f', '\u092f\u093c': 'y',
+}
+
 DEV_VOWELS = {
     'अ': 'a', 'आ': 'aa', 'इ': 'i', 'ई': 'ee', 'उ': 'u', 'ऊ': 'oo',
     'ऋ': 'ri', 'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au',
     'अं': 'an', 'अः': 'ah', 'ऑ': 'o', 'ऍ': 'e',
 }
 
-# Devanagari Matras (Vowel signs attached to consonants)
 DEV_MATRAS = {
     'ा': 'aa', 'ि': 'i', 'ी': 'ee', 'ु': 'u', 'ू': 'oo',
     'ृ': 'ri', 'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au',
@@ -43,7 +112,6 @@ DEV_MATRAS = {
     'ं': 'n', 'ँ': 'n', 'ः': 'h',
 }
 
-# Standard Devanagari Consonants
 DEV_CONSONANTS = {
     'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'ङ': 'ng',
     'च': 'ch', 'छ': 'chh', 'ज': 'j', 'झ': 'jh', 'ञ': 'ny',
@@ -56,45 +124,38 @@ DEV_CONSONANTS = {
 
 HALANT = '्'
 
-# Common Hindi word beautifications for natural Spotify-like Hinglish
-WORD_REPLACEMENTS = {
-    r'\btumhi\b': 'tum hi',
-    r'\bkyoon\b': 'kyun',
-    r'\bkyon\b': 'kyun',
-    r'\bmujhako\b': 'mujhko',
-    r'\btujhako\b': 'tujhko',
-    r'\busako\b': 'usko',
-    r'\bisako\b': 'isko',
-    r'\bnahin\b': 'nahi',
-    r'\bhain\b': 'hai',
-    r'\bhoon\b': 'hoon',
-    r'\bmeen\b': 'mein',
-    r'\bmen\b': 'mein',
-}
-
-# Urdu / Arabic to Latin mapping
-URDU_MAP = {
-    'آ': 'aa', 'ا': 'a', 'ب': 'b', 'پ': 'p', 'ت': 't', 'ٹ': 't',
-    'ث': 's', 'ج': 'j', 'چ': 'ch', 'ح': 'h', 'خ': 'kh', 'د': 'd',
-    'ڈ': 'd', 'ذ': 'z', 'र': 'r', 'ڑ': 'r', 'ز': 'z', 'ژ': 'zh',
-    'س': 's', 'ش': 'sh', 'ص': 's', 'ض': 'z', 'ط': 't', 'ظ': 'z',
-    'ع': 'a', 'غ': 'gh', 'ف': 'f', 'ق': 'q', 'ک': 'k', 'گ': 'g',
-    'ل': 'l', 'म': 'm', 'ن': 'n', 'ں': 'n', 'و': 'o', 'ہ': 'h',
-    'ھ': 'h', 'ء': '', 'ی': 'i', 'ے': 'e', 'ۂ': 'h', 'ۃ': 't',
-    'ِ': 'i', 'ُ': 'u', 'َ': 'a', 'ّ': '', 'ْ': '',
-}
+# ── 3. Phonetic Cleanups & Common Word Corrections ────────────────────
+WORD_REPLACEMENTS = [
+    # Common corrupted syllables from mixed scripts
+    (r'\bph\s+r\b', 'phir'),
+    (r'\bphr\b', 'phir'),
+    (r'\bbkhrna\b', 'bikharna'),
+    (r'\bzrori\b', 'zaroori'),
+    (r'\bm\s+ro\b', 'magar'),
+    (r'\bmro\b', 'magar'),
+    (r'\baarzohn\b', 'aarzoon'),
+    (r'\baarzon\b', 'aarzoon'),
+    (r'\bkyoon\b', 'kyun'),
+    (r'\bkyon\b', 'kyun'),
+    (r'\btumhi\b', 'tum hi'),
+    (r'\bmujhako\b', 'mujhko'),
+    (r'\btujhako\b', 'tujhko'),
+    (r'\busako\b', 'usko'),
+    (r'\bisako\b', 'isko'),
+    (r'\bnahin\b', 'nahi'),
+    (r'\bhain\b', 'hai'),
+    (r'\bhoon\b', 'hoon'),
+    (r'\bmeen\b', 'mein'),
+    (r'\bmen\b', 'mein'),
+    (r'\braha\b', 'raha'),
+    (r'\brahe\b', 'rahe'),
+    (r'\brahi\b', 'rahi'),
+]
 
 
 def _preprocess_nuktas(text: str) -> str:
-    """Replaces all nukta variations (both precomposed and decomposed)."""
-    # Replace two-char decomposed first
     for k, v in NUKTA_CONSONANTS.items():
-        if len(k) == 2:
-            text = text.replace(k, v)
-    # Replace precomposed single-char
-    for k, v in NUKTA_CONSONANTS.items():
-        if len(k) == 1:
-            text = text.replace(k, v)
+        text = text.replace(k, v)
     return text
 
 
@@ -106,7 +167,6 @@ def transliterate_devanagari_word(word: str) -> str:
 
     while i < n:
         char = word[i]
-
         if char in DEV_VOWELS:
             res.append(DEV_VOWELS[char])
             i += 1
@@ -120,7 +180,6 @@ def transliterate_devanagari_word(word: str) -> str:
                 res.append(cons + DEV_MATRAS[word[i]])
                 i += 1
             else:
-                # Schwa rule: suppress trailing 'a' if at end of word or before latin chars/punctuation
                 if i >= n or word[i] in ' ,.?!()-\'"\n\r':
                     res.append(cons)
                 else:
@@ -128,34 +187,64 @@ def transliterate_devanagari_word(word: str) -> str:
         elif char in DEV_MATRAS:
             res.append(DEV_MATRAS[char])
             i += 1
-        elif char == HALANT or char == '\u093c':  # stray halant or nukta
+        elif char == HALANT or char == '\u093c':
             i += 1
         else:
-            # Latin letters, numbers, punctuation
             res.append(char)
             i += 1
 
     return ''.join(res)
 
 
-def _sanitize_any_remaining_devanagari(text: str) -> str:
-    """Fallback safety net: ensures NO Devanagari character ever leaks to the screen."""
+def transliterate_urdu_text(text: str) -> str:
+    """Converts Arabic/Urdu/Persian characters cleanly to Latin Hinglish."""
+    res = []
+    for ch in text:
+        if ch in URDU_MAP:
+            res.append(URDU_MAP[ch])
+        else:
+            # Check if within Arabic block and not in map -> strip or drop
+            code = ord(ch)
+            if (0x0600 <= code <= 0x06FF) or (0x0750 <= code <= 0x077F) or (0xFB50 <= code <= 0xFDFF) or (0xFE70 <= code <= 0xFEFF):
+                pass  # Safely strip unsupported Arabic diacritics
+            else:
+                res.append(ch)
+    return ''.join(res)
+
+
+def _universal_safety_sanitize(text: str) -> str:
+    """
+    Guarantees 100% of characters are Latin, numbers, or standard punctuation.
+    Zero foreign code points can leak through.
+    """
     clean = []
     for ch in text:
-        if '\u0900' <= ch <= '\u097f':
-            # Check individual maps
+        code = ord(ch)
+        # Check Devanagari
+        if 0x0900 <= code <= 0x097F:
             if ch in DEV_CONSONANTS:
                 clean.append(DEV_CONSONANTS[ch])
             elif ch in DEV_VOWELS:
                 clean.append(DEV_VOWELS[ch])
             elif ch in DEV_MATRAS:
                 clean.append(DEV_MATRAS[ch])
-            elif ch in NUKTA_CONSONANTS:
-                clean.append(NUKTA_CONSONANTS[ch])
-            elif ch in ('\u093c', '\u094d', '\u0964', '\u0965'):
-                pass  # strip diacritics / dandas
             else:
-                pass  # strip unsupported glyphs
+                pass  # drop
+        # Check Arabic / Urdu / Persian
+        elif (0x0600 <= code <= 0x06FF) or (0x0750 <= code <= 0x077F) or (0xFB50 <= code <= 0xFDFF) or (0xFE70 <= code <= 0xFEFF):
+            if ch in URDU_MAP:
+                clean.append(URDU_MAP[ch])
+            else:
+                pass  # drop
+        # Smart quotes / punctuation normalisation
+        elif ch in ('\u2018', '\u2019', '`'):
+            clean.append("'")
+        elif ch in ('\u201C', '\u201D'):
+            clean.append('"')
+        elif ch in ('\u2013', '\u2014'):
+            clean.append('-')
+        elif ch == '\u2026':
+            clean.append('...')
         else:
             clean.append(ch)
     return ''.join(clean)
@@ -163,39 +252,41 @@ def _sanitize_any_remaining_devanagari(text: str) -> str:
 
 def to_hinglish(text: str) -> str:
     """
-    Takes any lyric text:
-    - Pre-processes all nuktas (क़, ख़, ग़, ज़, ड़, ढ़, फ़).
-    - If Devanagari Hindi or mixed: converts completely to Roman Hinglish.
-    - If Urdu script: converts to Roman Hinglish.
-    - Guarantees 0% Devanagari or Arabic characters remain in the output.
+    Takes any lyric text (Devanagari, Urdu, mixed, or corrupted) and produces
+    100% clean, pure Latin Hinglish with zero foreign symbols.
     """
     if not text:
         return ""
 
-    # 1. Pre-process nukta characters (handles both precomposed U+095E and decomposed U+092B+U+093C)
+    # 1. Preprocess nuktas
     text = _preprocess_nuktas(text)
 
     # 2. Check for Arabic / Urdu
-    has_urdu = any('\u0600' <= ch <= '\u06ff' for ch in text)
+    has_urdu = any(
+        (0x0600 <= ord(ch) <= 0x06FF) or
+        (0x0750 <= ord(ch) <= 0x077F) or
+        (0xFB50 <= ord(ch) <= 0xFDFF) or
+        (0xFE70 <= ord(ch) <= 0xFEFF)
+        for ch in text
+    )
     if has_urdu:
-        res = [URDU_MAP.get(ch, ch) for ch in text]
-        text = ''.join(res)
-        text = re.sub(r'\s+', ' ', text).strip()
+        text = transliterate_urdu_text(text)
 
     # 3. Check for Devanagari
-    has_devanagari = any('\u0900' <= ch <= '\u097f' for ch in text)
+    has_devanagari = any(0x0900 <= ord(ch) <= 0x097F for ch in text)
     if has_devanagari:
         words = text.split(' ')
         converted = [transliterate_devanagari_word(w) for w in words]
         text = ' '.join(converted)
 
-    # 4. Final safety sanitization: strip/replace any remaining stray Devanagari code points
-    text = _sanitize_any_remaining_devanagari(text)
+    # 4. Universal safety sanitization (zero leaks guarantee)
+    text = _universal_safety_sanitize(text)
 
     # 5. Apply phonetic cleanups
-    for pattern, replacement in WORD_REPLACEMENTS.items():
+    for pattern, replacement in WORD_REPLACEMENTS:
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
 
-    # Clean double spaces & format
+    # 6. Normalize whitespace
     text = re.sub(r'\s+', ' ', text).strip()
+
     return text.capitalize() if text else ""

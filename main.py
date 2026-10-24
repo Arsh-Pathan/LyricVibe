@@ -1,10 +1,12 @@
 """
 Lyric Flow — 165Hz Floating Lyrics Overlay for Spotify.
+- 30+ dynamic, varied cinematic text entrance animations with weighted rarity.
 - Edge-to-edge screen geometry: zero text clipping or cutoff on any display.
 - Dynamic font fitting: scales gracefully so long lines never overflow.
 - 7clouds typography: Edo SZ signature brush & Montserrat Black extra bold.
+- Focal hand-drawn underline: elegantly underlines 1 or 2 key words (not whole sentence).
 - Dual-buffer cross-transitions between lyric lines (no abrupt cuts).
-- Real-time spring-damper gravity physics and continuous breathing buoyancy.
+- Rock-solid anchored text: ZERO continuous float or wobble.
 - Real-time settings sync with instant live updates.
 - Pure razor-sharp text (no fuzzy glow).
 """
@@ -89,7 +91,7 @@ class FloatingLyricsWidget(QWidget):
         self.is_dragging = False
         self.drag_position = QPoint()
 
-        # Physics & Animation Engine
+        # Physics & Animation Engine (30+ animations, zero continuous float)
         self.engine = AnimationEngine()
 
         # Load 7clouds fonts (Edo SZ, Montserrat Black, Poppins)
@@ -224,34 +226,52 @@ class FloatingLyricsWidget(QWidget):
             painter.drawText(QRectF(-w / 2.0, -40, w, 80), Qt.AlignmentFlag.AlignCenter, p_text)
             painter.restore()
 
-        # ── 2. Incoming Line (Razor Sharp Pure White with Physics) ──
+        # ── 2. Incoming Line (Razor Sharp Pure White with 30+ Animations) ──
         if curr_text and data["curr_alpha"] > 0.02:
             in_alpha = int(data["curr_alpha"] * 255)
             in_font, in_metrics = self._fit_font(curr_text, avail_w, base_size, font_family)
             painter.setFont(in_font)
 
             painter.save()
-            painter.translate(screen_cx, screen_cy + data["curr_offset_y"])
+            # Position without continuous float (firmly anchored)
+            painter.translate(screen_cx + data.get("curr_offset_x", 0.0), screen_cy + data["curr_offset_y"])
+
+            # Rotational / Skew / Scale transforms
+            if data.get("rotation", 0.0) != 0.0:
+                painter.rotate(data["rotation"])
+            if data.get("skew_x", 0.0) != 0.0:
+                painter.shear(math.tan(math.radians(data["skew_x"])), 0)
             if data["curr_scale"] != 1.0:
                 painter.scale(data["curr_scale"], data["curr_scale"])
 
             total_w = in_metrics.horizontalAdvance(curr_text)
 
-            # Word-by-word reveal (Active illumination)
-            if self.settings.get("word_reveal_enabled", True) and data.get("word_alphas"):
+            # Chromatic Split animation (Rare)
+            chroma = data.get("chroma", 0.0)
+            if chroma > 0.5:
+                painter.setPen(QColor(100, 220, 255, int(data["curr_alpha"] * 140)))
+                painter.drawText(QRectF(-total_w / 2.0 - chroma, -40, total_w, 80), Qt.AlignmentFlag.AlignCenter, curr_text)
+                painter.setPen(QColor(255, 120, 140, int(data["curr_alpha"] * 140)))
+                painter.drawText(QRectF(-total_w / 2.0 + chroma, -40, total_w, 80), Qt.AlignmentFlag.AlignCenter, curr_text)
+
+            # Word-by-word reveal (Active sharp illumination)
+            if (data.get("anim_type") == "word_reveal" or self.settings.get("word_reveal_enabled", True)) and data.get("word_alphas"):
                 self._draw_sharp_word_reveal(painter, in_metrics, curr_text, data["word_alphas"], in_alpha)
             else:
                 # Razor sharp pure white line
                 painter.setPen(QColor(255, 255, 255, in_alpha))
                 painter.drawText(QRectF(-total_w / 2.0, -40, total_w, 80), Qt.AlignmentFlag.AlignCenter, curr_text)
 
-            # ── 3. Organic Hand-Drawn Underline ──
+            # ── 3. Focal Hand-Drawn Underline (Underlines ONLY 1-2 words) ──
             if (self.settings.get("hand_drawn_underline_enabled", True) and
                     data.get("underline_active") and
-                    data.get("underline_progress", 0.0) > 0.02):
-                self._draw_organic_underline(
-                    painter, 0.0, 18.0, total_w,
-                    data["underline_stroke"], data["underline_progress"],
+                    data.get("underline_progress", 0.0) > 0.02 and
+                    data.get("focal_word_idx", -1) >= 0):
+                self._draw_focal_underline(
+                    painter, in_metrics, curr_text,
+                    data["focal_word_idx"],
+                    data["underline_stroke"],
+                    data["underline_progress"],
                     data["curr_alpha"]
                 )
 
@@ -266,7 +286,7 @@ class FloatingLyricsWidget(QWidget):
         metrics = QFontMetrics(font)
 
         # Scale down smoothly if line exceeds available width
-        while metrics.horizontalAdvance(text) > max_w and size > 18:
+        while metrics.horizontalAdvance(text) > max_w and size > 16:
             size -= 1
             font.setPointSize(size)
             metrics = QFontMetrics(font)
@@ -286,55 +306,65 @@ class FloatingLyricsWidget(QWidget):
 
         for idx, word in enumerate(words):
             raw_w_alpha = word_alphas[idx] if idx < len(word_alphas) else 1.0
-            # Muted upcoming words (sharp ~40% white), active words (pure 100% white)
+            # Muted upcoming words (sharp ~35% white), active words (pure 100% white)
             final_a = int(master_alpha * raw_w_alpha)
             painter.setPen(QColor(255, 255, 255, max(0, min(255, final_a))))
             painter.drawText(QPointF(curr_x, y), word)
             curr_x += word_widths[idx] + space_w
 
-    def _draw_organic_underline(self, painter: QPainter, cx: float, cy: float,
-                                 text_w: float, stroke, progress: float, alpha: float):
-        """Draws realistic sketched pencil and fluid marker hand-drawn flourishes."""
-        if not stroke or progress <= 0.03:
+    def _draw_focal_underline(self, painter: QPainter, metrics: QFontMetrics,
+                               text: str, focal_idx: int, stroke, progress: float, alpha: float):
+        """Draws realistic sketched pencil and fluid marker lines ONLY under 1-2 key focal words."""
+        if not stroke or progress <= 0.03 or focal_idx < 0:
             return
 
-        draw_w = min(text_w, 900) * progress
-        if draw_w < 8:
+        words = text.strip().split()
+        if focal_idx >= len(words):
             return
 
-        start_x = cx - text_w / 2.0
+        space_w = metrics.horizontalAdvance(" ")
+        w_widths = [metrics.horizontalAdvance(w) for w in words]
+        total_w = sum(w_widths) + (len(words) - 1) * space_w
 
-        # Pass 1: Light sketchy pencil under-stroke
-        pen_sketch = QPen(QColor(255, 255, 255, int(alpha * 75)), 1.2)
-        pen_sketch.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(pen_sketch)
+        # Compute exact X position of the focal word within the centered line
+        start_line_x = -total_w / 2.0
+        word_start_x = start_line_x + sum(w_widths[:focal_idx]) + focal_idx * space_w
+        target_w = w_widths[focal_idx]
 
-        path_sketch = QPainterPath()
-        path_sketch.moveTo(start_x, cy + 22)
-        path_sketch.quadTo(start_x + draw_w * 0.5, cy + 25, start_x + draw_w, cy + 23)
-        painter.drawPath(path_sketch)
+        draw_w = target_w * progress
+        if draw_w < 6:
+            return
+
+        y_base = 22.0
+
+        # Pass 1: Light sketched pencil under-stroke
+        p_sketch = QPen(QColor(255, 255, 255, int(alpha * 75)), 1.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+        painter.setPen(p_sketch)
+        path1 = QPainterPath()
+        path1.moveTo(word_start_x - 2, y_base)
+        path1.quadTo(word_start_x + draw_w * 0.5, y_base + 3, word_start_x + draw_w + 3, y_base + 1)
+        painter.drawPath(path1)
 
         # Pass 2: Main hand-drawn ink line with natural tremors
-        pen_main = QPen(QColor(255, 255, 255, int(alpha * 225)), 2.6)
-        pen_main.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(pen_main)
+        p_ink = QPen(QColor(255, 255, 255, int(alpha * 225)), 2.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+        painter.setPen(p_ink)
 
-        path_main = QPainterPath()
+        path2 = QPainterPath()
         pts = stroke.offsets
         n = len(pts)
         step_x = draw_w / max(1, n - 1)
 
-        path_main.moveTo(start_x, cy + 22 + pts[0])
+        path2.moveTo(word_start_x, y_base + pts[0])
         for i in range(1, n):
-            px = start_x + i * step_x
-            py = cy + 22 + pts[i]
-            prev_x = start_x + (i - 1) * step_x
-            prev_y = cy + 22 + pts[i - 1]
+            px = word_start_x + i * step_x
+            py = y_base + pts[i]
+            prev_x = word_start_x + (i - 1) * step_x
+            prev_y = y_base + pts[i - 1]
             ctrl_x = (prev_x + px) / 2.0
             ctrl_y = (prev_y + py) / 2.0
-            path_main.quadTo(prev_x, prev_y, ctrl_x, ctrl_y)
+            path2.quadTo(prev_x, prev_y, ctrl_x, ctrl_y)
 
-        painter.drawPath(path_main)
+        painter.drawPath(path2)
 
     # ── Mouse Interaction & Window Dragging ──
     def mousePressEvent(self, event):
@@ -484,8 +514,8 @@ class FloatingLyricsWidget(QWidget):
                 dur = max(next_time - self.lyrics[line_idx].time_sec, 1.4)
 
                 self.current_line_text = raw_text
-                # Trigger liquid spring-damper entrance with seamless cross-transition
-                self.engine.trigger_line(raw_text, dur, "gravity_float")
+                # Trigger dynamic animation from the 30+ catalog
+                self.engine.trigger_line(raw_text, dur)
             else:
                 self.current_line_text = ""
 
