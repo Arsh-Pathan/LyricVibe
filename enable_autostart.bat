@@ -12,7 +12,7 @@ if not exist "%TARGET_EXE%" (
     set "TARGET_EXE=%~dp0main.py"
 )
 
-powershell -NoProfile -Command "$wsh = New-Object -ComObject WScript.Shell; $sc = $wsh.CreateShortcut([Environment]::GetFolderPath('Startup') + '\SpotifyLyrics.lnk'); $sc.TargetPath = '%TARGET_EXE%'; $sc.WorkingDirectory = '%~dp0dist'; $sc.Description = 'Spotify Floating Lyrics Overlay'; $sc.Save()"
+powershell -NoProfile -Command "$wsh = New-Object -ComObject WScript.Shell; $sc = $wsh.CreateShortcut([Environment]::GetFolderPath('Startup') + '\SpotifyLyrics.lnk'); $sc.TargetPath = '%TARGET_EXE%'; $sc.WorkingDirectory = '%~dp0dist'; $sc.IconLocation = '%~dp0icon.ico'; $sc.Description = 'Spotify Floating Lyrics Overlay'; $sc.Save()"
 
 if errorlevel 0 (
     echo [OK] Auto-Start enabled!

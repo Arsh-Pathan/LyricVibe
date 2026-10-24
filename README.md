@@ -1,12 +1,19 @@
-# 🎵 Lyric Flow — Floating Lyrics Overlay for Spotify
+<p align="center">
+  <img src="icon.svg" width="110" height="110" alt="Lyric Flow Icon" />
+</p>
 
-A cinematic, transparent desktop overlay that displays **real-time synced lyrics** floating on your screen — no Spotify Premium required.
+<h1 align="center">Lyric Flow</h1>
+<p align="center">
+  <b>Cinematic 165Hz Floating Lyrics Overlay for Spotify</b><br>
+  <i>Real-time synchronized lyrics floating borderless on your screen — no Spotify Premium required.</i>
+</p>
 
-Built with PyQt6 for buttery-smooth 165Hz rendering, 18 weighted animation styles, automatic Hindi → Hinglish transliteration, and zero-config setup.
-
-![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white)
-![Windows](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D6?logo=windows&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green)
+<p align="center">
+  <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D6?logo=windows&logoColor=white" alt="Windows" />
+  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/Framerate-165Hz%20Fluid-00C853" alt="165Hz" />
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="License" />
+</p>
 
 ---
 
