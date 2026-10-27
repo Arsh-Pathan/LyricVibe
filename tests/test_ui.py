@@ -70,3 +70,26 @@ def test_floating_overlay_clickthrough_logic():
         if widget.tray_icon:
             widget.tray_icon.hide()
         widget.close()
+
+
+def test_fit_font_dynamic_scaling():
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    with patch("lyricvibe.ui.overlay.SpotifyClient"):
+        widget = FloatingLyricsWidget(DEFAULT_SETTINGS)
+        font_short, _ = widget._fit_font("Short line", max_w=800, base_size=42, family="Montserrat")
+        assert font_short.pointSize() == 42
+
+        long_line = "This is an extraordinarily long sentence with numerous words that exceeds width"
+        font_long, _ = widget._fit_font(long_line, max_w=200, base_size=42, family="Montserrat")
+        assert font_long.pointSize() < 42
+        assert font_long.pointSize() >= 16
+
+        widget.render_timer.stop()
+        widget.poll_timer.stop()
+        widget.smooth_timer.stop()
+        if widget.tray_icon:
+            widget.tray_icon.hide()
+        widget.close()

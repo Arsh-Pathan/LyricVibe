@@ -296,7 +296,7 @@ class FloatingLyricsWidget(QWidget):
 
         screen_cx = self.width() / 2.0
         screen_cy = self.height() / 2.0
-        avail_w = self.width() - 80.0
+        avail_w = max(100.0, float(self.width() - 80.0))
         base_size = int(self.settings.get("font_size", 42))
         font_family = self._get_active_font_family()
 
@@ -434,8 +434,21 @@ class FloatingLyricsWidget(QWidget):
         font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
         metrics = QFontMetrics(font)
 
-        while metrics.horizontalAdvance(text) > max_w and size > 16:
-            size -= 1
+        # Fast logarithmic binary search to scale font dynamically on long lines
+        if metrics.horizontalAdvance(text) > max_w:
+            low = 16
+            high = base_size
+            best_size = 16
+            while low <= high:
+                mid = (low + high) // 2
+                font.setPointSize(mid)
+                m = QFontMetrics(font)
+                if m.horizontalAdvance(text) <= max_w:
+                    best_size = mid
+                    low = mid + 1
+                else:
+                    high = mid - 1
+            size = best_size
             font.setPointSize(size)
             metrics = QFontMetrics(font)
 
