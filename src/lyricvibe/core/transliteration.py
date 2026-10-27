@@ -294,4 +294,8 @@ def to_hinglish(text: str) -> str:
     # 6. Normalize whitespace
     text = re.sub(r'\s+', ' ', text).strip()
 
-    return text.capitalize() if text else ""
+    if not text:
+        return ""
+
+    # Capitalize the first character while preserving casing for the remainder of the sentence
+    return text[0].upper() + text[1:]

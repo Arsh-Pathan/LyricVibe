@@ -88,8 +88,13 @@ def clean_track_title(title: str) -> str:
         flags=re.IGNORECASE,
     )
 
-    # Strip trailing " - From ..." or " - Original Motion Picture Soundtrack"
-    t = re.sub(r'\s*-\s*(from\s+|original|soundtrack|remastered|bonus|live|radio\s*edit).*$', '', t, flags=re.IGNORECASE)
+    # Strip trailing " - From ..." or " - Original Motion Picture Soundtrack" or " - 2013 Remaster"
+    t = re.sub(
+        r'\s*-\s*(?:\d{4}\s+)?(from\s+|original|soundtrack|remaster(?:ed)?|bonus|live|radio\s*edit|anniversary).*$',
+        '',
+        t,
+        flags=re.IGNORECASE,
+    )
 
     # Strip remaining trailing empty brackets
     t = re.sub(r'[\(\[]\s*[\)\]]', '', t)
