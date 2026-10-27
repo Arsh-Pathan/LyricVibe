@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 from lyricvibe.lyrics.fetcher import (
     _LYRICS_CACHE,
     LyricLine,
+    _parse_plain_lyrics,
     clean_lyric_line,
     clean_track_title,
     fetch_lyrics_smart,
@@ -158,3 +159,29 @@ def test_parse_lrc_filters_structural_headers():
     assert len(lines) == 2
     assert lines[0].text == "Here comes the real vocal"
     assert lines[1].text == "Singing the chorus line"
+
+
+def test_parse_plain_lyrics_duration_pacing():
+    plain = """
+    [Intro]
+    First verse line
+    Second verse line
+    [Chorus]
+    Third verse line
+    """
+    # 3 valid vocal lines over 120-second duration
+    lines = _parse_plain_lyrics(plain, duration_sec=120.0)
+    assert len(lines) == 3
+    assert lines[0].text == "First verse line"
+    assert lines[1].text == "Second verse line"
+    assert lines[2].text == "Third verse line"
+    # Check that pacing scaled to duration: step = 120 * 0.9 / 3 = 36.0s
+    assert lines[0].time_sec == 0.0
+    assert lines[1].time_sec == 36.0
+    assert lines[2].time_sec == 72.0
+
+
+def test_parse_plain_lyrics_empty():
+    assert _parse_plain_lyrics("") == []
+    assert _parse_plain_lyrics("   ") == []
+    assert _parse_plain_lyrics("[Chorus]\n[Intro]\n") == []

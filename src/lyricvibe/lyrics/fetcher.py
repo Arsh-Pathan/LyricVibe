@@ -208,6 +208,23 @@ def _cache_put(key: str, lyrics: list[LyricLine] | None):
         _LYRICS_CACHE.popitem(last=False)
 
 
+def _parse_plain_lyrics(plain_text: str, duration_sec: float = 0) -> list[LyricLine]:
+    """Converts plain text lyrics into paced LyricLine objects with clean headers and transliteration."""
+    if not plain_text or not plain_text.strip():
+        return []
+
+    raw_lines = [clean_lyric_line(lt) for lt in plain_text.strip().splitlines()]
+    valid_lines = [lt for lt in raw_lines if lt]
+    if not valid_lines:
+        return []
+
+    step = (duration_sec * 0.90 / len(valid_lines)) if (duration_sec > 30 and len(valid_lines) > 0) else 4.0
+    return [
+        LyricLine(time_sec=round(float(i * step), 2), text=to_hinglish(lt))
+        for i, lt in enumerate(valid_lines)
+    ]
+
+
 def _try_get(params: dict) -> list[LyricLine] | None:
     try:
         resp = _HTTP_SESSION.get(
@@ -223,12 +240,8 @@ def _try_get(params: dict) -> list[LyricLine] | None:
                 return parse_lrc(synced)
             plain = data.get("plainLyrics")
             if plain:
-                lines = []
-                for i, line_text in enumerate(plain.strip().splitlines()):
-                    cleaned = line_text.strip()
-                    if cleaned:
-                        lines.append(LyricLine(time_sec=float(i * 4.0), text=to_hinglish(cleaned)))
-                return lines
+                dur = float(params.get("duration", 0))
+                return _parse_plain_lyrics(plain, dur)
     except requests.RequestException as e:
         logger.debug("[fetcher] Exact GET failed for %s: %s", params, e)
     return None
@@ -288,14 +301,7 @@ def _try_search(query: str, duration_sec: float = 0) -> list[LyricLine] | None:
                 for it in results:
                     plain = it.get("plainLyrics")
                     if plain:
-                        raw_lines = [clean_lyric_line(lt) for lt in plain.strip().splitlines()]
-                        valid_lines = [lt for lt in raw_lines if lt]
-                        if valid_lines:
-                            step = (duration_sec * 0.90 / len(valid_lines)) if (duration_sec > 30 and len(valid_lines) > 0) else 4.0
-                            return [
-                                LyricLine(time_sec=round(float(i * step), 2), text=to_hinglish(lt))
-                                for i, lt in enumerate(valid_lines)
-                            ]
+                        return _parse_plain_lyrics(plain, duration_sec)
     except requests.RequestException as e:
         logger.debug("[fetcher] Search failed for query %r: %s", query, e)
     return None
