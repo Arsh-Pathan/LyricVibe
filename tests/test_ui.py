@@ -6,6 +6,7 @@ from unittest.mock import patch
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 from PyQt6.QtWidgets import QApplication
 
+from lyricvibe.lyrics.fetcher import LyricLine
 from lyricvibe.ui.overlay import IPC_SERVER_NAME, AppSignals, FloatingLyricsWidget
 from lyricvibe.ui.settings import SettingsDialog
 from lyricvibe.utils.settings import DEFAULT_SETTINGS
@@ -117,3 +118,76 @@ def test_single_instance_ipc_server():
     server.close()
     client.disconnectFromServer()
     QLocalServer.removeServer(test_server_name)
+
+
+def test_settings_dialog_escape_key_and_close():
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    dlg = SettingsDialog(DEFAULT_SETTINGS)
+    dlg.show()
+    assert dlg.isVisible() is True
+
+    # Pressing Escape invokes reject()
+    dlg.reject()
+    assert dlg.isVisible() is False
+
+    dlg.close()
+
+
+def test_overlay_visibility_pauses_render_timer():
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    with patch("lyricvibe.ui.overlay.SpotifyClient"):
+        widget = FloatingLyricsWidget(DEFAULT_SETTINGS)
+        widget.show()
+        assert widget.render_timer.isActive() is True
+
+        widget.hide()
+        assert widget.render_timer.isActive() is False
+
+        widget.show()
+        assert widget.render_timer.isActive() is True
+
+        widget.render_timer.stop()
+        widget.poll_timer.stop()
+        widget.smooth_timer.stop()
+        if widget.tray_icon:
+            widget.tray_icon.hide()
+        widget.close()
+
+
+def test_track_switch_race_condition_protection():
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    with patch("lyricvibe.ui.overlay.SpotifyClient"):
+        widget = FloatingLyricsWidget(DEFAULT_SETTINGS)
+        widget.current_track_id = "Artist B - Song B"
+        widget._current_fetch_id = 5
+
+        stale_lyrics = [LyricLine(1.0, "Stale song lyrics")]
+        valid_lyrics = [LyricLine(1.0, "Valid song lyrics")]
+
+        # Case 1: Out-of-order response with stale fetch_id
+        widget._on_lyrics_fetched(fetch_id=4, req_track_id="Artist B - Song B", lyrics=stale_lyrics)
+        assert widget.lyrics is None
+
+        # Case 2: Out-of-order response with mismatched track_id
+        widget._on_lyrics_fetched(fetch_id=5, req_track_id="Artist A - Song A", lyrics=stale_lyrics)
+        assert widget.lyrics is None
+
+        # Case 3: Matching response
+        widget._on_lyrics_fetched(fetch_id=5, req_track_id="Artist B - Song B", lyrics=valid_lyrics)
+        assert widget.lyrics == valid_lyrics
+
+        widget.render_timer.stop()
+        widget.poll_timer.stop()
+        widget.smooth_timer.stop()
+        if widget.tray_icon:
+            widget.tray_icon.hide()
+        widget.close()

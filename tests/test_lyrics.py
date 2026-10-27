@@ -185,3 +185,71 @@ def test_parse_plain_lyrics_empty():
     assert _parse_plain_lyrics("") == []
     assert _parse_plain_lyrics("   ") == []
     assert _parse_plain_lyrics("[Chorus]\n[Intro]\n") == []
+
+
+def test_clean_track_title_expanded_mix_tags():
+    cases = [
+        ("Titanium (Club Mix)", "Titanium"),
+        ("Yesterday (Mono)", "Yesterday"),
+        ("Lose Yourself [Explicit]", "Lose Yourself"),
+        ("Levels - Club Mix", "Levels"),
+        ("Midnight City - Extended Mix", "Midnight City"),
+        ("Smooth - Single Version", "Smooth"),
+        ("Thriller - Album Version", "Thriller"),
+        ("Love Story (Stereo)", "Love Story"),
+    ]
+    for raw, expected in cases:
+        cleaned = clean_track_title(raw)
+        assert cleaned == expected, f"Expected '{expected}', got '{cleaned}' for input '{raw}'"
+
+
+def test_parse_lrc_fractional_and_hour_timestamps():
+    lrc = """
+    [00:04.5]One digit millisecond fraction
+    [00:10.50]Two digit centisecond fraction
+    [00:20.123]Three digit millisecond fraction
+    [01:05:30.50]One hour five minutes thirty seconds
+    """
+    lines = parse_lrc(lrc)
+    assert len(lines) == 4
+    assert lines[0].time_sec == 4.5
+    assert lines[0].text == "One digit millisecond fraction"
+    assert lines[1].time_sec == 10.5
+    assert lines[1].text == "Two digit centisecond fraction"
+    assert lines[2].time_sec == 20.123
+    assert lines[2].text == "Three digit millisecond fraction"
+    assert abs(lines[3].time_sec - 3930.5) < 0.01
+    assert lines[3].text == "One hour five minutes thirty seconds"
+
+
+def test_lyrics_cache_thread_safety():
+    import threading
+
+    _LYRICS_CACHE.clear()
+    errors = []
+
+    def worker(worker_id: int):
+        try:
+            for i in range(50):
+                track = f"Song_{worker_id}_{i}"
+                artist = f"Artist_{worker_id}"
+                sample_lines = [LyricLine(float(i), f"Line {i}")]
+                from lyricvibe.lyrics.fetcher import _cache_put
+                _cache_put(f"{track}||{artist}", sample_lines)
+                # Read from cache concurrently
+                fetch_lyrics_smart(track, artist, duration_sec=180)
+        except (KeyError, ValueError, RuntimeError, AttributeError) as e:
+            errors.append(e)
+
+    with patch("lyricvibe.lyrics.fetcher._HTTP_SESSION.get") as mock_get:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 404
+        mock_get.return_value = mock_resp
+
+        threads = [threading.Thread(target=worker, args=(t,)) for t in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+    assert len(errors) == 0, f"Thread errors encountered: {errors}"

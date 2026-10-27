@@ -819,6 +819,18 @@ class FloatingLyricsWidget(QWidget):
         else:
             self.show()
 
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        if hasattr(self, "render_timer") and self.render_timer.isActive():
+            self.render_timer.stop()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        fps = int(self.settings.get("target_fps", 165))
+        interval_ms = max(4, int(1000.0 / fps))
+        if hasattr(self, "render_timer") and not self.render_timer.isActive():
+            self.render_timer.start(interval_ms)
+
     def closeEvent(self, event):
         self._quit_app()
         event.accept()
@@ -889,6 +901,8 @@ class FloatingLyricsWidget(QWidget):
             logger.debug("[overlay] poll_spotify error: %s", e)
 
     def _smooth_position_check(self):
+        if not self.isVisible():
+            return
         if self.playback and self.playback.is_playing and self.lyrics:
             self._check_line_update(self.playback)
 

@@ -171,7 +171,7 @@ class AnimationEngine:
         now_perf = time.perf_counter()
 
         # Archive old line for smooth anti-overlap lift & fade out
-        if self.curr_text and self.curr_text != new_text:
+        if self.curr_text:
             self.prev_text = self.curr_text
             self.prev_exit_perf = now_perf
 

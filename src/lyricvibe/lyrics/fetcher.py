@@ -10,6 +10,7 @@ from __future__ import annotations
 import collections
 import logging
 import re
+import threading
 from dataclasses import dataclass
 
 import requests
@@ -35,6 +36,7 @@ class LyricLine:
 # Bounded in-memory cache to prevent unbounded growth during long playback sessions (max 250 songs)
 _MAX_CACHE_SIZE = 250
 _LYRICS_CACHE: collections.OrderedDict[str, list[LyricLine] | None] = collections.OrderedDict()
+_CACHE_LOCK = threading.Lock()
 
 
 def _get_http_session() -> requests.Session:
@@ -80,17 +82,17 @@ def clean_track_title(title: str) -> str:
         flags=re.IGNORECASE,
     )
 
-    # Strip remaster / live / deluxe / version / edition / radio edit / acoustic
+    # Strip remaster / live / deluxe / version / edition / radio edit / acoustic / mixes / audio tags
     t = re.sub(
-        r'[\(\[]\s*(remastered|remaster|live|bonus|deluxe|version|edition|original|ost|lofi|slowed|reverb|radio\s*edit|acoustic|instrumental)[^)\]]*[\)\]]',
+        r'[\(\[]\s*(remastered|remaster|live|bonus|deluxe|version|edition|original|ost|lofi|slowed|reverb|radio\s*edit|acoustic|instrumental|clean|explicit|stereo|mono|mix|single\s*version|album\s*version)[^)\]]*[\)\]]',
         '',
         t,
         flags=re.IGNORECASE,
     )
 
-    # Strip trailing " - From ..." or " - Original Motion Picture Soundtrack" or " - 2013 Remaster"
+    # Strip trailing " - From ..." or " - Original Motion Picture Soundtrack" or " - 2013 Remaster" or " - Club Mix"
     t = re.sub(
-        r'\s*-\s*(?:\d{4}\s+)?(from\s+|original|soundtrack|remaster(?:ed)?|bonus|live|radio\s*edit|anniversary).*$',
+        r'\s*-\s*(?:\d{4}\s+)?(from\s+|original|soundtrack|remaster(?:ed)?|bonus|live|radio\s*edit|anniversary|club\s*mix|extended\s*mix|single\s*version|album\s*version|mono|stereo).*$',
         '',
         t,
         flags=re.IGNORECASE,
@@ -149,19 +151,23 @@ def clean_lyric_line(text: str) -> str:
 
 def parse_lrc(lrc_text: str) -> list[LyricLine]:
     """
-    Parse standard and multi-tag LRC format lyrics into a sorted list of LyricLine objects.
+    Parse standard, multi-tag, and hour-timestamp LRC format lyrics into a sorted list of LyricLine objects.
     Supports formats like:
       [01:23.45] Single line
+      [01:23.4] Single-digit fraction line
       [01:23.456] Three-digit millisecond line
       [01:23:45] Colon fractional separator
+      [01:05:23.45] Hours timestamp
       [00:10.00][00:25.00] Repeated chorus line
     """
     if not lrc_text or not lrc_text.strip():
         return []
 
     lines: list[LyricLine] = []
-    # Pattern to find all timestamp tags on a line: [mm:ss.xx] or [mm:ss:xx]
-    tag_pattern = re.compile(r"\[(\d{1,3}):(\d{2})[\.:](\d{2,3})\]")
+    # Pattern to find all timestamp tags on a line: [hh:mm:ss.xx] or [mm:ss.xx] or [mm:ss:xx]
+    tag_pattern = re.compile(
+        r"\[(?:(\d{1,2}):(\d{2}):(\d{2})[\.:](\d{1,3})|(\d{1,3}):(\d{2})[\.:](\d{1,3}))\]"
+    )
 
     for raw_line in lrc_text.strip().splitlines():
         trimmed = raw_line.strip()
@@ -181,11 +187,19 @@ def parse_lrc(lrc_text: str) -> list[LyricLine]:
         roman_lyric = to_hinglish(cleaned_text)
 
         for match in matches:
-            minutes = int(match.group(1))
-            seconds = int(match.group(2))
-            frac_str = match.group(3)
-            frac = int(frac_str) / (1000.0 if len(frac_str) == 3 else 100.0)
-            total_sec = round(minutes * 60 + seconds + frac, 3)
+            if match.group(1) is not None:
+                hours = int(match.group(1))
+                minutes = int(match.group(2))
+                seconds = int(match.group(3))
+                frac_str = match.group(4)
+            else:
+                hours = 0
+                minutes = int(match.group(5))
+                seconds = int(match.group(6))
+                frac_str = match.group(7)
+
+            frac = int(frac_str) / (10.0 ** len(frac_str)) if frac_str else 0.0
+            total_sec = round(hours * 3600 + minutes * 60 + seconds + frac, 3)
             lines.append(LyricLine(time_sec=total_sec, text=roman_lyric))
 
     lines.sort(key=lambda item: item.time_sec)
@@ -200,12 +214,13 @@ def is_romanized(text: str) -> bool:
 
 
 def _cache_put(key: str, lyrics: list[LyricLine] | None):
-    """Stores result in bounded cache with LRU eviction."""
-    if key in _LYRICS_CACHE:
-        _LYRICS_CACHE.move_to_end(key)
-    _LYRICS_CACHE[key] = lyrics
-    if len(_LYRICS_CACHE) > _MAX_CACHE_SIZE:
-        _LYRICS_CACHE.popitem(last=False)
+    """Stores result in bounded cache with LRU eviction in a thread-safe manner."""
+    with _CACHE_LOCK:
+        if key in _LYRICS_CACHE:
+            _LYRICS_CACHE.move_to_end(key)
+        _LYRICS_CACHE[key] = lyrics
+        if len(_LYRICS_CACHE) > _MAX_CACHE_SIZE:
+            _LYRICS_CACHE.popitem(last=False)
 
 
 def _parse_plain_lyrics(plain_text: str, duration_sec: float = 0) -> list[LyricLine]:
@@ -321,9 +336,10 @@ def get_lyrics(
         return None
 
     cache_key = f"{track_name.strip().lower()}||{artist_name.strip().lower()}"
-    if cache_key in _LYRICS_CACHE:
-        _LYRICS_CACHE.move_to_end(cache_key)
-        return _LYRICS_CACHE[cache_key]
+    with _CACHE_LOCK:
+        if cache_key in _LYRICS_CACHE:
+            _LYRICS_CACHE.move_to_end(cache_key)
+            return _LYRICS_CACHE[cache_key]
 
     clean_title = clean_track_title(track_name)
     primary_artist = get_primary_artist(artist_name)

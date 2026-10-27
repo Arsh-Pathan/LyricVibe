@@ -257,6 +257,8 @@ class SliderRow(QWidget):
             layout.addWidget(sub)
 
         self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.slider.wheelEvent = lambda event: event.ignore()
         self.slider.setRange(min_val, max_val)
         self.slider.setValue(value)
         self.slider.valueChanged.connect(self._on_value_changed)
@@ -363,6 +365,20 @@ class LivePreview(QWidget):
     def update_settings(self, settings: dict):
         self.settings.update(settings)
         self.update()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if hasattr(self, "_render_timer") and not self._render_timer.isActive():
+            self._render_timer.start(16)
+        if hasattr(self, "_cycle_timer") and not self._cycle_timer.isActive():
+            self._cycle_timer.start(3800)
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        if hasattr(self, "_render_timer") and self._render_timer.isActive():
+            self._render_timer.stop()
+        if hasattr(self, "_cycle_timer") and self._cycle_timer.isActive():
+            self._cycle_timer.stop()
 
     def paintEvent(self, event):
         p = QPainter(self)
@@ -906,6 +922,7 @@ class SettingsDialog(QDialog):
         p_c_lay.setSpacing(10)
 
         self.combo_test_anim = QComboBox()
+        self.combo_test_anim.wheelEvent = lambda event: event.ignore()
         self.combo_test_anim.addItem("Random 55+ Animations", "")
         for name, _ in ANIMATION_CATALOG:
             clean_name = name.replace("_", " ").title()
@@ -960,6 +977,7 @@ class SettingsDialog(QDialog):
 
         row_font = SettingRow("Font Style", "Choose between 7clouds signature brush and clean bold")
         self.combo_font = QComboBox()
+        self.combo_font.wheelEvent = lambda event: event.ignore()
         self.combo_font.addItems([
             "7clouds Signature (Edo SZ)",
             "7clouds Modern (Montserrat Black)",
@@ -1002,6 +1020,7 @@ class SettingsDialog(QDialog):
 
         row_fps = SettingRow("Target Refresh Rate", "Hardware-accelerated timer for high-refresh monitors")
         self.combo_fps = QComboBox()
+        self.combo_fps.wheelEvent = lambda event: event.ignore()
         self.combo_fps.addItems(["60 Hz", "120 Hz", "144 Hz", "165 Hz (Recommended)", "240 Hz"])
         cur_fps = int(self.settings.get("target_fps", 165))
         fps_map = {60: 0, 120: 1, 144: 2, 165: 3, 240: 4}
@@ -1046,6 +1065,7 @@ class SettingsDialog(QDialog):
             "Rotates an ultra-bright neon color each song, or pin your favorite"
         )
         self.combo_hl_mode = QComboBox()
+        self.combo_hl_mode.wheelEvent = lambda event: event.ignore()
         self.combo_hl_mode.addItem("Auto: Different Bright Color Each Song", "per_song")
         for item in BRIGHT_HIGHLIGHT_PALETTE:
             self.combo_hl_mode.addItem(f"● {item['name']}", item["hex"])
@@ -1541,6 +1561,22 @@ class SettingsDialog(QDialog):
         """Only hides the settings dialog. Does NOT quit the overlay app."""
         settings_manager.save_settings(self.settings)
         self.hide()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            self._on_done_clicked()
+            event.accept()
+        else:
+            super().keyPressEvent(event)
+
+    def reject(self):
+        """Standard dialog reject (Esc) cleanly hides without quitting overlay."""
+        self._on_done_clicked()
+
+    def closeEvent(self, event):
+        """Closing via window X cleanly saves settings and hides."""
+        self._on_done_clicked()
+        event.accept()
 
     def _on_quit_clicked(self):
         self.quit_requested.emit()
