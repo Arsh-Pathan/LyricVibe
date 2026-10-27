@@ -3,9 +3,10 @@
 import sys
 from unittest.mock import patch
 
+from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 from PyQt6.QtWidgets import QApplication
 
-from lyricvibe.ui.overlay import AppSignals, FloatingLyricsWidget
+from lyricvibe.ui.overlay import IPC_SERVER_NAME, AppSignals, FloatingLyricsWidget
 from lyricvibe.ui.settings import SettingsDialog
 from lyricvibe.utils.settings import DEFAULT_SETTINGS
 
@@ -93,3 +94,26 @@ def test_fit_font_dynamic_scaling():
         if widget.tray_icon:
             widget.tray_icon.hide()
         widget.close()
+
+
+def test_single_instance_ipc_server():
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    test_server_name = f"{IPC_SERVER_NAME}_test_uniq"
+    QLocalServer.removeServer(test_server_name)
+
+    server = QLocalServer()
+    assert server.listen(test_server_name) is True
+
+    client = QLocalSocket()
+    client.connectToServer(test_server_name)
+    assert client.waitForConnected(500) is True
+
+    client.write(b"PING\n")
+    client.waitForBytesWritten(200)
+
+    server.close()
+    client.disconnectFromServer()
+    QLocalServer.removeServer(test_server_name)

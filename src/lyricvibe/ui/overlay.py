@@ -68,7 +68,7 @@ except ImportError:
     from spotify_client import PlaybackState, SpotifyClient
     get_asset_path = lambda p: p
 
-IPC_SERVER_NAME = "SpotifyLyricsOverlayIPC_v1"
+IPC_SERVER_NAME = "LyricVibeIPC_v1"
 
 
 class AppSignals(QObject):
@@ -966,7 +966,7 @@ class FloatingLyricsWidget(QWidget):
 # ── Single-Instance IPC & Entry Point ──
 def main():
     app = QApplication(sys.argv)
-    app.setApplicationName("SpotifyFloatingLyrics")
+    app.setApplicationName("LyricVibe")
 
     # Set Application Icon
     for icon_name in ("icon.ico", "icon.png"):
