@@ -535,7 +535,7 @@ class AnimationEngine:
         num_words = len(self.words)
         self.highlight_word_idx = -1
         if num_words > 0:
-            active_window = min(self.curr_duration * 0.80, 3.8)
+            active_window = min(self.curr_duration * 0.85, max(num_words * 0.38, 2.0))
             step_dur = active_window / num_words
             for i in range(num_words):
                 w_start = i * step_dur
