@@ -114,6 +114,39 @@ def get_primary_artist(artist: str) -> str:
     return parts[0].strip() if parts else artist.strip()
 
 
+SECTION_HEADER_PATTERN = re.compile(
+    r"^[\(\[]\s*(?:intro|outro|verse(?:\s*\d+)?|chorus(?:\s*\d+)?|pre-chorus|bridge|hook|solo|guitar\s*solo|instrumental|interlude|drop|breakdown|refrain)\s*[\)\]]$",
+    re.IGNORECASE,
+)
+
+MUSICAL_SYMBOLS_PATTERN = re.compile(r"[♪♫♩♬♭♮♯~]+")
+CHORD_TAG_PATTERN = re.compile(r"\[[A-G][b#]?(?:m|maj|min|dim|aug|sus\d?)?\d*\]")
+
+
+def clean_lyric_line(text: str) -> str:
+    """Cleans a single lyric line by stripping section markers, chords, and musical glyphs."""
+    if not text:
+        return ""
+
+    t = text.strip()
+
+    # Omit structural section headers completely (e.g. [Chorus], (Verse 1))
+    if SECTION_HEADER_PATTERN.match(t):
+        return ""
+
+    # Strip chord notations like [Am] or [G#m7]
+    t = CHORD_TAG_PATTERN.sub("", t)
+
+    # Strip musical symbols that cause missing glyph boxes in custom brush fonts
+    t = MUSICAL_SYMBOLS_PATTERN.sub("", t)
+
+    # Strip empty brackets left behind
+    t = re.sub(r"[\(\[]\s*[\)\]]", "", t)
+
+    # Normalize whitespace
+    return re.sub(r"\s+", " ", t).strip()
+
+
 def parse_lrc(lrc_text: str) -> list[LyricLine]:
     """
     Parse standard and multi-tag LRC format lyrics into a sorted list of LyricLine objects.
@@ -140,11 +173,12 @@ def parse_lrc(lrc_text: str) -> list[LyricLine]:
             continue
 
         # Extract lyric text by removing all timestamp tags
-        lyric_text = tag_pattern.sub("", trimmed).strip()
-        if not lyric_text:
+        raw_text = tag_pattern.sub("", trimmed).strip()
+        cleaned_text = clean_lyric_line(raw_text)
+        if not cleaned_text:
             continue
 
-        roman_lyric = to_hinglish(lyric_text)
+        roman_lyric = to_hinglish(cleaned_text)
 
         for match in matches:
             minutes = int(match.group(1))
@@ -250,16 +284,18 @@ def _try_search(query: str, duration_sec: float = 0) -> list[LyricLine] | None:
                     if synced:
                         return parse_lrc(synced)
 
-                # Fallback to plain
+                # Fallback to plain lyrics with duration-aware line pacing
                 for it in results:
                     plain = it.get("plainLyrics")
                     if plain:
-                        lines = []
-                        for i, line_text in enumerate(plain.strip().splitlines()):
-                            cleaned = line_text.strip()
-                            if cleaned:
-                                lines.append(LyricLine(time_sec=float(i * 4.0), text=to_hinglish(cleaned)))
-                        return lines
+                        raw_lines = [clean_lyric_line(lt) for lt in plain.strip().splitlines()]
+                        valid_lines = [lt for lt in raw_lines if lt]
+                        if valid_lines:
+                            step = (duration_sec * 0.90 / len(valid_lines)) if (duration_sec > 30 and len(valid_lines) > 0) else 4.0
+                            return [
+                                LyricLine(time_sec=round(float(i * step), 2), text=to_hinglish(lt))
+                                for i, lt in enumerate(valid_lines)
+                            ]
     except requests.RequestException as e:
         logger.debug("[fetcher] Search failed for query %r: %s", query, e)
     return None

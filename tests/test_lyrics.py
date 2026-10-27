@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 from lyricvibe.lyrics.fetcher import (
     _LYRICS_CACHE,
     LyricLine,
+    clean_lyric_line,
     clean_track_title,
     fetch_lyrics_smart,
     get_primary_artist,
@@ -128,3 +129,32 @@ def test_fetch_lyrics_network_fallback(mock_get):
     assert len(lines) == 1
     assert lines[0].text == "Mocked online lyric line"
     assert lines[0].time_sec == 5.0
+
+
+def test_clean_lyric_line_structural_headers():
+    assert clean_lyric_line("[Chorus]") == ""
+    assert clean_lyric_line("(Verse 1)") == ""
+    assert clean_lyric_line("[Intro]") == ""
+    assert clean_lyric_line("[Outro]") == ""
+    assert clean_lyric_line("[Bridge]") == ""
+    assert clean_lyric_line("[Guitar Solo]") == ""
+    assert clean_lyric_line("(Instrumental)") == ""
+
+
+def test_clean_lyric_line_chords_and_symbols():
+    assert clean_lyric_line("♪ I see trees of green ♪") == "I see trees of green"
+    assert clean_lyric_line("Hello [C] world [G#m7] from here") == "Hello world from here"
+    assert clean_lyric_line("♫ Lalala ~ ♫") == "Lalala"
+
+
+def test_parse_lrc_filters_structural_headers():
+    lrc = """
+    [00:05.00][Intro]
+    [00:10.00]Here comes the real vocal
+    [00:25.00][Chorus]
+    [00:30.00]♪ Singing the chorus line ♪
+    """
+    lines = parse_lrc(lrc)
+    assert len(lines) == 2
+    assert lines[0].text == "Here comes the real vocal"
+    assert lines[1].text == "Singing the chorus line"
