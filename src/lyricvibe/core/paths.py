@@ -33,10 +33,16 @@ def get_asset_path(relative_path: str) -> str:
 
 
 def get_settings_file_path() -> str:
-    """Returns absolute path to the settings.json file."""
-    base = get_base_dir()
-    # In frozen mode, write settings.json next to the executable
+    """Returns absolute path to the settings.json file.
+    Prefers portable settings next to executable if writable, falling back to %APPDATA%/LyricVibe.
+    """
     if getattr(sys, "frozen", False):
         exe_dir = os.path.dirname(sys.executable)
-        return os.path.join(exe_dir, "settings.json")
+        portable_path = os.path.join(exe_dir, "settings.json")
+        if os.path.exists(portable_path) or os.access(exe_dir, os.W_OK):
+            return portable_path
+        appdata = os.environ.get("APPDATA", os.path.expanduser("~"))
+        return os.path.join(appdata, "LyricVibe", "settings.json")
+
+    base = get_base_dir()
     return os.path.join(base, "settings.json")

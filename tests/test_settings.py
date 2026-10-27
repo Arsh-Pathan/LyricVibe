@@ -92,3 +92,20 @@ def test_load_settings_missing_file_returns_defaults():
     with patch("lyricvibe.utils.settings.SETTINGS_FILE", "non_existent_file_path.json"):
         loaded = load_settings()
         assert loaded == DEFAULT_SETTINGS
+
+
+def test_get_settings_file_path_fallback():
+    from lyricvibe.core.paths import get_settings_file_path
+
+    # Unfrozen mode should return project root / settings.json
+    unfrozen_path = get_settings_file_path()
+    assert unfrozen_path.endswith("settings.json")
+
+    # Frozen mode with non-writable exe directory should fallback to APPDATA
+    with patch("sys.frozen", True, create=True), \
+         patch("sys.executable", "C:\\Program Files\\LyricVibe\\LyricVibe.exe"), \
+         patch("os.path.exists", return_value=False), \
+         patch("os.access", return_value=False), \
+         patch.dict("os.environ", {"APPDATA": "C:\\Users\\Test\\AppData\\Roaming"}):
+        fallback_path = get_settings_file_path()
+        assert "AppData\\Roaming\\LyricVibe\\settings.json" in fallback_path
