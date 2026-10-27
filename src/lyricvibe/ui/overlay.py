@@ -134,6 +134,7 @@ class FloatingLyricsWidget(QWidget):
         self.is_hidden_by_idle = False
         self.is_dragging = False
         self.drag_position = QPoint()
+        self._registered_hotkeys = [801, 802, 803, 804, 805, 806, 807]
 
         # Physics & Animation Engine (55+ animations, butter-smooth 165Hz)
         self.engine = AnimationEngine()
@@ -161,8 +162,18 @@ class FloatingLyricsWidget(QWidget):
         self.setGeometry(self.window_x, self.window_y, self.window_w, self.window_h)
 
         if screen:
-            screen.geometryChanged.connect(self._on_screen_changed)
-        self.screenChanged.connect(self._on_screen_changed)
+            try:
+                screen.geometryChanged.connect(self._on_screen_changed)
+            except (AttributeError, TypeError):
+                pass
+
+        app_inst = QApplication.instance()
+        if app_inst:
+            try:
+                app_inst.screenAdded.connect(lambda _: self._on_screen_changed())
+                app_inst.screenRemoved.connect(lambda _: self._on_screen_changed())
+            except (AttributeError, TypeError):
+                pass
 
         # 165 Hz Render Timer
         fps = int(self.settings.get("target_fps", 165))
@@ -759,18 +770,33 @@ class FloatingLyricsWidget(QWidget):
         if hasattr(self, "tray_lock_action") and self.tray_lock_action:
             self.tray_lock_action.setChecked(self.is_locked)
         hwnd = int(self.winId())
+        self._set_window_clickthrough(hwnd, self.is_locked)
+
+    def _set_window_clickthrough(self, hwnd: int, clickthrough: bool):
+        """Safely applies WS_EX_TRANSPARENT layered style with 64-bit pointer and frame refresh safety."""
         try:
+            user32 = ctypes.windll.user32
             GWL_EXSTYLE = -20
             WS_EX_LAYERED = 0x00080000
             WS_EX_TRANSPARENT = 0x00000020
-            current_style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            SWP_FLAGS = 0x0027  # SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
 
-            if self.is_locked:
+            get_long = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
+            set_long = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
+
+            get_long.argtypes = [wintypes.HWND, ctypes.c_int]
+            get_long.restype = ctypes.c_ssize_t
+            set_long.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t]
+            set_long.restype = ctypes.c_ssize_t
+
+            current_style = get_long(hwnd, GWL_EXSTYLE)
+            if clickthrough:
                 new_style = current_style | WS_EX_LAYERED | WS_EX_TRANSPARENT
-                ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_style)
             else:
                 new_style = (current_style & ~WS_EX_TRANSPARENT) | WS_EX_LAYERED
-                ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_style)
+
+            set_long(hwnd, GWL_EXSTYLE, new_style)
+            user32.SetWindowPos(hwnd, None, 0, 0, 0, 0, SWP_FLAGS)
         except (AttributeError, OSError) as e:
             logger.debug("[overlay] set_clickthrough error: %s", e)
 
@@ -791,6 +817,13 @@ class FloatingLyricsWidget(QWidget):
             self.smooth_timer.stop()
             if hasattr(self, "tray_icon") and self.tray_icon:
                 self.tray_icon.hide()
+            user32 = getattr(ctypes.windll, "user32", None)
+            if user32:
+                for hid in getattr(self, "_registered_hotkeys", []):
+                    try:
+                        user32.UnregisterHotKey(None, hid)
+                    except OSError:
+                        pass
         except (AttributeError, OSError, RuntimeError) as e:
             logger.debug("[overlay] error during shutdown: %s", e)
         self.spotify.close()

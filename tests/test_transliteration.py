@@ -82,3 +82,22 @@ def test_empty_and_whitespace():
     assert to_hinglish("") == ""
     assert to_hinglish("   ") == ""
     assert to_hinglish(None) == ""
+
+
+def test_devanagari_digits():
+    out = to_hinglish("गीत १२३ और २०2४")
+    assert "123" in out
+    assert "20" in out
+    assert is_pure_ascii(out)
+
+
+def test_devanagari_punctuation_danda():
+    out = to_hinglish("दिलबर जानी।")
+    assert out.endswith(".")
+    assert is_pure_ascii(out)
+
+
+def test_devanagari_ligatures_and_om():
+    assert to_hinglish("ज्ञान").startswith("Gya")
+    assert "Om" in to_hinglish("ॐ नमः शिवाय")
+    assert is_pure_ascii(to_hinglish("ॐ नमः शिवाय"))

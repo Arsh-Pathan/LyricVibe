@@ -127,6 +127,17 @@ DEV_CONSONANTS = {
     '\u095c': 'r', '\u095d': 'rh', '\u095e': 'f',  '\u095f': 'y',
 }
 
+DEV_DIGITS = {
+    '०': '0', '१': '1', '२': '2', '३': '3', '४': '4',
+    '५': '5', '६': '6', '७': '7', '८': '8', '९': '9',
+}
+
+DEV_PUNCTUATION = {
+    '।': '.',
+    '॥': '.',
+    'ॐ': 'Om',
+}
+
 HALANT = '्'
 
 # ── 3. Phonetic Cleanups & Common Word Corrections ────────────────────
@@ -155,6 +166,7 @@ WORD_REPLACEMENTS = [
     (r'\braha\b', 'raha'),
     (r'\brahe\b', 'rahe'),
     (r'\brahi\b', 'rahi'),
+    (r'\bjnya', 'gya'),
 ]
 
 
@@ -191,6 +203,12 @@ def transliterate_devanagari_word(word: str) -> str:
                     res.append(cons + 'a')
         elif char in DEV_MATRAS:
             res.append(DEV_MATRAS[char])
+            i += 1
+        elif char in DEV_DIGITS:
+            res.append(DEV_DIGITS[char])
+            i += 1
+        elif char in DEV_PUNCTUATION:
+            res.append(DEV_PUNCTUATION[char])
             i += 1
         elif char == HALANT or char == '\u093c':
             i += 1
@@ -233,6 +251,10 @@ def _universal_safety_sanitize(text: str) -> str:
                 clean.append(DEV_VOWELS[ch])
             elif ch in DEV_MATRAS:
                 clean.append(DEV_MATRAS[ch])
+            elif ch in DEV_DIGITS:
+                clean.append(DEV_DIGITS[ch])
+            elif ch in DEV_PUNCTUATION:
+                clean.append(DEV_PUNCTUATION[ch])
             else:
                 pass  # drop
         # Check Arabic / Urdu / Persian
