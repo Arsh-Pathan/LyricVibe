@@ -1,4 +1,4 @@
 """Windows SMTC media session listener and client telemetry modules."""
-from .client import SpotifyClient, PlaybackState
+from .client import PlaybackState, SpotifyClient
 
-__all__ = ["SpotifyClient", "PlaybackState"]
+__all__ = ["PlaybackState", "SpotifyClient"]

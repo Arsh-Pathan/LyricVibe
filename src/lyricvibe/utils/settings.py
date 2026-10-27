@@ -1,13 +1,20 @@
 """
-Configuration and persistent settings for Spotify Floating Lyrics Overlay.
-Supports runtime updates via the Settings Window.
+Configuration and persistent settings for LyricVibe.
+Provides atomic file writing, schema validation, and default palettes.
 """
 
-import os
+from __future__ import annotations
+
 import json
+import logging
+import os
+import tempfile
+
+logger = logging.getLogger(__name__)
 
 try:
     from lyricvibe.core.paths import get_settings_file_path
+
     SETTINGS_FILE = get_settings_file_path()
 except ImportError:
     SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
@@ -37,7 +44,7 @@ BRIGHT_HIGHLIGHT_HEX_LIST = [c["hex"] for c in BRIGHT_HIGHLIGHT_PALETTE]
 SMOOTH_SOFT_PALETTE = BRIGHT_HIGHLIGHT_PALETTE
 SMOOTH_SOFT_HEX_LIST = BRIGHT_HIGHLIGHT_HEX_LIST
 
-DEFAULT_SETTINGS = {
+DEFAULT_SETTINGS: dict[str, object] = {
     "target_fps": 165,             # 165 Hz smooth motion
     "font_size": 42,
     "font_family": "7clouds Signature (Edo SZ)",
@@ -59,22 +66,71 @@ DEFAULT_SETTINGS = {
 }
 
 
+def _validate_settings(raw_data: dict) -> dict:
+    """Validates types and clamps numerical ranges to prevent crashes."""
+    res = DEFAULT_SETTINGS.copy()
+    if not isinstance(raw_data, dict):
+        return res
+
+    for key, default_val in DEFAULT_SETTINGS.items():
+        if key not in raw_data:
+            continue
+        val = raw_data[key]
+        if isinstance(default_val, bool):
+            res[key] = bool(val)
+        elif isinstance(default_val, int):
+            try:
+                res[key] = int(val)
+            except (ValueError, TypeError):
+                res[key] = default_val
+        elif isinstance(default_val, float):
+            try:
+                res[key] = float(val)
+            except (ValueError, TypeError):
+                res[key] = default_val
+        elif isinstance(default_val, str):
+            res[key] = str(val) if val else default_val
+
+    # Sanity bounds
+    res["target_fps"] = max(30, min(int(res["target_fps"]), 360))
+    res["font_size"] = max(18, min(int(res["font_size"]), 96))
+    res["overlay_y"] = max(0, min(int(res["overlay_y"]), 2000))
+    res["sync_offset_sec"] = max(-5.0, min(float(res["sync_offset_sec"]), 5.0))
+    res["motion_blur_intensity"] = max(0.0, min(float(res["motion_blur_intensity"]), 5.0))
+
+    return res
+
+
 def load_settings() -> dict:
+    """Loads and validates settings from disk. Returns defaults on error."""
     if os.path.exists(SETTINGS_FILE):
         try:
             with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
                 saved = json.load(f)
-                res = DEFAULT_SETTINGS.copy()
-                res.update(saved)
-                return res
-        except Exception:
-            pass
+                return _validate_settings(saved)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning("[settings] Could not read %s, using defaults: %s", SETTINGS_FILE, e)
+
     return DEFAULT_SETTINGS.copy()
 
 
 def save_settings(settings: dict):
+    """Atomically writes settings to disk via temporary file rename to prevent corruption."""
     try:
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(settings, f, indent=4)
-    except Exception as e:
-        print(f"[config] Error saving settings: {e}")
+        dir_name = os.path.dirname(os.path.abspath(SETTINGS_FILE))
+        os.makedirs(dir_name, exist_ok=True)
+
+        with tempfile.NamedTemporaryFile("w", dir=dir_name, delete=False, encoding="utf-8") as tf:
+            json.dump(settings, tf, indent=4)
+            tf.flush()
+            os.fsync(tf.fileno())
+            temp_name = tf.name
+
+        os.replace(temp_name, SETTINGS_FILE)
+    except OSError as e:
+        logger.error("[settings] Error saving settings to %s: %s", SETTINGS_FILE, e)
+        if "temp_name" in locals() and os.path.exists(temp_name):
+            try:
+                os.remove(temp_name)
+            except OSError:
+                pass

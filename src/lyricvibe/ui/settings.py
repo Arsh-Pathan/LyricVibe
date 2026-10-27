@@ -13,40 +13,74 @@ Settings Window for Spotify Floating Lyrics Overlay.
 - Done button ONLY closes settings dialog (does NOT quit the overlay app).
 """
 
-import sys
-import os
-import time
-import math
-import random
+from __future__ import annotations
 
-from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QSlider,
-    QCheckBox, QComboBox, QPushButton, QGroupBox, QWidget,
-    QTabWidget, QFrame, QScrollArea, QSizePolicy
-)
+import logging
+import os
+import sys
+from typing import ClassVar
+
+logger = logging.getLogger(__name__)
+
 from PyQt6.QtCore import (
-    Qt, pyqtSignal, QTimer, QPropertyAnimation, QEasingCurve,
-    QPoint, QPointF, QRectF, QSize, pyqtProperty
+    QEasingCurve,
+    QPointF,
+    QPropertyAnimation,
+    QRectF,
+    Qt,
+    QTimer,
+    pyqtProperty,
+    pyqtSignal,
 )
 from PyQt6.QtGui import (
-    QFont, QColor, QPainter, QPen, QBrush, QPainterPath,
-    QFontDatabase, QLinearGradient, QIcon, QPixmap, QFontMetrics
+    QColor,
+    QFont,
+    QFontDatabase,
+    QFontMetrics,
+    QIcon,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+)
+from PyQt6.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QSlider,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
 
 try:
-    from lyricvibe.utils.settings import (
-        BRIGHT_HIGHLIGHT_PALETTE, BRIGHT_HIGHLIGHT_HEX_LIST,
-        SMOOTH_SOFT_PALETTE, SMOOTH_SOFT_HEX_LIST
+    from lyricvibe.core.animation import (
+        ANIMATION_CATALOG,
+        FADE_ANIMS,
+        AnimationEngine,
     )
-    from lyricvibe.core.animation import AnimationEngine, ANIMATION_CATALOG, PER_CHAR_ANIMS, FADE_ANIMS
     from lyricvibe.core.paths import get_asset_path
+    from lyricvibe.utils.settings import (
+        BRIGHT_HIGHLIGHT_HEX_LIST,
+        BRIGHT_HIGHLIGHT_PALETTE,
+    )
 except ImportError:
     import settings_manager
-    from settings_manager import (
-        BRIGHT_HIGHLIGHT_PALETTE, BRIGHT_HIGHLIGHT_HEX_LIST,
-        SMOOTH_SOFT_PALETTE, SMOOTH_SOFT_HEX_LIST
+    from animation_engine import (
+        ANIMATION_CATALOG,
+        FADE_ANIMS,
+        AnimationEngine,
     )
-    from animation_engine import AnimationEngine, ANIMATION_CATALOG, PER_CHAR_ANIMS, FADE_ANIMS
+    from settings_manager import (
+        BRIGHT_HIGHLIGHT_HEX_LIST,
+        BRIGHT_HIGHLIGHT_PALETTE,
+    )
     get_asset_path = lambda p: p
 
 
@@ -284,7 +318,7 @@ class LivePreview(QWidget):
     55+ animations, smooth soft color highlight, and focal underlines.
     """
 
-    PREVIEW_LINES = [
+    PREVIEW_LINES: ClassVar[list[str]] = [
         "Magar phir aarzoon ka bikharna bhi zaroori tha",
         "Cause you knew that I'd be at one",
         "Saari jannatein mere paas ho",
@@ -1400,8 +1434,8 @@ class SettingsDialog(QDialog):
             if hasattr(self, 'preview_widget'):
                 self.preview_widget.update_settings(self.settings)
             self.settings_changed.emit(self.settings)
-        except Exception:
-            pass
+        except (KeyError, ValueError, TypeError, AttributeError, OSError) as e:
+            logger.debug("[settings] _update_and_sync error: %s", e)
 
     def _on_font_changed(self, idx):
         choice = self.combo_font.currentText()
@@ -1470,8 +1504,8 @@ class SettingsDialog(QDialog):
             if hasattr(self, 'preview_widget'):
                 self.preview_widget.update_settings(self.settings)
             self.settings_changed.emit(self.settings)
-        except Exception:
-            pass
+        except (KeyError, ValueError, TypeError, AttributeError, OSError) as e:
+            logger.debug("[settings] _update_and_sync error: %s", e)
 
     def _reset_to_defaults(self):
         defaults = {

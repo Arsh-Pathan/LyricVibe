@@ -20,42 +20,51 @@ LyricVibe — 165Hz Floating Lyrics Overlay for Spotify.
 - Pure razor-sharp text (no fuzzy glow).
 """
 
-import sys
-import os
-import time
-import math
 import ctypes
+import logging
+import math
+import os
+import sys
+import time
 from ctypes import wintypes
+
+logger = logging.getLogger(__name__)
 
 # Ensure no crashes in windowed mode
 if sys.stdout is None:
-    sys.stdout = open(os.devnull, "w")
+    sys.stdout = open(os.devnull, "w")  # noqa: SIM115
 if sys.stderr is None:
-    sys.stderr = open(os.devnull, "w")
+    sys.stderr = open(os.devnull, "w")  # noqa: SIM115
 
-from PyQt6.QtWidgets import QApplication, QWidget
-from PyQt6.QtCore import Qt, QTimer, QPoint, QPointF, QRectF, QObject, pyqtSignal
+from PyQt6.QtCore import QObject, QPoint, QPointF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (
-    QPainter, QColor, QFont, QFontMetrics, QFontDatabase, QPen,
-    QPainterPath, QTransform, QIcon
+    QColor,
+    QFont,
+    QFontDatabase,
+    QFontMetrics,
+    QIcon,
+    QPainter,
+    QPainterPath,
+    QPen,
 )
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
+from PyQt6.QtWidgets import QApplication, QWidget
 
 try:
-    from lyricvibe.utils.settings import load_settings, save_settings, BRIGHT_HIGHLIGHT_PALETTE, BRIGHT_HIGHLIGHT_HEX_LIST
     import lyricvibe.utils.settings as settings_manager
-    from lyricvibe.ui.settings import SettingsDialog
-    from lyricvibe.media.client import SpotifyClient, PlaybackState
-    from lyricvibe.lyrics.fetcher import get_lyrics, LyricLine
-    from lyricvibe.core.animation import AnimationEngine, PER_CHAR_ANIMS, FADE_ANIMS
+    from lyricvibe.core.animation import FADE_ANIMS, PER_CHAR_ANIMS, AnimationEngine
     from lyricvibe.core.paths import get_asset_path
+    from lyricvibe.lyrics.fetcher import LyricLine, get_lyrics
+    from lyricvibe.media.client import PlaybackState, SpotifyClient
+    from lyricvibe.ui.settings import SettingsDialog
+    from lyricvibe.utils.settings import BRIGHT_HIGHLIGHT_HEX_LIST
 except ImportError:
     import settings_manager
-    from settings_manager import BRIGHT_HIGHLIGHT_PALETTE, BRIGHT_HIGHLIGHT_HEX_LIST
+    from animation_engine import FADE_ANIMS, PER_CHAR_ANIMS, AnimationEngine
+    from lyrics_fetcher import LyricLine, get_lyrics
+    from settings_manager import BRIGHT_HIGHLIGHT_HEX_LIST
     from settings_window import SettingsDialog
-    from spotify_client import SpotifyClient, PlaybackState
-    from lyrics_fetcher import get_lyrics, LyricLine
-    from animation_engine import AnimationEngine, PER_CHAR_ANIMS, FADE_ANIMS
+    from spotify_client import PlaybackState, SpotifyClient
     get_asset_path = lambda p: p
 
 IPC_SERVER_NAME = "SpotifyLyricsOverlayIPC_v1"
@@ -99,6 +108,8 @@ class FloatingLyricsWidget(QWidget):
         self._last_color_idx: int = 0
         self.current_song_color: QColor = QColor(BRIGHT_HIGHLIGHT_HEX_LIST[0])
         self._current_fetch_id: int = 0
+        self._font_cache: dict[tuple, tuple[QFont, QFontMetrics]] = {}
+        self._word_span_cache: dict[str, list[tuple[str, int, int]]] = {}
 
         # Thread-safe Signal Bridge
         self.signals = AppSignals()
@@ -214,6 +225,8 @@ class FloatingLyricsWidget(QWidget):
         """Real-time live settings sync without restarts or crashes."""
         try:
             self.settings.update(new_settings)
+            self._font_cache.clear()
+            self._word_span_cache.clear()
 
             # Update FPS
             fps = int(self.settings.get("target_fps", 165))
@@ -226,8 +239,8 @@ class FloatingLyricsWidget(QWidget):
 
             # Trigger immediate live repaint
             self.update()
-        except Exception:
-            pass
+        except (KeyError, ValueError, TypeError, AttributeError, OSError) as e:
+            logger.debug("[overlay] apply_settings error: %s", e)
 
     def open_settings_window(self):
         if self.settings_dialog is None:
@@ -379,7 +392,12 @@ class FloatingLyricsWidget(QWidget):
             painter.restore()
 
     def _fit_font(self, text: str, max_w: float, base_size: int, family: str) -> tuple[QFont, QFontMetrics]:
-        """Dynamically scales font size down so long lyric lines NEVER get cut off."""
+        """Dynamically scales font size down so long lyric lines NEVER get cut off. Uses caching for 165Hz performance."""
+        key = (text, int(max_w), base_size, family)
+        cached = self._font_cache.get(key)
+        if cached is not None:
+            return cached
+
         size = base_size
         weight = QFont.Weight.Black if family == "Montserrat" else QFont.Weight.Bold
         font = QFont(family, size, weight)
@@ -391,7 +409,37 @@ class FloatingLyricsWidget(QWidget):
             font.setPointSize(size)
             metrics = QFontMetrics(font)
 
-        return font, metrics
+        if len(self._font_cache) > 100:
+            self._font_cache.clear()
+
+        result = (font, metrics)
+        self._font_cache[key] = result
+        return result
+
+    def _get_word_spans(self, text: str) -> list[tuple[str, int, int]]:
+        """Extracts word substrings and character boundaries with caching."""
+        cached = self._word_span_cache.get(text)
+        if cached is not None:
+            return cached
+
+        words = []
+        idx = 0
+        length = len(text)
+        while idx < length:
+            if text[idx].isspace():
+                idx += 1
+                continue
+            w_start = idx
+            while idx < length and not text[idx].isspace():
+                idx += 1
+            w_end = idx
+            words.append((text[w_start:w_end], w_start, w_end))
+
+        if len(self._word_span_cache) > 100:
+            self._word_span_cache.clear()
+
+        self._word_span_cache[text] = words
+        return words
 
     def _draw_sharp_line_with_highlight(self, painter: QPainter, metrics: QFontMetrics,
                                         text: str, master_alpha: int,
@@ -412,22 +460,11 @@ class FloatingLyricsWidget(QWidget):
         if not hl_enabled or hl_word_idx < 0:
             return
 
-        # Find words and their exact substring start indices in the original text
-        words = []
-        idx = 0
-        while idx < len(text):
-            if text[idx].isspace():
-                idx += 1
-                continue
-            w_start = idx
-            while idx < len(text) and not text[idx].isspace():
-                idx += 1
-            w_end = idx
-            words.append((text[w_start:w_end], w_start, w_end))
+        words = self._get_word_spans(text)
 
         # Pass 2: Active word highlight in ultra-bright vivid color
         if 0 <= hl_word_idx < len(words):
-            word_str, w_start, w_end = words[hl_word_idx]
+            word_str, w_start, _ = words[hl_word_idx]
             word_x = start_x + metrics.horizontalAdvance(text[:w_start])
             painter.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), master_alpha))
             painter.drawText(QPointF(word_x, baseline_y), word_str)
@@ -613,8 +650,8 @@ class FloatingLyricsWidget(QWidget):
             else:
                 new_style = (current_style & ~WS_EX_TRANSPARENT) | WS_EX_LAYERED
                 ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_style)
-        except Exception:
-            pass
+        except (AttributeError, OSError) as e:
+            logger.debug("[overlay] set_clickthrough error: %s", e)
 
     def toggle_visibility(self):
         if self.isVisible():
@@ -669,8 +706,8 @@ class FloatingLyricsWidget(QWidget):
                 return
 
             self._check_line_update(state)
-        except Exception:
-            pass
+        except (KeyError, ValueError, TypeError, AttributeError, OSError, RuntimeError) as e:
+            logger.debug("[overlay] poll_spotify error: %s", e)
 
     def _smooth_position_check(self):
         if self.playback and self.playback.is_playing and self.lyrics:

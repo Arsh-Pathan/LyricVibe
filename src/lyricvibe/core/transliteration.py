@@ -7,7 +7,6 @@ ZERO foreign characters leak through.
 """
 
 import re
-import unicodedata
 
 # ── 1. Comprehensive Urdu / Arabic / Persian to Latin Table ──────────
 URDU_MAP = {
@@ -91,12 +90,15 @@ URDU_MAP = {
 }
 
 # ── 2. Devanagari Mapping ─────────────────────────────────────────────
-NUKTA_CONSONANTS = {
-    '\u0958': 'q', '\u0959': 'kh', '\u095a': 'gh', '\u095b': 'z',
-    '\u095c': 'r', '\u095d': 'rh', '\u095e': 'f',  '\u095f': 'y',
-    '\u0915\u093c': 'q', '\u0916\u093c': 'kh', '\u0917\u093c': 'gh',
-    '\u091c\u093c': 'z', '\u0921\u093c': 'r',  '\u0922\u093c': 'rh',
-    '\u092b\u093c': 'f', '\u092f\u093c': 'y',
+NUKTA_NORMALIZATION = {
+    '\u0915\u093c': '\u0958',  # क़ -> क़
+    '\u0916\u093c': '\u0959',  # ख़ -> ख़
+    '\u0917\u093c': '\u095a',  # ग़ -> ग़
+    '\u091c\u093c': '\u095b',  # ज़ -> ज़
+    '\u0921\u093c': '\u095c',  # ड़ -> ड़
+    '\u0922\u093c': '\u095d',  # ढ़ -> ढ़
+    '\u092b\u093c': '\u095e',  # फ़ -> फ़
+    '\u092f\u093c': '\u095f',  # य़ -> य़
 }
 
 DEV_VOWELS = {
@@ -120,6 +122,9 @@ DEV_CONSONANTS = {
     'प': 'p', 'फ': 'ph', 'ब': 'b', 'भ': 'bh', 'म': 'm',
     'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v',
     'श': 'sh', 'ष': 'sh', 'स': 's', 'ह': 'h',
+    # Nukta consonants (Urdu/Persian/Arabic loan sounds)
+    '\u0958': 'q', '\u0959': 'kh', '\u095a': 'gh', '\u095b': 'z',
+    '\u095c': 'r', '\u095d': 'rh', '\u095e': 'f',  '\u095f': 'y',
 }
 
 HALANT = '्'
@@ -154,7 +159,7 @@ WORD_REPLACEMENTS = [
 
 
 def _preprocess_nuktas(text: str) -> str:
-    for k, v in NUKTA_CONSONANTS.items():
+    for k, v in NUKTA_NORMALIZATION.items():
         text = text.replace(k, v)
     return text
 

@@ -262,7 +262,6 @@ class AnimationEngine:
         skew_x = 0.0
         chroma = 0.0
         blur_alpha = 0.0
-        blur_offset_x = 0.0
 
         anim = self.curr_anim_type
 
@@ -622,7 +621,7 @@ class AnimationEngine:
         # ── Focal Hand-Drawn Underline Progress ──
         if self.underline_active:
             u_elapsed = elapsed_in - 0.08
-            u_dur = min(self.curr_duration * 0.45, 1.2)
+            u_dur = max(0.12, min(self.curr_duration * 0.45, 1.2))
             if u_elapsed > 0:
                 u_t = min(u_elapsed / u_dur, 1.0)
                 self.underline_progress = 1.0 - math.pow(1.0 - u_t, 3)

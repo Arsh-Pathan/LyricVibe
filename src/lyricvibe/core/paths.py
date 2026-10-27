@@ -10,7 +10,7 @@ import sys
 def get_base_dir() -> str:
     """Returns the base runtime directory (supports PyInstaller bundle & source)."""
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        return getattr(sys, "_MEIPASS")
+        return sys._MEIPASS
     
     # 3 levels up: src/lyricvibe/core -> src/lyricvibe -> src -> root
     core_dir = os.path.dirname(os.path.abspath(__file__))
