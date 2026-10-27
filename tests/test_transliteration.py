@@ -101,3 +101,20 @@ def test_devanagari_ligatures_and_om():
     assert to_hinglish("ज्ञान").startswith("Gya")
     assert "Om" in to_hinglish("ॐ नमः शिवाय")
     assert is_pure_ascii(to_hinglish("ॐ नमः शिवाय"))
+
+
+def test_devanagari_common_bollywood_words():
+    assert to_hinglish("नहीं") == "Nahi"
+    assert to_hinglish("ज़िंदगी") == "Zindagi"
+    assert to_hinglish("कभी") == "Kabhi"
+    assert to_hinglish("भी") == "Bhi"
+    assert to_hinglish("की") == "Ki"
+    assert to_hinglish("मेरी") == "Meri"
+    assert to_hinglish("तेरी") == "Teri"
+
+
+def test_devanagari_multiline_whitespace():
+    out = to_hinglish("दिल\nदीवाना")
+    assert "Dil" in out
+    assert "deevaanaa" in out.lower()
+    assert is_pure_ascii(out)

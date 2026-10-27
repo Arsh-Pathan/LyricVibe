@@ -159,6 +159,18 @@ WORD_REPLACEMENTS = [
     (r'\busako\b', 'usko'),
     (r'\bisako\b', 'isko'),
     (r'\bnahin\b', 'nahi'),
+    (r'\bnaheen\b', 'nahi'),
+    (r'\bnahee\b', 'nahi'),
+    (r'\bkabhee\b', 'kabhi'),
+    (r'\bbhee\b', 'bhi'),
+    (r'\bkee\b', 'ki'),
+    (r'\bmeree\b', 'meri'),
+    (r'\bteree\b', 'teri'),
+    (r'\bzindagee\b', 'zindagi'),
+    (r'\bkhushee\b', 'khushi'),
+    (r'\bkisee\b', 'kisi'),
+    (r'\bkoyee\b', 'koi'),
+    (r'\bkoee\b', 'koi'),
     (r'\bhain\b', 'hai'),
     (r'\bhoon\b', 'hoon'),
     (r'\bmeen\b', 'mein'),
@@ -302,9 +314,12 @@ def to_hinglish(text: str) -> str:
     # 3. Check for Devanagari
     has_devanagari = any(0x0900 <= ord(ch) <= 0x097F for ch in text)
     if has_devanagari:
-        words = text.split(' ')
-        converted = [transliterate_devanagari_word(w) for w in words]
-        text = ' '.join(converted)
+        tokens = re.split(r'(\s+)', text)
+        converted = [
+            transliterate_devanagari_word(tok) if not tok.isspace() else tok
+            for tok in tokens
+        ]
+        text = ''.join(converted)
 
     # 4. Universal safety sanitization (zero leaks guarantee)
     text = _universal_safety_sanitize(text)
