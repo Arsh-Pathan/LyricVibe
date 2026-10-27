@@ -4,6 +4,7 @@ build/
 *.spec
 *.zip
 *.mp4
+*.exe
 
 # Python
 __pycache__/
