@@ -94,11 +94,12 @@ python main.py
 | Shortcut | Action |
 |:---|:---|
 | **Click & Drag** | Move lyrics anywhere on screen |
-| **`Ctrl + S`** | Open Settings Customizer (or double-click text) |
+| **`Ctrl + Alt + S`** (or `Ctrl + S`) | Open Settings Customizer (or double-click text / tray icon) |
 | **`Ctrl + Alt + L`** | Lock / Click-through mode (clicks pass through text) |
 | **`Ctrl + Alt + H`** | Hide / Show overlay |
 | **`[` / `]`** | Shift lyrics 0.5s earlier / later |
 | **`Ctrl + Alt + Q`** | Quit overlay cleanly |
+| **System Tray** | Access settings, lock, visibility, and quit via notification area |
 
 ---
 

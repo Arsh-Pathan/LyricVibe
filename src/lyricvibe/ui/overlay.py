@@ -38,6 +38,7 @@ if sys.stderr is None:
 
 from PyQt6.QtCore import QObject, QPoint, QPointF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (
+    QAction,
     QColor,
     QFont,
     QFontDatabase,
@@ -48,7 +49,7 @@ from PyQt6.QtGui import (
     QPen,
 )
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
-from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QWidget
 
 try:
     import lyricvibe.utils.settings as settings_manager
@@ -80,6 +81,13 @@ class AppSignals(QObject):
 
 
 def resolve_asset_path(relative_path: str) -> str:
+    try:
+        candidate = get_asset_path(relative_path)
+        if os.path.exists(candidate):
+            return candidate
+    except (OSError, AttributeError) as e:
+        logger.debug("[overlay] get_asset_path failed: %s", e)
+
     candidates = []
     if getattr(sys, "frozen", False):
         meipass = getattr(sys, "_MEIPASS", None)
@@ -169,6 +177,11 @@ class FloatingLyricsWidget(QWidget):
 
         # Settings dialog instance
         self.settings_dialog: SettingsDialog | None = None
+
+        # System tray icon & action references
+        self.tray_icon: QSystemTrayIcon | None = None
+        self.tray_lock_action: QAction | None = None
+        self._setup_system_tray()
 
         # Global hotkeys thread
         self._start_global_hotkeys()
@@ -580,6 +593,56 @@ class FloatingLyricsWidget(QWidget):
 
         painter.drawPath(path2)
 
+    # ── System Tray ──
+    def _setup_system_tray(self):
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            self.tray_icon = None
+            return
+
+        self.tray_icon = QSystemTrayIcon(self)
+        icon_path = resolve_asset_path("icon.ico")
+        if not os.path.exists(icon_path):
+            icon_path = resolve_asset_path("icon.png")
+        if os.path.exists(icon_path):
+            self.tray_icon.setIcon(QIcon(icon_path))
+
+        self.tray_icon.setToolTip("LyricVibe - Spotify Lyrics Overlay")
+
+        menu = QMenu()
+        settings_action = QAction("Settings...", self)
+        settings_action.triggered.connect(self.open_settings_window)
+        font = settings_action.font()
+        font.setBold(True)
+        settings_action.setFont(font)
+        menu.addAction(settings_action)
+
+        self.tray_lock_action = QAction("Lock (Click-Through)", self)
+        self.tray_lock_action.setCheckable(True)
+        self.tray_lock_action.setChecked(self.is_locked)
+        self.tray_lock_action.triggered.connect(self.toggle_lock)
+        menu.addAction(self.tray_lock_action)
+
+        toggle_action = QAction("Show / Hide Overlay", self)
+        toggle_action.triggered.connect(self.toggle_visibility)
+        menu.addAction(toggle_action)
+
+        menu.addSeparator()
+
+        quit_action = QAction("Quit LyricVibe", self)
+        quit_action.triggered.connect(self._quit_app)
+        menu.addAction(quit_action)
+
+        self.tray_icon.setContextMenu(menu)
+        self.tray_icon.activated.connect(self._on_tray_activated)
+        self.tray_icon.show()
+
+    def _on_tray_activated(self, reason):
+        if reason in (
+            QSystemTrayIcon.ActivationReason.Trigger,
+            QSystemTrayIcon.ActivationReason.DoubleClick,
+        ):
+            self.open_settings_window()
+
     # ── Mouse Interaction & Window Dragging ──
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and not self.is_locked:
@@ -592,11 +655,12 @@ class FloatingLyricsWidget(QWidget):
             new_pos = event.globalPosition().toPoint() - self.drag_position
             self.move(0, new_pos.y())
             self.settings["overlay_y"] = new_pos.y()
-            settings_manager.save_settings(self.settings)
             event.accept()
 
     def mouseReleaseEvent(self, event):
-        self.is_dragging = False
+        if self.is_dragging:
+            self.is_dragging = False
+            settings_manager.save_settings(self.settings)
 
     def mouseDoubleClickEvent(self, event):
         self.open_settings_window()
@@ -611,11 +675,13 @@ class FloatingLyricsWidget(QWidget):
             HOTKEY_LOCK = 801
             HOTKEY_HIDE = 802
             HOTKEY_QUIT = 803
-            HOTKEY_SETTINGS = 804
+            HOTKEY_SETTINGS_COMBO = 804
+            HOTKEY_SETTINGS = 805
 
             user32.RegisterHotKey(None, HOTKEY_LOCK, MOD_CONTROL | MOD_ALT, ord('L'))
             user32.RegisterHotKey(None, HOTKEY_HIDE, MOD_CONTROL | MOD_ALT, ord('H'))
             user32.RegisterHotKey(None, HOTKEY_QUIT, MOD_CONTROL | MOD_ALT, ord('Q'))
+            user32.RegisterHotKey(None, HOTKEY_SETTINGS_COMBO, MOD_CONTROL | MOD_ALT, ord('S'))
             user32.RegisterHotKey(None, HOTKEY_SETTINGS, MOD_CONTROL, ord('S'))
 
             msg = wintypes.MSG()
@@ -627,7 +693,7 @@ class FloatingLyricsWidget(QWidget):
                         self.signals.hotkey_hide.emit()
                     elif msg.wParam == HOTKEY_QUIT:
                         self.signals.hotkey_quit.emit()
-                    elif msg.wParam == HOTKEY_SETTINGS:
+                    elif msg.wParam in (HOTKEY_SETTINGS_COMBO, HOTKEY_SETTINGS):
                         self.signals.hotkey_settings.emit()
                 user32.TranslateMessage(ctypes.byref(msg))
                 user32.DispatchMessageW(ctypes.byref(msg))
@@ -637,6 +703,8 @@ class FloatingLyricsWidget(QWidget):
 
     def toggle_lock(self):
         self.is_locked = not self.is_locked
+        if hasattr(self, "tray_lock_action") and self.tray_lock_action:
+            self.tray_lock_action.setChecked(self.is_locked)
         hwnd = int(self.winId())
         try:
             GWL_EXSTYLE = -20
@@ -659,7 +727,19 @@ class FloatingLyricsWidget(QWidget):
         else:
             self.show()
 
+    def closeEvent(self, event):
+        self._quit_app()
+        event.accept()
+
     def _quit_app(self):
+        try:
+            self.render_timer.stop()
+            self.poll_timer.stop()
+            self.smooth_timer.stop()
+            if hasattr(self, "tray_icon") and self.tray_icon:
+                self.tray_icon.hide()
+        except (AttributeError, OSError, RuntimeError) as e:
+            logger.debug("[overlay] error during shutdown: %s", e)
         self.spotify.close()
         QApplication.quit()
 

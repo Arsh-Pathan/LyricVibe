@@ -16,7 +16,6 @@ if exist "dist\LyricVibe.exe" (
     if exist "fonts" (
         xcopy /e /i /y "fonts" "dist\fonts\" >nul 2>&1
     )
-    copy /y "dist\LyricVibe.exe" "dist\SpotifyLyrics.exe" >nul 2>&1
     echo.
     echo ===================================================
     echo  Build Successful: dist\LyricVibe.exe

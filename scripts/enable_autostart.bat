@@ -9,9 +9,6 @@ echo.
 
 set "TARGET_EXE=%cd%\dist\LyricVibe.exe"
 if not exist "%TARGET_EXE%" (
-    set "TARGET_EXE=%cd%\dist\SpotifyLyrics.exe"
-)
-if not exist "%TARGET_EXE%" (
     set "TARGET_EXE=%cd%\main.py"
 )
 

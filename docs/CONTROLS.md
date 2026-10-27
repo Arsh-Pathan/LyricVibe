@@ -10,10 +10,11 @@ These keyboard shortcuts work system-wide regardless of which window is in focus
 
 | Shortcut | Action | Description |
 |:---|:---|:---|
-| **`Ctrl + S`** | Open Settings | Opens the dark-themed customization panel. |
+| **`Ctrl + Alt + S`** (or `Ctrl + S`) | Open Settings | Opens the dark-themed customization panel. |
 | **`Ctrl + Alt + L`** | Lock Overlay | Toggles click-through mode. When locked, mouse clicks pass directly through lyrics to the window behind. |
 | **`Ctrl + Alt + H`** | Hide / Show | Instantly hides or restores lyrics overlay visibility. |
 | **`Ctrl + Alt + Q`** | Quit | Terminates LyricVibe and the background listener cleanly. |
+| **System Tray** | Context Menu | Right-click the LyricVibe system tray icon for quick access to settings, lock mode, visibility, and quit. Double-click tray icon to open Settings. |
 | **`[`** | Advance Audio (-0.5s) | Shifts lyrics earlier in time for faster synchronization. |
 | **`]`** | Delay Audio (+0.5s) | Delays lyrics later in time if lyrics appear too early. |
 
