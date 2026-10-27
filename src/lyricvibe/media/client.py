@@ -126,6 +126,8 @@ class SpotifyClient:
                 if results:
                     art = results[0].get("artworkUrl100", "").replace("100x100bb", "300x300bb")
                     with self._lock:
+                        if len(self._art_cache) > 200:
+                            self._art_cache.pop(next(iter(self._art_cache)), None)
                         self._art_cache[cache_key] = art
                         if self._state and self._state.track_name == track and not self._state.album_art_url:
                             self._state.album_art_url = art
@@ -136,6 +138,8 @@ class SpotifyClient:
             with self._lock:
                 self._art_pending.discard(cache_key)
                 if cache_key not in self._art_cache:
+                    if len(self._art_cache) > 200:
+                        self._art_cache.pop(next(iter(self._art_cache)), None)
                     self._art_cache[cache_key] = ""
 
     def _reader_loop(self):

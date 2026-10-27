@@ -60,6 +60,7 @@ from PyQt6.QtWidgets import (
 )
 
 try:
+    import lyricvibe.utils.settings as settings_manager
     from lyricvibe.core.animation import (
         ANIMATION_CATALOG,
         FADE_ANIMS,
@@ -646,8 +647,15 @@ class SettingsDialog(QDialog):
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.WindowStaysOnTopHint)
 
         self._load_icon()
+        self._load_fonts()
         self._apply_theme()
         self._build_ui()
+
+    def _load_fonts(self):
+        for f in ("EdoSZ.ttf", "Montserrat-Black.ttf", "Montserrat.ttf", "Poppins-Bold.ttf"):
+            fp = get_asset_path(os.path.join("fonts", f))
+            if os.path.exists(fp):
+                QFontDatabase.addApplicationFont(fp)
 
     def _load_icon(self):
         for icon_name in ("icon.ico", "icon.png"):
@@ -1541,12 +1549,6 @@ class SettingsDialog(QDialog):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    font_dir = os.path.join(os.path.dirname(__file__), "fonts")
-    for f in ("EdoSZ.ttf", "Montserrat-Black.ttf", "Montserrat.ttf", "Poppins-Bold.ttf"):
-        fp = os.path.join(font_dir, f)
-        if os.path.exists(fp):
-            QFontDatabase.addApplicationFont(fp)
-
     settings = settings_manager.load_settings()
     dlg = SettingsDialog(settings)
     dlg.show()

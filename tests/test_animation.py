@@ -1,5 +1,7 @@
 """Tests for the 165Hz cinematic animation engine and easing physics."""
 
+import math
+
 from lyricvibe.core.animation import (
     ANIMATION_CATALOG,
     AnimationEngine,
@@ -86,3 +88,17 @@ def test_pick_animation():
     anim_short = pick_animation("Short", duration=1.5)
     assert isinstance(anim_short, str)
     assert len(anim_short) > 0
+
+
+def test_all_catalog_animations_execute_cleanly():
+    engine = AnimationEngine()
+    for anim_name, _ in ANIMATION_CATALOG:
+        engine.trigger_line("Testing animation integrity: " + anim_name, duration=3.0, anim_type=anim_name)
+        assert engine.curr_anim_type == anim_name
+        for _ in range(5):
+            state = engine.update()
+            assert state is not None
+            assert isinstance(state["curr_alpha"], float)
+            assert not math.isnan(state["curr_alpha"])
+            assert not math.isnan(state["curr_scale"])
+            assert not math.isnan(state["curr_offset_y"])

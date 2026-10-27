@@ -78,6 +78,7 @@ class AppSignals(QObject):
     hotkey_hide = pyqtSignal()
     hotkey_quit = pyqtSignal()
     hotkey_settings = pyqtSignal()
+    hotkey_sync_adjust = pyqtSignal(float)
 
 
 def resolve_asset_path(relative_path: str) -> str:
@@ -126,6 +127,7 @@ class FloatingLyricsWidget(QWidget):
         self.signals.hotkey_hide.connect(self.toggle_visibility)
         self.signals.hotkey_quit.connect(self._quit_app)
         self.signals.hotkey_settings.connect(self.open_settings_window)
+        self.signals.hotkey_sync_adjust.connect(self._adjust_sync_offset)
 
         # State flags
         self.is_locked = False
@@ -157,6 +159,10 @@ class FloatingLyricsWidget(QWidget):
         self.window_x = 0
         self.window_y = self.settings.get("overlay_y", 55)
         self.setGeometry(self.window_x, self.window_y, self.window_w, self.window_h)
+
+        if screen:
+            screen.geometryChanged.connect(self._on_screen_changed)
+        self.screenChanged.connect(self._on_screen_changed)
 
         # 165 Hz Render Timer
         fps = int(self.settings.get("target_fps", 165))
@@ -657,6 +663,42 @@ class FloatingLyricsWidget(QWidget):
             self.settings["overlay_y"] = new_pos.y()
             event.accept()
 
+    def _on_screen_changed(self):
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen:
+            screen_geo = screen.availableGeometry()
+            self.window_w = screen_geo.width()
+            self.setGeometry(0, self.window_y, self.window_w, self.window_h)
+            self._font_cache.clear()
+            self.update()
+
+    def _adjust_sync_offset(self, delta: float):
+        curr = float(self.settings.get("sync_offset_sec", 0.20))
+        new_val = round(max(-5.0, min(5.0, curr + delta)), 2)
+        self.settings["sync_offset_sec"] = new_val
+        settings_manager.save_settings(self.settings)
+        if self.settings_dialog and hasattr(self.settings_dialog, "slider_sync"):
+            self.settings_dialog.slider_sync.setValue(int(new_val * 10))
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_BracketLeft:
+            self._adjust_sync_offset(-0.5)
+            event.accept()
+        elif event.key() == Qt.Key.Key_BracketRight:
+            self._adjust_sync_offset(0.5)
+            event.accept()
+        elif event.key() == Qt.Key.Key_L and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self.toggle_lock()
+            event.accept()
+        elif event.key() == Qt.Key.Key_H and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self.toggle_visibility()
+            event.accept()
+        elif event.key() == Qt.Key.Key_Q and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self._quit_app()
+            event.accept()
+        else:
+            super().keyPressEvent(event)
+
     def mouseReleaseEvent(self, event):
         if self.is_dragging:
             self.is_dragging = False
@@ -677,12 +719,19 @@ class FloatingLyricsWidget(QWidget):
             HOTKEY_QUIT = 803
             HOTKEY_SETTINGS_COMBO = 804
             HOTKEY_SETTINGS = 805
+            HOTKEY_SYNC_PREV = 806
+            HOTKEY_SYNC_NEXT = 807
+
+            VK_OEM_4 = 0xDB  # '[' key
+            VK_OEM_6 = 0xDD  # ']' key
 
             user32.RegisterHotKey(None, HOTKEY_LOCK, MOD_CONTROL | MOD_ALT, ord('L'))
             user32.RegisterHotKey(None, HOTKEY_HIDE, MOD_CONTROL | MOD_ALT, ord('H'))
             user32.RegisterHotKey(None, HOTKEY_QUIT, MOD_CONTROL | MOD_ALT, ord('Q'))
             user32.RegisterHotKey(None, HOTKEY_SETTINGS_COMBO, MOD_CONTROL | MOD_ALT, ord('S'))
             user32.RegisterHotKey(None, HOTKEY_SETTINGS, MOD_CONTROL, ord('S'))
+            user32.RegisterHotKey(None, HOTKEY_SYNC_PREV, MOD_CONTROL | MOD_ALT, VK_OEM_4)
+            user32.RegisterHotKey(None, HOTKEY_SYNC_NEXT, MOD_CONTROL | MOD_ALT, VK_OEM_6)
 
             msg = wintypes.MSG()
             while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
@@ -695,6 +744,10 @@ class FloatingLyricsWidget(QWidget):
                         self.signals.hotkey_quit.emit()
                     elif msg.wParam in (HOTKEY_SETTINGS_COMBO, HOTKEY_SETTINGS):
                         self.signals.hotkey_settings.emit()
+                    elif msg.wParam == HOTKEY_SYNC_PREV:
+                        self.signals.hotkey_sync_adjust.emit(-0.5)
+                    elif msg.wParam == HOTKEY_SYNC_NEXT:
+                        self.signals.hotkey_sync_adjust.emit(0.5)
                 user32.TranslateMessage(ctypes.byref(msg))
                 user32.DispatchMessageW(ctypes.byref(msg))
 
