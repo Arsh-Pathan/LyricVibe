@@ -20,7 +20,14 @@ $lastTitle = ""
 $lastArtist = ""
 $lastAlbum = ""
 
+$loopCount = 0
+
 while ($true) {
+    $loopCount++
+    if ($loopCount -ge 1200) {
+        $loopCount = 0
+        [GC]::Collect(1)
+    }
     try {
         if (-not $manager) {
             $managerOp = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()
@@ -100,6 +107,7 @@ while ($true) {
         }
     } catch {
         $manager = $null
+        $spotifySession = $null
         [Console]::WriteLine('{"is_playing":false,"track":"","artist":"","album":"","position":0,"updated_at":0,"duration":0}')
     }
     Start-Sleep -Milliseconds 250
