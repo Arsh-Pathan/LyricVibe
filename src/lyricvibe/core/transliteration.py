@@ -468,6 +468,163 @@ GUJ_DIGITS = {
 
 GUJ_HALANT = "્"
 
+# ── 6. Tamil Mapping ────────────────────────────────────────────────
+TAM_VOWELS = {
+    "அ": "a",
+    "ஆ": "aa",
+    "இ": "i",
+    "ஈ": "ee",
+    "உ": "u",
+    "ஊ": "oo",
+    "எ": "e",
+    "ஏ": "ae",
+    "ஐ": "ai",
+    "ஒ": "o",
+    "ஓ": "o",
+    "ஔ": "au",
+}
+
+TAM_MATRAS = {
+    "ா": "aa",
+    "ி": "i",
+    "ீ": "ee",
+    "ு": "u",
+    "ூ": "oo",
+    "ெ": "e",
+    "ே": "ae",
+    "ை": "ai",
+    "ொ": "o",
+    "ோ": "o",
+    "ௌ": "au",
+    "ஃ": "h",
+}
+
+TAM_CONSONANTS = {
+    "க": "k",
+    "ங": "ng",
+    "ச": "s",
+    "ஞ": "ny",
+    "ட": "t",
+    "ண": "n",
+    "த": "th",
+    "ந": "n",
+    "ப": "p",
+    "ம": "m",
+    "ய": "y",
+    "ர": "r",
+    "ல": "l",
+    "வ": "v",
+    "ழ": "zh",
+    "ள": "l",
+    "ற": "r",
+    "ன": "n",
+    "ஜ": "j",
+    "ஷ": "sh",
+    "ஸ": "s",
+    "ஹ": "h",
+}
+
+TAM_DIGITS = {
+    "௦": "0",
+    "௧": "1",
+    "௨": "2",
+    "௩": "3",
+    "௪": "4",
+    "௫": "5",
+    "௬": "6",
+    "௭": "7",
+    "௮": "8",
+    "௯": "9",
+}
+
+TAM_HALANT = "்"
+
+# ── 7. Telugu Mapping ───────────────────────────────────────────────
+TEL_VOWELS = {
+    "అ": "a",
+    "ఆ": "aa",
+    "ఇ": "i",
+    "ఈ": "ee",
+    "ఉ": "u",
+    "ఊ": "oo",
+    "ఋ": "ri",
+    "ఎ": "e",
+    "ఏ": "ae",
+    "ఐ": "ai",
+    "ఒ": "o",
+    "ఓ": "o",
+    "ఔ": "au",
+}
+
+TEL_MATRAS = {
+    "ా": "aa",
+    "ి": "i",
+    "ీ": "ee",
+    "ు": "u",
+    "ూ": "oo",
+    "ృ": "ri",
+    "ె": "e",
+    "ే": "ae",
+    "ై": "ai",
+    "ొ": "o",
+    "ో": "o",
+    "ౌ": "au",
+    "ం": "n",
+    "ః": "h",
+}
+
+TEL_CONSONANTS = {
+    "క": "k",
+    "ఖ": "kh",
+    "గ": "g",
+    "ఘ": "gh",
+    "ఙ": "ng",
+    "చ": "ch",
+    "ఛ": "chh",
+    "జ": "j",
+    "ఝ": "jh",
+    "ఞ": "ny",
+    "ట": "t",
+    "ఠ": "th",
+    "డ": "d",
+    "ఢ": "dh",
+    "ణ": "n",
+    "త": "t",
+    "థ": "th",
+    "ద": "d",
+    "ధ": "dh",
+    "న": "n",
+    "ప": "p",
+    "ఫ": "ph",
+    "బ": "b",
+    "భ": "bh",
+    "మ": "m",
+    "య": "y",
+    "ర": "r",
+    "ల": "l",
+    "వ": "v",
+    "శ": "sh",
+    "ష": "sh",
+    "స": "s",
+    "హ": "h",
+    "ళ": "l",
+}
+
+TEL_DIGITS = {
+    "౦": "0",
+    "౧": "1",
+    "౨": "2",
+    "౩": "3",
+    "౪": "4",
+    "౫": "5",
+    "౬": "6",
+    "౭": "7",
+    "౮": "8",
+    "౯": "9",
+}
+
+TEL_HALANT = "్"
+
 # ── 3. Phonetic Cleanups & Common Word Corrections ────────────────────
 WORD_REPLACEMENTS = [
     # Common corrupted syllables from mixed scripts
@@ -682,6 +839,88 @@ def transliterate_gujarati_word(word: str) -> str:
     return "".join(res)
 
 
+def transliterate_tamil_word(word: str) -> str:
+    """Converts a Tamil word cleanly into Roman Latin characters."""
+    res = []
+    i = 0
+    n = len(word)
+    while i < n:
+        char = word[i]
+        if char in TAM_VOWELS:
+            res.append(TAM_VOWELS[char])
+            i += 1
+        elif char in TAM_CONSONANTS:
+            cons = TAM_CONSONANTS[char]
+            i += 1
+            if i < n and word[i] == TAM_HALANT:
+                res.append(cons)
+                i += 1
+            elif i < n and word[i] in TAM_MATRAS:
+                res.append(cons + TAM_MATRAS[word[i]])
+                i += 1
+            else:
+                if i >= n or word[i] in " ,.?!()-'\"\n\r":
+                    res.append(cons)
+                else:
+                    res.append(cons + "a")
+        elif char in TAM_MATRAS:
+            res.append(TAM_MATRAS[char])
+            i += 1
+        elif char in TAM_DIGITS:
+            res.append(TAM_DIGITS[char])
+            i += 1
+        elif char == TAM_HALANT:
+            i += 1
+        elif char in ("।", "॥"):
+            res.append(".")
+            i += 1
+        else:
+            res.append(char)
+            i += 1
+    return "".join(res)
+
+
+def transliterate_telugu_word(word: str) -> str:
+    """Converts a Telugu word cleanly into Roman Latin characters."""
+    res = []
+    i = 0
+    n = len(word)
+    while i < n:
+        char = word[i]
+        if char in TEL_VOWELS:
+            res.append(TEL_VOWELS[char])
+            i += 1
+        elif char in TEL_CONSONANTS:
+            cons = TEL_CONSONANTS[char]
+            i += 1
+            if i < n and word[i] == TEL_HALANT:
+                res.append(cons)
+                i += 1
+            elif i < n and word[i] in TEL_MATRAS:
+                res.append(cons + TEL_MATRAS[word[i]])
+                i += 1
+            else:
+                if i >= n or word[i] in " ,.?!()-'\"\n\r":
+                    res.append(cons)
+                else:
+                    res.append(cons + "a")
+        elif char in TEL_MATRAS:
+            res.append(TEL_MATRAS[char])
+            i += 1
+        elif char in TEL_DIGITS:
+            res.append(TEL_DIGITS[char])
+            i += 1
+        elif char == TEL_HALANT:
+            i += 1
+        elif char in ("।", "॥"):
+            res.append(".")
+            i += 1
+        else:
+            res.append(char)
+            i += 1
+    return "".join(res)
+
+
 def transliterate_urdu_text(text: str) -> str:
     """Converts Arabic/Urdu/Persian characters cleanly to Latin Hinglish."""
     res = []
@@ -761,6 +1000,33 @@ def _universal_safety_sanitize(text: str) -> str:
                 clean.append(GUJ_DIGITS[ch])
             else:
                 pass  # drop
+        # Check Tamil
+        elif 0x0B80 <= code <= 0x0BFF:
+            if ch in TAM_CONSONANTS:
+                clean.append(TAM_CONSONANTS[ch])
+            elif ch in TAM_VOWELS:
+                clean.append(TAM_VOWELS[ch])
+            elif ch in TAM_MATRAS:
+                clean.append(TAM_MATRAS[ch])
+            elif ch in TAM_DIGITS:
+                clean.append(TAM_DIGITS[ch])
+            else:
+                pass  # drop
+        # Check Telugu
+        elif 0x0C00 <= code <= 0x0C7F:
+            if ch in TEL_CONSONANTS:
+                clean.append(TEL_CONSONANTS[ch])
+            elif ch in TEL_VOWELS:
+                clean.append(TEL_VOWELS[ch])
+            elif ch in TEL_MATRAS:
+                clean.append(TEL_MATRAS[ch])
+            elif ch in TEL_DIGITS:
+                clean.append(TEL_DIGITS[ch])
+            else:
+                pass  # drop
+        # Drop unmapped South Asian / Brahmic code points (Kannada 0C80-0CFF, Malayalam 0D00-0D7F)
+        elif 0x0C80 <= code <= 0x0D7F:
+            pass
         # Check Arabic / Urdu / Persian
         elif (
             (0x0600 <= code <= 0x06FF)
@@ -861,14 +1127,34 @@ def to_hinglish(text: str) -> str:
         ]
         text = "".join(converted)
 
-    # 8. Universal safety sanitization (zero leaks guarantee)
+    # 8. Check for Tamil
+    has_tamil = any(0x0B80 <= ord(ch) <= 0x0BFF for ch in text)
+    if has_tamil:
+        tokens = re.split(r"(\s+)", text)
+        converted = [
+            transliterate_tamil_word(tok) if not tok.isspace() else tok
+            for tok in tokens
+        ]
+        text = "".join(converted)
+
+    # 9. Check for Telugu
+    has_telugu = any(0x0C00 <= ord(ch) <= 0x0C7F for ch in text)
+    if has_telugu:
+        tokens = re.split(r"(\s+)", text)
+        converted = [
+            transliterate_telugu_word(tok) if not tok.isspace() else tok
+            for tok in tokens
+        ]
+        text = "".join(converted)
+
+    # 10. Universal safety sanitization (zero leaks guarantee)
     text = _universal_safety_sanitize(text)
 
-    # 9. Apply phonetic cleanups
+    # 11. Apply phonetic cleanups
     for pattern, replacement in WORD_REPLACEMENTS:
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
 
-    # 10. Normalize whitespace
+    # 12. Normalize whitespace
     text = re.sub(r"\s+", " ", text).strip()
 
     if not text:

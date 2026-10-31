@@ -180,4 +180,36 @@ def test_gujarati_transliteration():
         assert out.lower().startswith(expected.lower()[:3]), (
             f"Expected {expected}, got {out}"
         )
+
+
+def test_tamil_transliteration():
+    # Tamil lyrics transliterate cleanly to 100% pure Latin ASCII
+    samples = [
+        ("அன்பு", "Anbu"),
+        ("காதல்", "Kaathal"),
+        ("பாடல்", "Paadal"),
+        ("வணக்கம்", "Vanakam"),
+    ]
+    for tam, expected in samples:
+        out = to_hinglish(tam)
+        assert is_pure_ascii(out), f"Tamil transliteration leaked non-ASCII: {out}"
+        assert out.lower().startswith(expected.lower()[:2]), (
+            f"Expected {expected}, got {out}"
+        )
+
+
+def test_telugu_transliteration():
+    # Telugu lyrics transliterate cleanly to 100% pure Latin ASCII
+    samples = [
+        ("ప్రేమ", "Prema"),
+        ("పాట", "Paata"),
+        ("మనసు", "Manasu"),
+        ("హృదయం", "Hrudayam"),
+    ]
+    for tel, expected in samples:
+        out = to_hinglish(tel)
+        assert is_pure_ascii(out), f"Telugu transliteration leaked non-ASCII: {out}"
+        assert out.lower().startswith(expected.lower()[:2]), (
+            f"Expected {expected}, got {out}"
+        )
     assert "\ufeff" not in out

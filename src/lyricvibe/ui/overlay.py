@@ -937,6 +937,13 @@ class FloatingLyricsWidget(QWidget):
         interval_ms = max(4, int(1000.0 / fps))
         if hasattr(self, "render_timer") and not self.render_timer.isActive():
             self.render_timer.start(interval_ms)
+        wh = self.windowHandle()
+        if wh and not getattr(self, "_screen_hooked", False):
+            try:
+                wh.screenChanged.connect(lambda _: self._on_screen_changed())
+                self._screen_hooked = True
+            except (AttributeError, TypeError):
+                pass
 
     def closeEvent(self, event):
         self._quit_app()

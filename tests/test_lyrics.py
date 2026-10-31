@@ -246,6 +246,33 @@ def test_parse_lrc_integer_seconds_without_fraction():
     assert lines[1].text == "Second integer line at 65 seconds"
 
 
+def test_parse_lrc_global_offset_tag():
+    # Test positive offset shifting time forward (+500ms)
+    lrc_pos = """
+    [offset:+500]
+    [00:10.00]Line with half second positive shift
+    [00:20.50]Line two with positive shift
+    """
+    lines_pos = parse_lrc(lrc_pos)
+    assert len(lines_pos) == 2
+    assert lines_pos[0].time_sec == 10.5
+    assert lines_pos[1].time_sec == 21.0
+
+    # Test negative offset shifting time backward (-250ms)
+    lrc_neg = """
+    [offset:-250]
+    [00:10.00]Line with negative shift
+    [00:00.10]Line near zero bounded to zero
+    """
+    lines_neg = parse_lrc(lrc_neg)
+    assert len(lines_neg) == 2
+    # Lines are sorted chronologically by time_sec
+    assert lines_neg[0].time_sec == 0.0
+    assert lines_neg[0].text == "Line near zero bounded to zero"
+    assert lines_neg[1].time_sec == 9.75
+    assert lines_neg[1].text == "Line with negative shift"
+
+
 def test_clean_lyric_line_section_headers_with_artists():
     assert clean_lyric_line("[Chorus: The Weeknd]") == ""
     assert clean_lyric_line("[Verse 2 - Drake]") == ""
@@ -386,6 +413,8 @@ def test_is_romanized_detects_scripts():
     assert is_romanized("ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ") is False  # Gurmukhi
     assert is_romanized("তুমি কেমন আছো") is False  # Bengali
     assert is_romanized("તમે કેમ છો") is False  # Gujarati
+    assert is_romanized("வணக்கம்") is False  # Tamil
+    assert is_romanized("నమస్కారం") is False  # Telugu
     assert is_romanized("") is True
 
 

@@ -182,9 +182,19 @@ def parse_lrc(lrc_text: str) -> list[LyricLine]:
       [01:23:45] Colon fractional separator
       [01:05:23.45] Hours timestamp
       [00:10.00][00:25.00] Repeated chorus line
+      [offset:+500] Global millisecond synchronization offset
     """
     if not lrc_text or not lrc_text.strip():
         return []
+
+    # Check for global [offset:+/-ms] tag per LRC specification (+ shifts time forward, - backward)
+    offset_sec = 0.0
+    offset_match = re.search(r"\[offset:\s*([+-]?\d+)\s*\]", lrc_text, re.IGNORECASE)
+    if offset_match:
+        try:
+            offset_sec = int(offset_match.group(1)) / 1000.0
+        except ValueError:
+            offset_sec = 0.0
 
     lines: list[LyricLine] = []
     # Pattern to find all timestamp tags on a line:
@@ -230,7 +240,10 @@ def parse_lrc(lrc_text: str) -> list[LyricLine]:
                 frac_str = None
 
             frac = int(frac_str) / (10.0 ** len(frac_str)) if frac_str else 0.0
-            total_sec = round(hours * 3600 + minutes * 60 + seconds + frac, 3)
+            total_sec = max(
+                0.0,
+                round(hours * 3600 + minutes * 60 + seconds + frac + offset_sec, 3),
+            )
             lines.append(LyricLine(time_sec=total_sec, text=roman_lyric))
 
     lines.sort(key=lambda item: item.time_sec)
@@ -247,6 +260,10 @@ def is_romanized(text: str) -> bool:
         or ("\u0a00" <= ch <= "\u0a7f")  # Gurmukhi
         or ("\u0980" <= ch <= "\u09ff")  # Bengali
         or ("\u0a80" <= ch <= "\u0aff")  # Gujarati
+        or ("\u0b80" <= ch <= "\u0bff")  # Tamil
+        or ("\u0c00" <= ch <= "\u0c7f")  # Telugu
+        or ("\u0c80" <= ch <= "\u0cff")  # Kannada
+        or ("\u0d00" <= ch <= "\u0d7f")  # Malayalam
         for ch in text
     )
 
