@@ -85,6 +85,14 @@ def clean_track_title(title: str) -> str:
         flags=re.IGNORECASE,
     )
 
+    # Strip producer credits: (Prod. ...) or [Prod. by ...] or (Produced by ...)
+    t = re.sub(
+        r"[\(\[]\s*(?:prod\.?|produced)(?:\s*by)?\s+[^)\]]+[\)\]]",
+        "",
+        t,
+        flags=re.IGNORECASE,
+    )
+
     # Strip video and audio markers: (Official Music Video), (Lyric Video), [Visualizer], etc.
     t = re.sub(
         r"[\(\[]\s*(official\s*(music\s*)?(video|audio|lyric\s*video)?|lyric\s*video|audio|visualizer)[^)\]]*[\)\]]",
@@ -95,7 +103,7 @@ def clean_track_title(title: str) -> str:
 
     # Strip remaster / live / deluxe / version / edition / radio edit / acoustic / mixes / audio tags
     t = re.sub(
-        r"[\(\[]\s*(remastered|remaster|live|bonus|deluxe|version|edition|original|ost|lofi|slowed|reverb|radio\s*edit|acoustic|instrumental|clean|explicit|stereo|mono|mix|single\s*version|album\s*version)[^)\]]*[\)\]]",
+        r"[\(\[]\s*(remastered|remaster|live|bonus|deluxe|version|edition|original|ost|lofi|slowed|reverb|radio\s*edit|acoustic|instrumental|clean|explicit|stereo|mono|mix|single\s*version|album\s*version|sped\s*up|speed\s*up|nightcore|tiktok\s*version|extended|short\s*version)[^)\]]*[\)\]]",
         "",
         t,
         flags=re.IGNORECASE,
@@ -103,7 +111,7 @@ def clean_track_title(title: str) -> str:
 
     # Strip trailing " - From ..." or " - Original Motion Picture Soundtrack" or " - 2013 Remaster" or " - Club Mix"
     t = re.sub(
-        r"\s*-\s*(?:\d{4}\s+)?(from\s+|original|soundtrack|remaster(?:ed)?|bonus|live|radio\s*edit|anniversary|club\s*mix|extended\s*mix|single\s*version|album\s*version|mono|stereo).*$",
+        r"\s*-\s*(?:\d{4}\s+)?(from\s+|original|soundtrack|remaster(?:ed)?|bonus|live|radio\s*edit|anniversary|club\s*mix|extended\s*mix|single\s*version|album\s*version|mono|stereo|sped\s*up|speed\s*up|nightcore|slowed).*$",
         "",
         t,
         flags=re.IGNORECASE,
@@ -119,11 +127,15 @@ def clean_track_title(title: str) -> str:
 
 
 def get_primary_artist(artist: str) -> str:
-    """Extracts first artist if multiple are comma-separated or joined by & / x / feat."""
+    """Extracts first artist if multiple are comma-separated or joined by & / x / feat / with / vs."""
     if not artist:
         return ""
-    # Split by comma, ampersand, slash, 'x', or 'feat'
-    parts = re.split(r"[,&/]|\bfeat\.?\b|\bft\.?\b|\bx\b", artist, flags=re.IGNORECASE)
+    # Split by comma, ampersand, slash, 'x', 'feat', 'with', or 'vs'
+    parts = re.split(
+        r"[,&/]|\bfeat\.?\b|\bft\.?\b|\bx\b|\bwith\b|\bvs\.?\b",
+        artist,
+        flags=re.IGNORECASE,
+    )
     return parts[0].strip() if parts else artist.strip()
 
 
@@ -230,9 +242,11 @@ def is_romanized(text: str) -> bool:
     if not text:
         return True
     return not any(
-        ("\u0900" <= ch <= "\u097f")
-        or ("\u0600" <= ch <= "\u06ff")
-        or ("\u0a00" <= ch <= "\u0a7f")
+        ("\u0900" <= ch <= "\u097f")  # Devanagari
+        or ("\u0600" <= ch <= "\u06ff")  # Arabic/Urdu
+        or ("\u0a00" <= ch <= "\u0a7f")  # Gurmukhi
+        or ("\u0980" <= ch <= "\u09ff")  # Bengali
+        or ("\u0a80" <= ch <= "\u0aff")  # Gujarati
         for ch in text
     )
 

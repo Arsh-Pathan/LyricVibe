@@ -384,4 +384,33 @@ def test_is_romanized_detects_scripts():
     assert is_romanized("क़रीब आओ ना") is False  # Devanagari
     assert is_romanized("اگر تم ساتھ ہو") is False  # Urdu
     assert is_romanized("ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ") is False  # Gurmukhi
+    assert is_romanized("তুমি কেমন আছো") is False  # Bengali
+    assert is_romanized("તમે કેમ છો") is False  # Gujarati
     assert is_romanized("") is True
+
+
+def test_clean_track_title_producers_and_viral_tags():
+    cases = [
+        ("Praise God (Prod. Kanye West)", "Praise God"),
+        ("Escapism. (Sped Up)", "Escapism."),
+        ("Middle of the Night (Nightcore)", "Middle of the Night"),
+        ("Die For You (Slowed + Reverb)", "Die For You"),
+        ("Rockstar [Produced by Tank God]", "Rockstar"),
+        ("Industry Baby (Clean Version)", "Industry Baby"),
+        ("Day 'N' Nite (Nightcore)", "Day 'N' Nite"),
+        ("Bad Guy (TikTok Version)", "Bad Guy"),
+    ]
+    for raw, expected in cases:
+        cleaned = clean_track_title(raw)
+        assert cleaned == expected, (
+            f"Expected '{expected}', got '{cleaned}' for input '{raw}'"
+        )
+
+
+def test_get_primary_artist_extended_delimiters():
+    assert get_primary_artist("Calvin Harris with Dua Lipa") == "Calvin Harris"
+    assert get_primary_artist("David Guetta vs Benny Benassi") == "David Guetta"
+    assert (
+        get_primary_artist("Swedish House Mafia vs. Tinie Tempah")
+        == "Swedish House Mafia"
+    )

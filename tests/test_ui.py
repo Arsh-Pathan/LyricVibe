@@ -354,3 +354,38 @@ def test_instrumental_gap_and_scrub_revival():
         if widget.tray_icon:
             widget.tray_icon.hide()
         widget.close()
+
+
+def test_color_swatch_custom_color_dialog():
+    from PyQt6.QtGui import QColor
+
+    from lyricvibe.ui.settings import ColorSwatch
+
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    swatch = ColorSwatch("#1DB954")
+    assert swatch.color() == "#1DB954"
+
+    emitted_colors = []
+    swatch.color_changed.connect(emitted_colors.append)
+
+    # 1. Simulate user selecting a custom darker color (#4A148C)
+    with patch(
+        "lyricvibe.ui.settings.QColorDialog.getColor",
+        return_value=QColor("#4A148C"),
+    ):
+        swatch._pick_custom_color()
+        assert swatch.color() == "#4A148C"
+        assert emitted_colors == ["#4A148C"]
+
+    # 2. Simulate user canceling the color dialog
+    invalid_color = QColor()
+    with patch(
+        "lyricvibe.ui.settings.QColorDialog.getColor",
+        return_value=invalid_color,
+    ):
+        swatch._pick_custom_color()
+        assert swatch.color() == "#4A148C"
+        assert len(emitted_colors) == 1

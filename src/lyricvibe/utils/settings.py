@@ -29,6 +29,7 @@ def ensure_bright_hex(hex_str: str, min_lum: float = 0.0) -> str:
     """
     Validates and formats a hex color string into standard #RRGGBB.
     Supports both darker shades (e.g. rich emerald, crimson, indigo) and luminous tones.
+    Supports 3-digit shorthand (#RGB), 6-digit (#RRGGBB), and 8-digit (#AARRGGBB / #RRGGBBAA).
     If min_lum > 0 is explicitly specified, lifts luminance while preserving hue.
     """
     if not isinstance(hex_str, str):
@@ -37,6 +38,11 @@ def ensure_bright_hex(hex_str: str, min_lum: float = 0.0) -> str:
     clean_hex = hex_str.strip().lstrip("#")
     if len(clean_hex) == 3:
         clean_hex = "".join(c * 2 for c in clean_hex)
+    elif len(clean_hex) == 8:
+        # Standard 8-digit hex: if alpha prefix or suffix, extract the RGB portion
+        clean_hex = (
+            clean_hex[2:] if clean_hex.startswith(("ff", "FF", "00")) else clean_hex[:6]
+        )
     if len(clean_hex) != 6:
         return "#1DB954"
 
@@ -75,13 +81,16 @@ HIGHLIGHT_PALETTE = [
     {"name": "Crimson Red", "hex": "#D32F2F"},  # Deep vibrant crimson
     {"name": "Royal Purple", "hex": "#7B1FA2"},  # Deep rich royal violet
     {"name": "Midnight Indigo", "hex": "#303F9F"},  # Classic deep dark indigo
+    {"name": "Midnight Navy", "hex": "#1A237E"},  # Deep dark navy
     {"name": "Dark Forest", "hex": "#2E7D32"},  # Rich dark moss forest green
     {"name": "Burnt Orange", "hex": "#E64A19"},  # Deep warm dark terracotta
     {"name": "Deep Teal", "hex": "#00796B"},  # Moody rich dark sea teal
+    {"name": "Dark Burgundy", "hex": "#4A148C"},  # Deep royal dark burgundy
     {"name": "Rich Plum", "hex": "#6A1B9A"},  # Luxurious dark velvet plum
     {"name": "Wine Rose", "hex": "#C2185B"},  # Sophisticated dark rose wine
     {"name": "Dark Amber", "hex": "#F57C00"},  # Deep glowing golden amber
     {"name": "Cobalt Blue", "hex": "#1976D2"},  # Strong deep cobalt
+    {"name": "Dark Slate", "hex": "#263238"},  # Refined dark slate graphite
     # ── Vivid & Luminous Shades ──
     {"name": "Laser Neon Green", "hex": "#26FF7C"},  # Electric laser green
     {"name": "Electric Cyan", "hex": "#00FFFF"},  # Pure vibrant bright cyan

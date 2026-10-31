@@ -131,9 +131,11 @@ def test_ensure_hex_supports_darker_colors():
             f"Expected {expected}, got {res} for {d}"
         )
 
-    # 2. Shorthand 3-digit hex is expanded
+    # 2. Shorthand 3-digit and 8-digit hex formats
     assert ensure_bright_hex("#fff") == "#FFFFFF"
     assert ensure_bright_hex("#123") == "#112233"
+    assert ensure_bright_hex("#FF1DB954") == "#1DB954"
+    assert ensure_bright_hex("#1DB954AA") == "#1DB954"
 
     # 3. Explicit min_lum lifts darker colors when requested
     brightened = ensure_bright_hex("#000080", min_lum=175.0)

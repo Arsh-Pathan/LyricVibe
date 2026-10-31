@@ -755,17 +755,34 @@ class FloatingLyricsWidget(QWidget):
             and self.is_dragging
             and not self.is_locked
         ):
+            screen = self.screen() or QApplication.primaryScreen()
             new_pos = event.globalPosition().toPoint() - self.drag_position
-            self.move(self.window_x, new_pos.y())
-            self.settings["overlay_y"] = new_pos.y()
+            target_y = new_pos.y()
+            if screen:
+                try:
+                    screen_geo = screen.availableGeometry()
+                    min_y = int(screen_geo.y())
+                    max_y = max(min_y, int(screen_geo.bottom()) - self.window_h)
+                    target_y = max(min_y, min(target_y, max_y))
+                except (TypeError, ValueError, AttributeError):
+                    pass
+            self.window_y = target_y
+            self.move(self.window_x, self.window_y)
+            self.settings["overlay_y"] = self.window_y
             event.accept()
 
     def _on_screen_changed(self):
         screen = self.screen() or QApplication.primaryScreen()
         if screen:
             screen_geo = screen.availableGeometry()
-            self.window_w = screen_geo.width()
-            self.window_x = screen_geo.x()
+            try:
+                self.window_w = int(screen_geo.width())
+                self.window_x = int(screen_geo.x())
+                min_y = int(screen_geo.y())
+                max_y = max(min_y, int(screen_geo.bottom()) - self.window_h)
+                self.window_y = max(min_y, min(self.window_y, max_y))
+            except (TypeError, ValueError, AttributeError):
+                pass
             self.setGeometry(self.window_x, self.window_y, self.window_w, self.window_h)
             self._font_cache.clear()
             self.update()
@@ -962,6 +979,13 @@ class FloatingLyricsWidget(QWidget):
                 ):
                     self.hide()
                     self.is_hidden_by_idle = True
+                elif not self.settings.get("auto_hide_idle", True) and (
+                    state is None or not state.track_name
+                ):
+                    if self.engine.curr_text:
+                        self.engine.clear_line()
+                        self.current_line_text = ""
+                        self.update()
                 self.playback = None
                 return
 

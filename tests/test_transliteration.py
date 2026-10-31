@@ -148,4 +148,36 @@ def test_invisible_zero_width_and_bidi_characters():
     assert "\u200c" not in out
     assert "\u200d" not in out
     assert "\u200e" not in out
+
+
+def test_bengali_transliteration():
+    # Bengali lyrics transliterate cleanly to 100% pure Latin ASCII
+    samples = [
+        ("তুমি", "Tumi"),
+        ("ভালোবাসা", "Bhaalobaasaa"),
+        ("আমার পরাণ", "Aamaar paraan"),
+        ("গান", "Gaan"),
+    ]
+    for ben, expected in samples:
+        out = to_hinglish(ben)
+        assert is_pure_ascii(out), f"Bengali transliteration leaked non-ASCII: {out}"
+        assert out.lower().startswith(expected.lower()[:3]), (
+            f"Expected {expected}, got {out}"
+        )
+
+
+def test_gujarati_transliteration():
+    # Gujarati lyrics transliterate cleanly to 100% pure Latin ASCII
+    samples = [
+        ("તમે", "Tame"),
+        ("પ્રેમ", "Prem"),
+        ("મારી જિંદગી", "Maari jindagee"),
+        ("ગીત", "Geet"),
+    ]
+    for guj, expected in samples:
+        out = to_hinglish(guj)
+        assert is_pure_ascii(out), f"Gujarati transliteration leaked non-ASCII: {out}"
+        assert out.lower().startswith(expected.lower()[:3]), (
+            f"Expected {expected}, got {out}"
+        )
     assert "\ufeff" not in out

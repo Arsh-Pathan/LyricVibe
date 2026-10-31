@@ -46,6 +46,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import (
     QApplication,
+    QColorDialog,
     QComboBox,
     QDialog,
     QFrame,
@@ -690,7 +691,9 @@ class ColorSwatch(QPushButton):
             if item["hex"].upper() == self._color.upper():
                 color_name = item["name"]
                 break
-        self.setToolTip(f"{color_name} ({self._color})\nClick to cycle through colors")
+        self.setToolTip(
+            f"{color_name} ({self._color})\nLeft-click: cycle colors | Right-click: custom color picker"
+        )
         self.setStyleSheet(f"""
             QPushButton {{
                 background: {self._color};
@@ -701,6 +704,26 @@ class ColorSwatch(QPushButton):
                 border: 2px solid {MD3.PRIMARY};
             }}
         """)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.RightButton:
+            self._pick_custom_color()
+            event.accept()
+        else:
+            super().mousePressEvent(event)
+
+    def _pick_custom_color(self):
+        initial = QColor(self._color)
+        chosen = QColorDialog.getColor(
+            initial,
+            self,
+            "Select Custom Highlight Color",
+            QColorDialog.ColorDialogOption.ShowAlphaChannel,
+        )
+        if chosen.isValid():
+            hex_val = ensure_bright_hex(chosen.name())
+            self.setColor(hex_val)
+            self.color_changed.emit(self._color)
 
     def _cycle_color(self):
         self._idx = (self._idx + 1) % len(self.PALETTE)
@@ -1179,6 +1202,7 @@ class SettingsDialog(QDialog):
         self.combo_hl_mode.addItem("Auto: Different Color Each Song", "per_song")
         for item in BRIGHT_HIGHLIGHT_PALETTE:
             self.combo_hl_mode.addItem(f"● {item['name']}", item["hex"])
+        self.combo_hl_mode.addItem("Custom Color...", "custom")
 
         cur_mode = self.settings.get("highlight_mode", "per_song")
         cur_color = self.settings.get("highlight_color", BRIGHT_HIGHLIGHT_HEX_LIST[0])
@@ -1200,6 +1224,8 @@ class SettingsDialog(QDialog):
             mode_data = self.combo_hl_mode.currentData()
             if mode_data == "per_song":
                 self._update_and_sync("highlight_mode", "per_song")
+            elif mode_data == "custom":
+                self.color_swatch._pick_custom_color()
             else:
                 self._update_and_sync("highlight_mode", "fixed")
                 self._update_and_sync("highlight_color", mode_data)
@@ -1208,12 +1234,20 @@ class SettingsDialog(QDialog):
         def _on_swatch_changed(hex_val):
             self._update_and_sync("highlight_mode", "fixed")
             self._update_and_sync("highlight_color", hex_val)
+            matched = False
             for i in range(1, self.combo_hl_mode.count()):
                 if self.combo_hl_mode.itemData(i).upper() == hex_val.upper():
                     self.combo_hl_mode.blockSignals(True)
                     self.combo_hl_mode.setCurrentIndex(i)
                     self.combo_hl_mode.blockSignals(False)
+                    matched = True
                     break
+            if not matched:
+                custom_idx = self.combo_hl_mode.findData("custom")
+                if custom_idx >= 0:
+                    self.combo_hl_mode.blockSignals(True)
+                    self.combo_hl_mode.setCurrentIndex(custom_idx)
+                    self.combo_hl_mode.blockSignals(False)
 
         self.combo_hl_mode.currentIndexChanged.connect(_on_color_combo_changed)
         self.color_swatch.color_changed.connect(_on_swatch_changed)

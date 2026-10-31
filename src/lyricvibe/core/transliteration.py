@@ -301,6 +301,173 @@ GUR_DIGITS = {
 
 GUR_HALANT = "੍"
 
+# ── 4. Bengali Mapping ───────────────────────────────────────────────
+BEN_VOWELS = {
+    "অ": "a",
+    "আ": "aa",
+    "ই": "i",
+    "ঈ": "ee",
+    "উ": "u",
+    "ঊ": "oo",
+    "ঋ": "ri",
+    "এ": "e",
+    "ঐ": "oi",
+    "ও": "o",
+    "ঔ": "ou",
+}
+
+BEN_MATRAS = {
+    "া": "aa",
+    "ি": "i",
+    "ী": "ee",
+    "ু": "u",
+    "ূ": "oo",
+    "ৃ": "ri",
+    "ে": "e",
+    "ৈ": "oi",
+    "ো": "o",
+    "ৌ": "ou",
+    "ং": "ng",
+    "ঃ": "h",
+    "ঁ": "n",
+}
+
+BEN_CONSONANTS = {
+    "ক": "k",
+    "খ": "kh",
+    "গ": "g",
+    "ঘ": "gh",
+    "ঙ": "ng",
+    "চ": "ch",
+    "ছ": "chh",
+    "জ": "j",
+    "ঝ": "jh",
+    "ঞ": "ny",
+    "ট": "t",
+    "ঠ": "th",
+    "ড": "d",
+    "ঢ": "dh",
+    "ণ": "n",
+    "ত": "t",
+    "থ": "th",
+    "দ": "d",
+    "ধ": "dh",
+    "ন": "n",
+    "প": "p",
+    "ফ": "ph",
+    "ব": "b",
+    "ভ": "bh",
+    "ম": "m",
+    "য": "j",
+    "র": "r",
+    "ল": "l",
+    "শ": "sh",
+    "ষ": "sh",
+    "স": "s",
+    "হ": "h",
+    "ড়": "r",
+    "ঢ়": "rh",
+    "য়": "y",
+    "ৎ": "t",
+}
+
+BEN_DIGITS = {
+    "০": "0",
+    "১": "1",
+    "২": "2",
+    "৩": "3",
+    "৪": "4",
+    "৫": "5",
+    "৬": "6",
+    "৭": "7",
+    "৮": "8",
+    "৯": "9",
+}
+
+BEN_HALANT = "্"
+
+# ── 5. Gujarati Mapping ──────────────────────────────────────────────
+GUJ_VOWELS = {
+    "અ": "a",
+    "આ": "aa",
+    "ઇ": "i",
+    "ઈ": "ee",
+    "ઉ": "u",
+    "ઊ": "oo",
+    "ઋ": "ri",
+    "એ": "e",
+    "ઐ": "ai",
+    "ઓ": "o",
+    "ઔ": "au",
+}
+
+GUJ_MATRAS = {
+    "ા": "aa",
+    "િ": "i",
+    "ી": "ee",
+    "ુ": "u",
+    "ૂ": "oo",
+    "ૃ": "ri",
+    "ે": "e",
+    "ૈ": "ai",
+    "ો": "o",
+    "ૌ": "au",
+    "ં": "n",
+    "ઃ": "h",
+}
+
+GUJ_CONSONANTS = {
+    "ક": "k",
+    "ખ": "kh",
+    "ગ": "g",
+    "ઘ": "gh",
+    "ઙ": "ng",
+    "ચ": "ch",
+    "છ": "chh",
+    "જ": "j",
+    "ઝ": "jh",
+    "ઞ": "ny",
+    "ટ": "t",
+    "ઠ": "th",
+    "ડ": "d",
+    "ઢ": "dh",
+    "ણ": "n",
+    "ત": "t",
+    "થ": "th",
+    "દ": "d",
+    "ધ": "dh",
+    "ન": "n",
+    "પ": "p",
+    "ફ": "ph",
+    "બ": "b",
+    "ભ": "bh",
+    "મ": "m",
+    "ય": "y",
+    "ર": "r",
+    "લ": "l",
+    "ળ": "l",
+    "વ": "v",
+    "શ": "sh",
+    "ષ": "sh",
+    "સ": "s",
+    "હ": "h",
+}
+
+GUJ_DIGITS = {
+    "૦": "0",
+    "૧": "1",
+    "૨": "2",
+    "૩": "3",
+    "૪": "4",
+    "૫": "5",
+    "૬": "6",
+    "૭": "7",
+    "૮": "8",
+    "૯": "9",
+}
+
+GUJ_HALANT = "્"
+
 # ── 3. Phonetic Cleanups & Common Word Corrections ────────────────────
 WORD_REPLACEMENTS = [
     # Common corrupted syllables from mixed scripts
@@ -433,6 +600,88 @@ def transliterate_gurmukhi_word(word: str) -> str:
     return "".join(res)
 
 
+def transliterate_bengali_word(word: str) -> str:
+    """Converts a Bengali word cleanly into Roman Latin characters."""
+    res = []
+    i = 0
+    n = len(word)
+    while i < n:
+        char = word[i]
+        if char in BEN_VOWELS:
+            res.append(BEN_VOWELS[char])
+            i += 1
+        elif char in BEN_CONSONANTS:
+            cons = BEN_CONSONANTS[char]
+            i += 1
+            if i < n and word[i] == BEN_HALANT:
+                res.append(cons)
+                i += 1
+            elif i < n and word[i] in BEN_MATRAS:
+                res.append(cons + BEN_MATRAS[word[i]])
+                i += 1
+            else:
+                if i >= n or word[i] in " ,.?!()-'\"\n\r":
+                    res.append(cons)
+                else:
+                    res.append(cons + "a")
+        elif char in BEN_MATRAS:
+            res.append(BEN_MATRAS[char])
+            i += 1
+        elif char in BEN_DIGITS:
+            res.append(BEN_DIGITS[char])
+            i += 1
+        elif char == BEN_HALANT:
+            i += 1
+        elif char in ("।", "॥"):
+            res.append(".")
+            i += 1
+        else:
+            res.append(char)
+            i += 1
+    return "".join(res)
+
+
+def transliterate_gujarati_word(word: str) -> str:
+    """Converts a Gujarati word cleanly into Roman Latin characters."""
+    res = []
+    i = 0
+    n = len(word)
+    while i < n:
+        char = word[i]
+        if char in GUJ_VOWELS:
+            res.append(GUJ_VOWELS[char])
+            i += 1
+        elif char in GUJ_CONSONANTS:
+            cons = GUJ_CONSONANTS[char]
+            i += 1
+            if i < n and word[i] == GUJ_HALANT:
+                res.append(cons)
+                i += 1
+            elif i < n and word[i] in GUJ_MATRAS:
+                res.append(cons + GUJ_MATRAS[word[i]])
+                i += 1
+            else:
+                if i >= n or word[i] in " ,.?!()-'\"\n\r":
+                    res.append(cons)
+                else:
+                    res.append(cons + "a")
+        elif char in GUJ_MATRAS:
+            res.append(GUJ_MATRAS[char])
+            i += 1
+        elif char in GUJ_DIGITS:
+            res.append(GUJ_DIGITS[char])
+            i += 1
+        elif char == GUJ_HALANT:
+            i += 1
+        elif char in ("।", "॥"):
+            res.append(".")
+            i += 1
+        else:
+            res.append(char)
+            i += 1
+    return "".join(res)
+
+
 def transliterate_urdu_text(text: str) -> str:
     """Converts Arabic/Urdu/Persian characters cleanly to Latin Hinglish."""
     res = []
@@ -476,6 +725,18 @@ def _universal_safety_sanitize(text: str) -> str:
                 clean.append(DEV_PUNCTUATION[ch])
             else:
                 pass  # drop
+        # Check Bengali
+        elif 0x0980 <= code <= 0x09FF:
+            if ch in BEN_CONSONANTS:
+                clean.append(BEN_CONSONANTS[ch])
+            elif ch in BEN_VOWELS:
+                clean.append(BEN_VOWELS[ch])
+            elif ch in BEN_MATRAS:
+                clean.append(BEN_MATRAS[ch])
+            elif ch in BEN_DIGITS:
+                clean.append(BEN_DIGITS[ch])
+            else:
+                pass  # drop
         # Check Gurmukhi (Punjabi)
         elif 0x0A00 <= code <= 0x0A7F:
             if ch in GUR_CONSONANTS:
@@ -486,6 +747,18 @@ def _universal_safety_sanitize(text: str) -> str:
                 clean.append(GUR_MATRAS[ch])
             elif ch in GUR_DIGITS:
                 clean.append(GUR_DIGITS[ch])
+            else:
+                pass  # drop
+        # Check Gujarati
+        elif 0x0A80 <= code <= 0x0AFF:
+            if ch in GUJ_CONSONANTS:
+                clean.append(GUJ_CONSONANTS[ch])
+            elif ch in GUJ_VOWELS:
+                clean.append(GUJ_VOWELS[ch])
+            elif ch in GUJ_MATRAS:
+                clean.append(GUJ_MATRAS[ch])
+            elif ch in GUJ_DIGITS:
+                clean.append(GUJ_DIGITS[ch])
             else:
                 pass  # drop
         # Check Arabic / Urdu / Persian
@@ -524,8 +797,8 @@ def _universal_safety_sanitize(text: str) -> str:
 
 def to_hinglish(text: str) -> str:
     """
-    Takes any lyric text (Devanagari, Urdu, Gurmukhi, mixed, or corrupted) and produces
-    100% clean, pure Latin Hinglish with zero foreign symbols.
+    Takes any lyric text (Devanagari, Urdu, Gurmukhi, Bengali, Gujarati, mixed, or corrupted)
+    and produces 100% clean, pure Latin Hinglish with zero foreign symbols.
     """
     if not text:
         return ""
@@ -558,7 +831,17 @@ def to_hinglish(text: str) -> str:
         ]
         text = "".join(converted)
 
-    # 5. Check for Gurmukhi (Punjabi)
+    # 5. Check for Bengali
+    has_bengali = any(0x0980 <= ord(ch) <= 0x09FF for ch in text)
+    if has_bengali:
+        tokens = re.split(r"(\s+)", text)
+        converted = [
+            transliterate_bengali_word(tok) if not tok.isspace() else tok
+            for tok in tokens
+        ]
+        text = "".join(converted)
+
+    # 6. Check for Gurmukhi (Punjabi)
     has_gurmukhi = any(0x0A00 <= ord(ch) <= 0x0A7F for ch in text)
     if has_gurmukhi:
         tokens = re.split(r"(\s+)", text)
@@ -568,14 +851,24 @@ def to_hinglish(text: str) -> str:
         ]
         text = "".join(converted)
 
-    # 6. Universal safety sanitization (zero leaks guarantee)
+    # 7. Check for Gujarati
+    has_gujarati = any(0x0A80 <= ord(ch) <= 0x0AFF for ch in text)
+    if has_gujarati:
+        tokens = re.split(r"(\s+)", text)
+        converted = [
+            transliterate_gujarati_word(tok) if not tok.isspace() else tok
+            for tok in tokens
+        ]
+        text = "".join(converted)
+
+    # 8. Universal safety sanitization (zero leaks guarantee)
     text = _universal_safety_sanitize(text)
 
-    # 7. Apply phonetic cleanups
+    # 9. Apply phonetic cleanups
     for pattern, replacement in WORD_REPLACEMENTS:
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
 
-    # 8. Normalize whitespace
+    # 10. Normalize whitespace
     text = re.sub(r"\s+", " ", text).strip()
 
     if not text:
