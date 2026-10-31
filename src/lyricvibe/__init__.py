@@ -2,7 +2,7 @@
 LyricVibe - Cinematic 165Hz Floating Lyrics Overlay for Spotify.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "Arsh Pathan"
 
 from lyricvibe.lyrics.fetcher import LyricLine, fetch_lyrics_smart

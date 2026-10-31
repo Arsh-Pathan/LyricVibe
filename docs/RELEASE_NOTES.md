@@ -1,4 +1,32 @@
-# LyricVibe v1.0.0 — Cinematic 165Hz Floating Lyrics Overlay for Spotify
+# Release Notes
+
+## LyricVibe v1.1.0 — Multi-Script Transliteration, Custom Color Picker & Scrubbing Snapping
+
+### New Features & Improvements in v1.1.0
+- **Multi-Script Transliteration Suite**:
+  - Full native phonetic transliteration for Devanagari (Hindi), Perso-Arabic (Urdu), Gurmukhi (Punjabi), Bengali, Gujarati, Tamil, and Telugu into Latin Roman text.
+  - Zero-width character and bidi formatter filtering (ZWNJ, ZWJ, LRM, RLM, BOM) to prevent missing glyph rectangle boxes in brush fonts.
+  - Expanded search ranking script detector recognizing all major Indic scripts.
+- **Custom Color Picker & Shorthand Hex Formats**:
+  - Right-click custom color dialog (`QColorDialog`) and "Custom Color..." dropdown option to pick any color.
+  - Shorthand 3-digit (`#RGB`), 6-digit (`#RRGGBB`), and 8-digit (`#AARRGGBB` / `#RRGGBBAA`) hex validation.
+  - Added rich darker shades to the palette: Spotify Green (`#1DB954`), Deep Emerald (`#0E8A42`), Crimson (`#D32F2F`), Royal Purple (`#7B1FA2`), Midnight Indigo (`#303F9F`), Midnight Navy (`#1A237E`), Deep Teal (`#00796B`), and Dark Slate (`#263238`).
+- **Precision Audio Scrubbing & Snapping**:
+  - Instant snap on seek jumps (`|drift| > 0.75s`) with low-pass micro-drift correction.
+  - Active line revival when rewinding backward into vocal windows during instrumental pauses.
+  - Standard LRC `[offset:+/-ms]` tag parsing and application.
+- **Enhanced Metadata Sanitization**:
+  - Strips producer tags (`(Prod. ...)`, `[Produced by ...]`), viral modifiers (`(Sped Up)`, `(Nightcore)`, `(Slowed + Reverb)`), and section headers with artist attributions.
+  - Split delimiters extended to include `with` and `vs` in artist parsing.
+- **Multi-Monitor Screen Coordinate Clamping**:
+  - Screen boundary clamping keeps the overlay within viewable display bounds across monitor moves and resolution drops.
+  - Dynamic `windowHandle().screenChanged` listener for multi-display setups.
+- **Durability & Stress Test Suite**:
+  - 87 unit tests validating LRU bounded caches, multi-hour continuous playback, and thread safety.
+
+---
+
+## LyricVibe v1.0.0 — Cinematic 165Hz Floating Lyrics Overlay for Spotify
 
 **Real-time synchronized lyrics floating borderless on your screen — no Spotify Premium required.**
 
