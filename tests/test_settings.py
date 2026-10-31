@@ -2,7 +2,7 @@
 
 import os
 import tempfile
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from lyricvibe.utils.settings import (
     DEFAULT_SETTINGS,
@@ -159,17 +159,48 @@ def test_ensure_hex_supports_darker_colors():
 def test_autostart_toggle():
     from lyricvibe.utils.settings import is_autostart_enabled, set_autostart_enabled
 
-    initial = is_autostart_enabled()
+    fake_registry = {}
 
-    # Test toggling
-    set_autostart_enabled(True)
-    assert is_autostart_enabled() is True
+    class FakeKey:
+        def __enter__(self):
+            return self
 
-    set_autostart_enabled(False)
-    assert is_autostart_enabled() is False
+        def __exit__(self, *args):
+            pass
 
-    # Restore initial state
-    set_autostart_enabled(initial)
+    def fake_open_key(root, subkey, reserved=0, access=0):
+        return FakeKey()
+
+    def fake_query_value_ex(key, name):
+        if name in fake_registry:
+            return (fake_registry[name], 1)
+        raise FileNotFoundError(name)
+
+    def fake_set_value_ex(key, name, reserved, typ, value):
+        fake_registry[name] = value
+
+    def fake_delete_value(key, name):
+        if name in fake_registry:
+            del fake_registry[name]
+        else:
+            raise FileNotFoundError(name)
+
+    mock_winreg = MagicMock()
+    mock_winreg.OpenKey = fake_open_key
+    mock_winreg.QueryValueEx = fake_query_value_ex
+    mock_winreg.SetValueEx = fake_set_value_ex
+    mock_winreg.DeleteValue = fake_delete_value
+
+    with (
+        patch("sys.platform", "win32"),
+        patch.dict("sys.modules", {"winreg": mock_winreg}),
+        patch("os.path.exists", return_value=False),
+    ):
+        assert is_autostart_enabled() is False
+        assert set_autostart_enabled(True) is True
+        assert is_autostart_enabled() is True
+        assert set_autostart_enabled(False) is True
+        assert is_autostart_enabled() is False
 
 
 def test_settings_save_fallback_on_restricted_path():

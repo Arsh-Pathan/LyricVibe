@@ -886,8 +886,13 @@ class FloatingLyricsWidget(QWidget):
 
     # ── Global Hotkeys ──
     def _start_global_hotkeys(self):
+        if sys.platform != "win32":
+            return
+
         def _hotkey_worker():
-            user32 = ctypes.windll.user32
+            user32 = getattr(getattr(ctypes, "windll", None), "user32", None)
+            if not user32:
+                return
             MOD_ALT = 0x0001
             MOD_CONTROL = 0x0002
 
@@ -944,7 +949,9 @@ class FloatingLyricsWidget(QWidget):
             hwnd = int(self.winId())
             if not hwnd:
                 return
-            user32 = ctypes.windll.user32
+            user32 = getattr(getattr(ctypes, "windll", None), "user32", None)
+            if not user32:
+                return
             GWL_EXSTYLE = -20
             WS_EX_TOPMOST = 0x00000008
             HWND_TOPMOST = wintypes.HWND(-1)
@@ -983,8 +990,12 @@ class FloatingLyricsWidget(QWidget):
 
     def _set_window_clickthrough(self, hwnd: int, clickthrough: bool):
         """Safely applies WS_EX_TRANSPARENT layered style with 64-bit pointer and frame refresh safety."""
+        if not sys.platform.startswith("win"):
+            return
         try:
-            user32 = ctypes.windll.user32
+            user32 = getattr(getattr(ctypes, "windll", None), "user32", None)
+            if not user32:
+                return
             GWL_EXSTYLE = -20
             WS_EX_LAYERED = 0x00080000
             WS_EX_TRANSPARENT = 0x00000020
@@ -1053,7 +1064,7 @@ class FloatingLyricsWidget(QWidget):
                     QLocalServer.removeServer(IPC_SERVER_NAME)
                 except (OSError, RuntimeError):
                     pass
-            user32 = getattr(ctypes.windll, "user32", None)
+            user32 = getattr(getattr(ctypes, "windll", None), "user32", None)
             if user32:
                 for hid in getattr(self, "_registered_hotkeys", []):
                     try:

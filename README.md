@@ -56,13 +56,17 @@
 ## Features
 
 - **Pure Floating Overlay**: Zero window borders, zero background — only clean typography floating seamlessly over games, browsers, and desktop apps.
+- **Word-to-Word Precision Highlighting**: Full Enhanced LRC sync tracking with active word-level illumination and sketched underline animations synchronized to the singer's voice.
+- **Natural Phrasing & Interlude Preservation**: Lyrics stay visible during short phrasing pauses, clearing only on true instrumental interludes with generous hold padding.
+- **Always-On-Top Window Watchdog**: Periodic native Win32 `HWND_TOPMOST` watchdog prevents fullscreen applications and browsers from occluding your lyrics.
 - **No Spotify Premium Required**: Intercepts Windows SMTC telemetry directly; works out of the box with Spotify Free and Premium.
 - **Zero Configuration**: No API keys, developer tokens, or Spotify login credentials required.
 - **165Hz Smooth Rendering**: Hardware-accelerated PyQt6 rendering at your monitor's native refresh rate (60–240Hz).
-- **70+ Dynamic Animations**: Cinematic crossfades, whip pans, bass drops, hyper zooms, word-by-word reveals, soft glows, star glints, and directional motion blur.
+- **78+ Dynamic & Rare Physics Animations**: Cinematic crossfades, whip pans, bass drops, hyper zooms, supernova bursts, falling matrix cascades, vortex black holes, quantum vaporize, and directional motion blur.
+- **Obsidian Black & White Customizer**: Minimalist monochrome interface (`#0A0A0C`) with framed header, live preview, and high-contrast typography.
 - **Expanded Highlight Palette & Custom Color Picker**: Rich darker shades (Spotify Green, Deep Emerald, Crimson, Royal Purple, Midnight Indigo, Deep Teal) and neon tones, plus full custom color picker support.
 - **Universal Multi-Script Transliteration**: Automatically converts Hindi (Devanagari), Urdu, Punjabi (Gurmukhi), Bengali, Gujarati, Tamil, and Telugu into natural Roman text.
-- **Smart LRCLIB Matching**: Automatically strips movie tags, featured artists, producer credits, and remaster suffixes for accurate lyrics retrieval.
+- **Multi-Artist & Smart LRCLIB Matching**: Automatically resolves primary and secondary artists, cleans movie and soundtrack tags, and performs field-specific queries for missing lyrics.
 - **Settings Customizer**: Double-click or press `Ctrl + Alt + S` to customize fonts, colors, physics, and timing offsets.
 
 ---
@@ -112,10 +116,10 @@ Comprehensive guides and architectural specifications are available in the [`doc
 
 - [**Architecture & Pipeline**](docs/ARCHITECTURE.md) — WinRT SMTC telemetry, LRCLIB API, Hinglish parser, and 165Hz rendering engine.
 - [**Setup & Installation Guide**](docs/SETUP.md) — Detailed installation methods, virtual environments, startup automation, and troubleshooting.
-- [**Animation System & Physics**](docs/ANIMATIONS.md) — Breakdown of all 55+ animations, cubic easing curves, motion blur, and neon palettes.
+- [**Animation System & Physics**](docs/ANIMATIONS.md) — Breakdown of all 78+ animations, cubic easing curves, motion blur, and neon palettes.
 - [**Controls & Customization**](docs/CONTROLS.md) — Full hotkey index, mouse gestures, timing calibration, and settings guide.
 - [**Building the Executable**](docs/BUILDING.md) — Packaging into a standalone `.exe` using PyInstaller.
-- [**Release Notes**](docs/RELEASE_NOTES.md) — Changelog and highlights for v1.0.0.
+- [**Release Notes**](docs/RELEASE_NOTES.md) — Complete changelog and version history for v1.1.0 and v1.0.0.
 
 ---
 

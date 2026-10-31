@@ -1,39 +1,48 @@
 # Release Notes
 
-## LyricVibe v1.1.0 — Windows Setup Installer, 72+ Animations, Multi-Script Transliteration & Custom Color Picker
+## LyricVibe v1.1.0 — Word-Level Sync, Black & White UI, Multi-Artist Matching & Setup Installer
 
-### New Features & Improvements in v1.1.0
+### Key Features & Improvements in v1.1.0
+
+- **Word-to-Word Synchronized Highlighting**:
+  - Full Enhanced LRC parser decoding inner syllable and word-level timestamps (`<mm:ss.xx>`).
+  - Active word-level highlight tracking that illuminates words precisely in sync with vocal phrasing.
+  - Hand-drawn animated underline effect that sketches underneath the active word with natural pencil tremors.
+
+- **Natural Phrasing & Interlude Preservation**:
+  - Resolved early line disappearances: lyrical lines remain visible throughout natural vocal breathers and short pauses (`gap < 8.0s`) until the subsequent line starts.
+  - Extended instrumental interludes (`gap >= 8.0s`) linger with generous padding (`min(gap * 0.75, vocal_end + 3.0)`) before fading out gracefully.
+
+- **Obsidian Black & White Minimalist UI**:
+  - Transformed the Settings customizer into a clean monochrome design.
+  - Obsidian dark surfaces (`#0A0A0C`), zinc container cards (`#141417`, `#222226`), pure white typography, and white active tab indicators.
+  - Redesigned 74px header featuring a framed icon badge, bold title typography, silver subtitle, and bordered version pill.
+
+- **Multi-Artist & Field-Specific Lyrics Matching**:
+  - Multi-artist extractor (`get_all_artists`) automatically detects primary composers and secondary vocalists (e.g., Pritam, Arijit Singh).
+  - Exact GET and field-specific queries (`api/search?track_name=...&artist_name=...`) directly query LRCLIB composite B-tree indices to prevent HTTP 503 Server Overload errors.
+  - Safe duration and metadata parsing preventing `TypeError` on null duration or missing fields.
+  - Reduced negative cache TTL to 30 seconds for quick recovery from momentary connection hiccups.
+
+- **Comprehensive Unicode & Tag Normalization**:
+  - Normalizes Unicode smart quotes (`’`, `‘`, `“`, `”`) and dashes (`–`, `—`, `…`).
+  - Enhanced tag stripping handles `- Explicit`, `- Acoustic`, `- Deluxe`, `- Instrumental`, `- Remastered`, and trailing `- <Artist>` tags.
+
+- **Rare Experimental Physics Animations**:
+  - Added rare high-energy animations: `supernova_burst`, `falling_down_screen`, `vortex_black_hole`, `quantum_vaporize`, `lightning_strike_glitch`, and `matrix_rain_cascade`.
+  - Supports 2D character rotation and particle drift physics during line transitions.
+
+- **Topmost Window Watchdog**:
+  - Periodic Win32 `SetWindowPos` watchdog actively maintains `HWND_TOPMOST` and `WS_EX_TOPMOST` styles, preventing background apps, browsers, or games from occluding the overlay.
+
 - **Professional Windows Setup Installer**:
-  - Added native Windows installer (`LyricVibe-Setup-v1.1.0.exe`) created with Inno Setup 6.
-  - Guided setup wizard with options for Desktop shortcut, Start Menu folder, Windows Startup integration, and clean uninstaller registered in Windows Add/Remove programs.
-  - Per-user and system-wide installation support without requiring elevation.
-- **Expanded 72+ Dynamic Animations Suite & Motion Personality Switcher**:
-  - Expanded catalog from 55+ to 72+ animations with custom mathematical easing functions.
-  - 15 new animations: `aurora_shimmer`, `nebula_bloom`, `horizon_dawn`, `starlight_glimmer`, `whip_pan_left`, `whip_pan_right`, `bass_drop_shake`, `hyper_zoom`, `laser_etch`, `neon_flicker`, `parabolic_arc`, `prism_refract`, `card_flip_3d`, `isometric_slide`, and `cinema_scope_unfold`.
-  - Atmospheric fade animations (`aurora_shimmer`, `nebula_bloom`, `horizon_dawn`, `starlight_glimmer`) integrated into zero-blur transition physics.
-  - Added Animation Motion Style preference in Settings (Dynamic Mix, Silky Smooth Fades, Kinetic & Snappy, Cinematic & Expressive 3D, and Vocal & Lyric Flow).
-- **8 Curated One-Click Style Presets**:
-  - Added dedicated one-click aesthetic style presets in Settings: 7clouds Signature, Cyberpunk Neon, Midnight Emerald, Aesthetic Dream, Crimson Bass, Golden Hour, Tokyo Drift, and Minimalist Pure.
-- **Multi-Script Transliteration Suite**:
-  - Full native phonetic transliteration for Devanagari (Hindi), Perso-Arabic (Urdu), Gurmukhi (Punjabi), Bengali, Gujarati, Tamil, and Telugu into Latin Roman text.
-  - Zero-width character and bidi formatter filtering (ZWNJ, ZWJ, LRM, RLM, BOM) to prevent missing glyph rectangle boxes in brush fonts.
-  - Expanded search ranking script detector recognizing all major Indic scripts.
-- **Custom Color Picker & Shorthand Hex Formats**:
-  - Right-click custom color dialog (`QColorDialog`) and "Custom Color..." dropdown option to pick any color.
-  - Shorthand 3-digit (`#RGB`), 6-digit (`#RRGGBB`), and 8-digit (`#AARRGGBB` / `#RRGGBBAA`) hex validation.
-  - Added rich darker shades to the palette: Spotify Green (`#1DB954`), Deep Emerald (`#0E8A42`), Crimson (`#D32F2F`), Royal Purple (`#7B1FA2`), Midnight Indigo (`#303F9F`), Midnight Navy (`#1A237E`), Deep Teal (`#00796B`), and Dark Slate (`#263238`).
-- **Precision Audio Scrubbing & Snapping**:
-  - Instant snap on seek jumps (`|drift| > 0.75s`) with low-pass micro-drift correction.
-  - Active line revival when rewinding backward into vocal windows during instrumental pauses.
-  - Standard LRC `[offset:+/-ms]` tag parsing and application.
-- **Enhanced Metadata Sanitization**:
-  - Strips producer tags (`(Prod. ...)`, `[Produced by ...]`), viral modifiers (`(Sped Up)`, `(Nightcore)`, `(Slowed + Reverb)`), and section headers with artist attributions.
-  - Split delimiters extended to include `with` and `vs` in artist parsing.
-- **Multi-Monitor Screen Coordinate Clamping**:
-  - Screen boundary clamping keeps the overlay within viewable display bounds across monitor moves and resolution drops.
-  - Dynamic `windowHandle().screenChanged` listener for multi-display setups.
-- **Durability & Stress Test Suite**:
-  - 93 unit tests validating LRU bounded caches, multi-hour continuous playback, animation categories, easing calculations, and thread safety.
+  - Native Windows installer (`LyricVibe-Setup-v1.1.0.exe`) built with Inno Setup 6.
+  - Guided setup wizard with options for Desktop shortcut, Start Menu folder, and clean uninstaller in Windows Add or Remove Programs.
+  - Self-contained portable executable (`LyricVibe.exe`) and portable zip archive (`LyricVibe-v1.1.0-Windows.zip`).
+
+- **Test Suite & CI/CD Stability**:
+  - 117 automated tests passing across Python 3.10, 3.11, 3.12, and 3.13.
+  - Fully mocked registry and isolated headless test runs for reliable GitHub Actions execution.
 
 ---
 
