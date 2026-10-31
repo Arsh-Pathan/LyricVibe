@@ -19,16 +19,21 @@ def get_base_dir() -> str:
 
 
 def get_asset_path(relative_path: str) -> str:
-    """Returns the absolute path to an asset, checking base dir and cwd."""
+    """Returns the absolute path to an asset, checking base dir, exe dir, and cwd."""
+    if getattr(sys, "frozen", False):
+        exe_candidate = os.path.join(os.path.dirname(sys.executable), relative_path)
+        if os.path.exists(exe_candidate):
+            return exe_candidate
+
     base = get_base_dir()
     candidate = os.path.join(base, relative_path)
     if os.path.exists(candidate):
         return candidate
-    
+
     candidate_cwd = os.path.join(os.getcwd(), relative_path)
     if os.path.exists(candidate_cwd):
         return candidate_cwd
-    
+
     return candidate
 
 

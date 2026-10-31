@@ -182,3 +182,19 @@ def test_settings_save_fallback_on_restricted_path():
 
             loaded = load_settings()
             assert loaded["font_size"] == 50
+
+
+def test_get_asset_path_frozen_exe_dir_override():
+    from lyricvibe.core.paths import get_asset_path
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        fake_font = os.path.join(tmp_dir, "CustomFont.ttf")
+        with open(fake_font, "w") as f:
+            f.write("font data")
+
+        fake_exe = os.path.join(tmp_dir, "LyricVibe.exe")
+
+        with patch("sys.frozen", True, create=True), \
+             patch("sys.executable", fake_exe):
+            resolved = get_asset_path("CustomFont.ttf")
+            assert resolved == fake_font
