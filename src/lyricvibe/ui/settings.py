@@ -488,7 +488,10 @@ class LivePreview(QWidget):
 
         size = min(int(self.settings.get("font_size", 42)), 30)
         font = QFont(fam, size, weight)
-        font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
+        font.setStyleStrategy(
+            QFont.StyleStrategy.PreferAntialias
+            | QFont.StyleStrategy.NoSubpixelAntialias
+        )
         metrics = QFontMetrics(font)
 
         while metrics.horizontalAdvance(curr_text) > (w - 60) and size > 15:
@@ -592,21 +595,30 @@ class LivePreview(QWidget):
             if data["curr_scale"] != 1.0:
                 p.scale(data["curr_scale"], data["curr_scale"])
 
-            # Render complete line in pure white (100% kerning accuracy)
-            p.setPen(QColor(255, 255, 255, in_alpha))
-            p.drawText(QPointF(start_x, baseline_y), curr_text)
-
             words = self._get_word_spans(curr_text)
 
-            # Ultra-bright highlight on currently spoken word (clean, razor-sharp, NO box)
-            if hl_enabled and hl_idx >= 0 and 0 <= hl_idx < len(words):
-                w_str, w_start, _ = words[hl_idx]
-                w_x = start_x + metrics.horizontalAdvance(curr_text[:w_start])
-                # Draw active word in vibrant ultra-bright color
+            if not hl_enabled or hl_idx < 0 or hl_idx >= len(words):
+                p.setPen(QColor(255, 255, 255, in_alpha))
+                p.drawText(QPointF(start_x, baseline_y), curr_text)
+            else:
+                w_str, w_start, w_end = words[hl_idx]
+                prefix = curr_text[:w_start]
+                if prefix:
+                    p.setPen(QColor(255, 255, 255, in_alpha))
+                    p.drawText(QPointF(start_x, baseline_y), prefix)
+
+                # Draw active word exclusively in highlight color (zero white border bleed)
+                w_x = start_x + metrics.horizontalAdvance(prefix)
                 p.setPen(
                     QColor(hl_color.red(), hl_color.green(), hl_color.blue(), in_alpha)
                 )
                 p.drawText(QPointF(w_x, baseline_y), w_str)
+
+                suffix = curr_text[w_end:]
+                if suffix:
+                    suffix_x = start_x + metrics.horizontalAdvance(curr_text[:w_end])
+                    p.setPen(QColor(255, 255, 255, in_alpha))
+                    p.drawText(QPointF(suffix_x, baseline_y), suffix)
 
             # Focal underline
             if (

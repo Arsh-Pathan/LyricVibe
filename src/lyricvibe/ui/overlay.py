@@ -477,7 +477,10 @@ class FloatingLyricsWidget(QWidget):
         size = base_size
         weight = QFont.Weight.Black if family == "Montserrat" else QFont.Weight.Bold
         font = QFont(family, size, weight)
-        font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias)
+        font.setStyleStrategy(
+            QFont.StyleStrategy.PreferAntialias
+            | QFont.StyleStrategy.NoSubpixelAntialias
+        )
         metrics = QFontMetrics(font)
 
         # Fast logarithmic binary search to scale font dynamically on long lines
@@ -542,30 +545,53 @@ class FloatingLyricsWidget(QWidget):
     ):
         """
         Renders razor-sharp lyrics with 100% kerning accuracy and high-contrast
-        active word highlight with rounded glowing background block.
+        active word highlight with zero white border bleed or glyph overdraw.
         """
         total_w = metrics.horizontalAdvance(text)
         start_x = -total_w / 2.0
         # True vertical center baseline
         baseline_y = (metrics.ascent() - metrics.descent()) / 2.0
 
-        # Pass 1: Render the complete crisp white line at full subpixel quality
-        painter.setPen(QColor(255, 255, 255, master_alpha))
-        painter.drawText(QPointF(start_x, baseline_y), text)
+        tc = self.settings.get("text_color", "#FFFFFF")
+        try:
+            base_qcolor = QColor(tc)
+            if not base_qcolor.isValid():
+                base_qcolor = QColor(255, 255, 255)
+        except (ValueError, TypeError, AttributeError):
+            base_qcolor = QColor(255, 255, 255)
 
-        if not hl_enabled or hl_word_idx < 0:
-            return
+        base_color = QColor(
+            base_qcolor.red(), base_qcolor.green(), base_qcolor.blue(), master_alpha
+        )
 
         words = self._get_word_spans(text)
 
-        # Pass 2: Active word highlight in ultra-bright vivid color
-        if 0 <= hl_word_idx < len(words):
-            word_str, w_start, _ = words[hl_word_idx]
-            word_x = start_x + metrics.horizontalAdvance(text[:w_start])
-            painter.setPen(
-                QColor(hl_color.red(), hl_color.green(), hl_color.blue(), master_alpha)
-            )
-            painter.drawText(QPointF(word_x, baseline_y), word_str)
+        if not hl_enabled or hl_word_idx < 0 or hl_word_idx >= len(words):
+            painter.setPen(base_color)
+            painter.drawText(QPointF(start_x, baseline_y), text)
+            return
+
+        word_str, w_start, w_end = words[hl_word_idx]
+
+        # Draw leading unhighlighted text (pure base color, zero overlap)
+        prefix = text[:w_start]
+        if prefix:
+            painter.setPen(base_color)
+            painter.drawText(QPointF(start_x, baseline_y), prefix)
+
+        # Draw active word exclusively in highlight color (never drawn over white!)
+        word_x = start_x + metrics.horizontalAdvance(prefix)
+        painter.setPen(
+            QColor(hl_color.red(), hl_color.green(), hl_color.blue(), master_alpha)
+        )
+        painter.drawText(QPointF(word_x, baseline_y), word_str)
+
+        # Draw trailing unhighlighted text (pure base color, zero overlap)
+        suffix = text[w_end:]
+        if suffix:
+            suffix_x = start_x + metrics.horizontalAdvance(text[:w_end])
+            painter.setPen(base_color)
+            painter.drawText(QPointF(suffix_x, baseline_y), suffix)
 
     def _draw_per_char(
         self,

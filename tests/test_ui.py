@@ -389,3 +389,63 @@ def test_color_swatch_custom_color_dialog():
         swatch._pick_custom_color()
         assert swatch.color() == "#4A148C"
         assert len(emitted_colors) == 1
+
+
+def test_draw_sharp_line_highlight_slicing_no_bleed():
+    from PyQt6.QtGui import QColor, QFont, QFontMetrics, QImage, QPainter
+
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    with patch("lyricvibe.ui.overlay.SpotifyClient"):
+        widget = FloatingLyricsWidget(DEFAULT_SETTINGS)
+
+        img = QImage(800, 200, QImage.Format.Format_ARGB32_Premultiplied)
+        img.fill(0)
+        painter = QPainter(img)
+        font = QFont("Arial", 24)
+        metrics = QFontMetrics(font)
+        painter.setFont(font)
+
+        # Test line drawing with middle word highlighted
+        widget._draw_sharp_line_with_highlight(
+            painter=painter,
+            metrics=metrics,
+            text="First middle last",
+            master_alpha=255,
+            hl_enabled=True,
+            hl_color=QColor("#1DB954"),
+            hl_word_idx=1,
+        )
+
+        # Test first word highlighted
+        widget._draw_sharp_line_with_highlight(
+            painter=painter,
+            metrics=metrics,
+            text="First middle last",
+            master_alpha=255,
+            hl_enabled=True,
+            hl_color=QColor("#D32F2F"),
+            hl_word_idx=0,
+        )
+
+        # Test last word highlighted
+        widget._draw_sharp_line_with_highlight(
+            painter=painter,
+            metrics=metrics,
+            text="First middle last",
+            master_alpha=255,
+            hl_enabled=True,
+            hl_color=QColor("#00E5FF"),
+            hl_word_idx=2,
+        )
+
+        painter.end()
+
+        widget.render_timer.stop()
+        widget.poll_timer.stop()
+        widget.smooth_timer.stop()
+        if widget.tray_icon:
+            widget.tray_icon.hide()
+        widget.close()
