@@ -134,7 +134,7 @@ class FloatingLyricsWidget(QWidget):
         self.is_hidden_by_idle = False
         self.is_dragging = False
         self.drag_position = QPoint()
-        self._registered_hotkeys = [801, 802, 803, 804, 805, 806, 807]
+        self._registered_hotkeys = [801, 802, 803, 804, 805, 806]
 
         # Physics & Animation Engine (55+ animations, butter-smooth 165Hz)
         self.engine = AnimationEngine()
@@ -725,10 +725,9 @@ class FloatingLyricsWidget(QWidget):
             HOTKEY_LOCK = 801
             HOTKEY_HIDE = 802
             HOTKEY_QUIT = 803
-            HOTKEY_SETTINGS_COMBO = 804
-            HOTKEY_SETTINGS = 805
-            HOTKEY_SYNC_PREV = 806
-            HOTKEY_SYNC_NEXT = 807
+            HOTKEY_SETTINGS = 804
+            HOTKEY_SYNC_PREV = 805
+            HOTKEY_SYNC_NEXT = 806
 
             VK_OEM_4 = 0xDB  # '[' key
             VK_OEM_6 = 0xDD  # ']' key
@@ -736,8 +735,7 @@ class FloatingLyricsWidget(QWidget):
             user32.RegisterHotKey(None, HOTKEY_LOCK, MOD_CONTROL | MOD_ALT, ord('L'))
             user32.RegisterHotKey(None, HOTKEY_HIDE, MOD_CONTROL | MOD_ALT, ord('H'))
             user32.RegisterHotKey(None, HOTKEY_QUIT, MOD_CONTROL | MOD_ALT, ord('Q'))
-            user32.RegisterHotKey(None, HOTKEY_SETTINGS_COMBO, MOD_CONTROL | MOD_ALT, ord('S'))
-            user32.RegisterHotKey(None, HOTKEY_SETTINGS, MOD_CONTROL, ord('S'))
+            user32.RegisterHotKey(None, HOTKEY_SETTINGS, MOD_CONTROL | MOD_ALT, ord('S'))
             user32.RegisterHotKey(None, HOTKEY_SYNC_PREV, MOD_CONTROL | MOD_ALT, VK_OEM_4)
             user32.RegisterHotKey(None, HOTKEY_SYNC_NEXT, MOD_CONTROL | MOD_ALT, VK_OEM_6)
 
@@ -750,7 +748,7 @@ class FloatingLyricsWidget(QWidget):
                         self.signals.hotkey_hide.emit()
                     elif msg.wParam == HOTKEY_QUIT:
                         self.signals.hotkey_quit.emit()
-                    elif msg.wParam in (HOTKEY_SETTINGS_COMBO, HOTKEY_SETTINGS):
+                    elif msg.wParam == HOTKEY_SETTINGS:
                         self.signals.hotkey_settings.emit()
                     elif msg.wParam == HOTKEY_SYNC_PREV:
                         self.signals.hotkey_sync_adjust.emit(-0.5)

@@ -55,7 +55,7 @@ def test_floating_overlay_clickthrough_logic():
     with patch("lyricvibe.ui.overlay.SpotifyClient"):
         widget = FloatingLyricsWidget(DEFAULT_SETTINGS)
         assert widget.is_locked is False
-        assert len(widget._registered_hotkeys) == 7
+        assert len(widget._registered_hotkeys) == 6
 
         with patch.object(widget, "_set_window_clickthrough") as mock_set:
             widget.toggle_lock()

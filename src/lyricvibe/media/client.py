@@ -122,8 +122,9 @@ class SpotifyClient:
                 timeout=4.0,
             )
             if resp.status_code == 200:
-                results = resp.json().get("results", [])
-                if results:
+                payload = resp.json()
+                results = payload.get("results", []) if isinstance(payload, dict) else []
+                if results and isinstance(results[0], dict):
                     art = results[0].get("artworkUrl100", "").replace("100x100bb", "300x300bb")
                     with self._lock:
                         if len(self._art_cache) > 200:
@@ -132,7 +133,7 @@ class SpotifyClient:
                         if self._state and self._state.track_name == track and not self._state.album_art_url:
                             self._state.album_art_url = art
                     return
-        except requests.RequestException as e:
+        except (requests.RequestException, ValueError, AttributeError) as e:
             logger.debug("[spotify_client] Artwork request failed: %s", e)
         finally:
             with self._lock:
@@ -166,6 +167,8 @@ class SpotifyClient:
 
                     try:
                         data = json.loads(line)
+                        if not isinstance(data, dict):
+                            continue
                         track = data.get("track", "").strip()
                         artist = data.get("artist", "").strip()
                         album = data.get("album", "").strip()
@@ -212,7 +215,7 @@ class SpotifyClient:
                         with self._lock:
                             self._state = state
 
-                    except (json.JSONDecodeError, ValueError):
+                    except (json.JSONDecodeError, ValueError, AttributeError, TypeError):
                         continue
 
             except (OSError, ValueError) as e:
@@ -255,7 +258,7 @@ class SpotifyClient:
         elapsed = now - state.local_received_at
         # Clamp elapsed to a sane range (shouldn't exceed 5.0 seconds between polling frames)
         elapsed = max(0.0, min(elapsed, 5.0))
-        pos = state.progress_sec + elapsed
+        pos = max(0.0, state.progress_sec + elapsed)
         return min(pos, state.duration_sec) if state.duration_sec > 0 else pos
 
     def close(self):

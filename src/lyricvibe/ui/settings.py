@@ -1435,7 +1435,7 @@ class SettingsDialog(QDialog):
             ("Ctrl + Alt + L", "Lock Overlay", "Clicks pass through to windows below"),
             ("Ctrl + Alt + H", "Hide / Unhide", "Quick toggle lyrics visibility"),
             ("Ctrl + Alt + Q", "Quit App", "Exit overlay immediately"),
-            ("Ctrl + S", "Settings", "Open customization window"),
+            ("Ctrl + Alt + S", "Settings", "Open customization window"),
             ("Double Click", "Settings", "Double-click floating lyrics text"),
             ("[  /  ]", "Sync Shift", "Adjust audio timing by 0.5s"),
         ]
@@ -1563,27 +1563,14 @@ class SettingsDialog(QDialog):
             logger.debug("[settings] _update_and_sync error: %s", e)
 
     def _reset_to_defaults(self):
-        defaults = {
-            "target_fps": 165,
-            "font_size": 42,
-            "font_family": "7clouds Signature (Edo SZ)",
-            "overlay_y": 55,
-            "sync_offset_sec": 0.20,
-            "auto_hide_idle": True,
-            "hand_drawn_underline_enabled": True,
-            "highlight_enabled": True,
-            "highlight_block_enabled": False,
-            "highlight_color": "#26FF7C",
-            "highlight_mode": "per_song",
-            "motion_blur_enabled": True,
-            "motion_blur_intensity": 1.4,
-            "autostart_enabled": True,
-        }
+        defaults = settings_manager.DEFAULT_SETTINGS.copy()
         self._apply_preset(defaults)
-        self.slider_sync.setValue(2)
+        sync_offset = float(defaults.get("sync_offset_sec", 0.20))
+        self.slider_sync.setValue(int(sync_offset * 10))
         if hasattr(self, "slider_blur"):
-            self.slider_blur.setValue(14)
-        self.toggle_hide.setChecked(True)
+            blur_int = float(defaults.get("motion_blur_intensity", 1.4))
+            self.slider_blur.setValue(int(blur_int * 10))
+        self.toggle_hide.setChecked(bool(defaults.get("auto_hide_idle", True)))
         if hasattr(self, "toggle_autostart"):
             self.toggle_autostart.setChecked(is_autostart_enabled())
 

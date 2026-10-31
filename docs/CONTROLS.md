@@ -10,7 +10,7 @@ These keyboard shortcuts work system-wide regardless of which window is in focus
 
 | Shortcut | Action | Description |
 |:---|:---|:---|
-| **`Ctrl + Alt + S`** (or `Ctrl + S`) | Open Settings | Opens the dark-themed customization panel. |
+| **`Ctrl + Alt + S`** | Open Settings | Opens the dark-themed customization panel. |
 | **`Ctrl + Alt + L`** | Lock Overlay | Toggles click-through mode. When locked, mouse clicks pass directly through lyrics to the window behind. |
 | **`Ctrl + Alt + H`** | Hide / Show | Instantly hides or restores lyrics overlay visibility. |
 | **`Ctrl + Alt + Q`** | Quit | Terminates LyricVibe and the background listener cleanly. |
@@ -32,7 +32,7 @@ When the overlay is in unlocked mode (default):
 
 ## Customization Panel Walkthrough
 
-Press `Ctrl + S` or run `LyricVibe.exe` a second time to open the Settings Dialog.
+Press `Ctrl + Alt + S` or run `LyricVibe.exe` a second time to open the Settings Dialog.
 
 ### 1. Display Tab
 - **Font Family**: Choose between Montserrat, Poppins, Segoe UI, Arial, or any installed Windows font.

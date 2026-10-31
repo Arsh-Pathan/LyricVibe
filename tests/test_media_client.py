@@ -100,3 +100,43 @@ def test_client_close_terminates_proc():
         assert client._stopped is True
         mock_proc.terminate.assert_called_once()
         assert client._proc is None
+
+
+def test_estimate_progress_negative_progress_clamped_to_zero():
+    with patch.object(SpotifyClient, "_reader_loop"):
+        client = SpotifyClient()
+        now = time.time()
+        state = PlaybackState(
+            is_playing=True,
+            track_name="Song",
+            artist_name="Artist",
+            album_name="Album",
+            album_art_url="",
+            progress_sec=-2.0,
+            duration_sec=100.0,
+            track_id="id1",
+            updated_at=now,
+            local_received_at=now,
+        )
+        prog = client.estimate_progress(state)
+        assert prog >= 0.0
+        client.close()
+
+
+def test_fetch_art_malformed_payload_safety():
+    with patch.object(SpotifyClient, "_reader_loop"):
+        client = SpotifyClient()
+
+        # Simulate iTunes returning unexpected non-dict or empty payload
+        with patch("lyricvibe.media.client.requests.get") as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = ["not", "a", "dict"]
+            mock_get.return_value = mock_resp
+
+            # Must handle cleanly without raising AttributeError or crashing
+            client._fetch_art("Song Title", "Artist Name")
+            cache_key = "Artist Name_Song Title"
+            assert client._art_cache.get(cache_key) == ""
+
+        client.close()
