@@ -494,3 +494,23 @@ def test_parse_lrc_enhanced_multi_tag_chorus():
     assert lines[1].time_sec == 40.00
     assert lines[1].text == "Golden hour"
     assert lines[1].word_times == [40.00, 40.50]
+
+
+def test_parse_lrc_enhanced_multi_syllable_and_devanagari():
+    # Multi-syllable word where syllables are separately timestamped
+    elrc = """
+    [00:10.00] <00:10.00> beau<00:10.25>ti<00:10.40>ful <00:10.70> world <00:11.15>
+    [00:20.00] <00:20.00> तेरे <00:20.50> वास्ते <00:21.20>
+    """
+    lines = parse_lrc(elrc)
+    assert len(lines) == 2
+
+    # Syllables beau-ti-ful merged into single word with start at 10.00
+    assert lines[0].text == "Beautiful world"
+    assert lines[0].word_times == [10.00, 10.70]
+    assert lines[0].word_durations == [0.70, 0.45]
+
+    # Transliterated Hindi with word times preserved
+    assert lines[1].text == "Tere vaaste"
+    assert lines[1].word_times == [20.00, 20.50]
+    assert lines[1].word_durations == [0.50, 0.70]
