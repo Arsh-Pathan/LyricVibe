@@ -110,9 +110,27 @@ ANIMATION_CATALOG = [
     ("balloon_inflate", 12),
     ("erase_reveal", 12),
     ("letter_scatter", 8),
+    # ── Rare & Experimental Physics ──
+    ("supernova_burst", 10),
+    ("falling_down_screen", 12),
+    ("vortex_black_hole", 8),
+    ("quantum_vaporize", 8),
+    ("lightning_strike_glitch", 8),
+    ("matrix_rain_cascade", 10),
 ]
 
-PER_CHAR_ANIMS = {"letter_drop", "letter_burst", "letter_scatter", "erase_reveal"}
+PER_CHAR_ANIMS = {
+    "letter_drop",
+    "letter_burst",
+    "letter_scatter",
+    "erase_reveal",
+    "supernova_burst",
+    "falling_down_screen",
+    "vortex_black_hole",
+    "quantum_vaporize",
+    "lightning_strike_glitch",
+    "matrix_rain_cascade",
+}
 
 FADE_ANIMS = {
     "cinematic_crossfade",
@@ -214,6 +232,14 @@ ANIMATION_CATEGORIES: dict[str, list[str]] = {
         "erase_reveal",
         "letter_scatter",
     ],
+    "rare": [
+        "supernova_burst",
+        "falling_down_screen",
+        "vortex_black_hole",
+        "quantum_vaporize",
+        "lightning_strike_glitch",
+        "matrix_rain_cascade",
+    ],
 }
 
 
@@ -259,7 +285,7 @@ def pick_animation(line_text: str, duration: float, category: str = "all") -> st
         ]
         return random.choice(slow_pool)
 
-    types, weights = zip(*ANIMATION_CATALOG)
+    types, weights = zip(*ANIMATION_CATALOG, strict=True)
     return random.choices(types, weights=weights, k=1)[0]
 
 
@@ -453,8 +479,13 @@ class AnimationEngine:
         self.char_offsets_y = []
         self.char_alphas = []
         self.char_scales = []
+        self.char_rotations = []
         self._char_burst_dx = []
         self._char_burst_dy = []
+        self._char_burst_angles = []
+        self._char_burst_speeds = []
+        self._char_tumble_angles = []
+        self._char_drop_heights = []
 
         # Glitch-free color highlight tracking
         self.word_starts: list[float] = []
@@ -478,6 +509,7 @@ class AnimationEngine:
         anim_style: str = "",
         word_times: list[float] | None = None,
         word_durations: list[float] | None = None,
+        line_start_sec: float | None = None,
     ):
         now_perf = time.perf_counter()
 
@@ -508,7 +540,7 @@ class AnimationEngine:
 
         # Build word timeline: use ELRC timestamps if available, otherwise phonetic model
         if word_times and len(word_times) == num_w:
-            base_t = word_times[0]
+            base_t = line_start_sec if line_start_sec is not None else word_times[0]
             self.word_starts = [max(0.0, round(t - base_t, 3)) for t in word_times]
             self.word_ends = []
             for i in range(num_w):
@@ -533,9 +565,14 @@ class AnimationEngine:
         self.char_offsets_y = [0.0] * n
         self.char_alphas = [0.40] * n
         self.char_scales = [1.0] * n
+        self.char_rotations = [0.0] * n
 
         self._char_burst_dx = [(random.random() - 0.5) * 30.0 for _ in range(n)]
         self._char_burst_dy = [(random.random() - 0.5) * 16.0 - 8.0 for _ in range(n)]
+        self._char_burst_angles = [random.uniform(0, 2 * math.pi) for _ in range(n)]
+        self._char_burst_speeds = [random.uniform(70.0, 160.0) for _ in range(n)]
+        self._char_tumble_angles = [(random.random() - 0.5) * 80.0 for _ in range(n)]
+        self._char_drop_heights = [random.uniform(90.0, 160.0) for _ in range(n)]
 
         # Focal underline selection
         self.underline_active = (self.curr_anim_type == "hand_drawn_flourish") or (
@@ -576,15 +613,16 @@ class AnimationEngine:
         """
         Tightly locks animation timing to audio playback position.
         Eliminates drift and phase lag while maintaining butter-smooth 165 FPS interpolation.
-        If a large seek or scrubbing jump is detected (> 0.25s), snaps immediately.
+        If a large seek or scrubbing jump is detected (> 0.15s), snaps immediately.
         """
+        audio_elapsed_sec = max(0.0, audio_elapsed_sec)
         now_perf = time.perf_counter()
         expected_start = now_perf - audio_elapsed_sec
         drift = expected_start - self.curr_start_perf
-        if abs(drift) > 0.25:
+        if abs(drift) > 0.15:
             self.curr_start_perf = expected_start
-        elif abs(drift) > 0.02:
-            self.curr_start_perf += drift * 0.50
+        elif abs(drift) > 0.015:
+            self.curr_start_perf += drift * 0.40
 
     def update(self) -> dict:
         now_perf = time.perf_counter()
@@ -1110,6 +1148,93 @@ class AnimationEngine:
                         self.char_alphas[i] = 0.40 + 0.60 * t_norm
                         self.char_scales[i] = 1.0
 
+            elif anim == "supernova_burst":
+                for i in range(n_chars):
+                    t_norm = min(elapsed_in / 0.28, 1.0)
+                    ease = 1.0 - math.pow(1.0 - t_norm, 3)
+                    ang = self._char_burst_angles[i]
+                    spd = self._char_burst_speeds[i]
+                    self.char_offsets_x[i] = math.cos(ang) * spd * (1.0 - ease)
+                    self.char_offsets_y[i] = math.sin(ang) * spd * 0.65 * (1.0 - ease)
+                    self.char_rotations[i] = self._char_tumble_angles[i] * (1.0 - ease)
+                    self.char_alphas[i] = min(1.0, 0.35 + 0.65 * (elapsed_in / 0.12))
+                    self.char_scales[i] = 1.0 + 0.25 * (1.0 - ease)
+
+            elif anim == "falling_down_screen":
+                for i in range(n_chars):
+                    lt = elapsed_in - (i * stagger * 0.7)
+                    if lt < 0:
+                        self.char_offsets_y[i] = -self._char_drop_heights[i]
+                        self.char_offsets_x[i] = 0.0
+                        self.char_rotations[i] = self._char_tumble_angles[i]
+                        self.char_alphas[i] = 0.0
+                        self.char_scales[i] = 1.0
+                    else:
+                        t_norm = min(lt / 0.30, 1.0)
+                        bounce = (
+                            -self._char_drop_heights[i]
+                            * math.exp(-7.5 * t_norm)
+                            * math.cos(8.5 * t_norm)
+                            if t_norm < 1.0
+                            else 0.0
+                        )
+                        self.char_offsets_y[i] = bounce
+                        self.char_offsets_x[i] = 0.0
+                        self.char_rotations[i] = self._char_tumble_angles[i] * (
+                            1.0 - math.pow(t_norm, 2)
+                        )
+                        self.char_alphas[i] = min(1.0, 0.40 + 0.60 * (lt / 0.10))
+                        self.char_scales[i] = 1.0
+
+            elif anim == "vortex_black_hole":
+                for i in range(n_chars):
+                    t_norm = min(elapsed_in / 0.34, 1.0)
+                    ease = 1.0 - math.pow(1.0 - t_norm, 3)
+                    radius = (1.0 - ease) * (50.0 + (i % 6) * 14.0)
+                    theta = self._char_burst_angles[i] + (1.0 - ease) * 3.8
+                    self.char_offsets_x[i] = radius * math.cos(theta)
+                    self.char_offsets_y[i] = radius * math.sin(theta) * 0.60
+                    self.char_rotations[i] = (1.0 - ease) * (theta * 16.0)
+                    self.char_scales[i] = 0.85 + 0.15 * ease
+                    self.char_alphas[i] = min(1.0, 0.30 + 0.70 * (elapsed_in / 0.14))
+
+            elif anim == "quantum_vaporize":
+                for i in range(n_chars):
+                    t_norm = min(elapsed_in / 0.30, 1.0)
+                    ease = 1.0 - math.pow(1.0 - t_norm, 3)
+                    wisp = math.sin(elapsed_in * 14.0 + i * 0.6) * 8.0 * (1.0 - ease)
+                    self.char_offsets_x[i] = wisp
+                    self.char_offsets_y[i] = 16.0 * (1.0 - ease)
+                    self.char_rotations[i] = math.sin(i + elapsed_in * 8.0) * 8.0 * (1.0 - ease)
+                    self.char_scales[i] = 1.0 + 0.12 * (1.0 - ease)
+                    self.char_alphas[i] = min(1.0, 0.25 + 0.75 * ease)
+
+            elif anim == "lightning_strike_glitch":
+                for i in range(n_chars):
+                    t_norm = min(elapsed_in / 0.22, 1.0)
+                    ease = 1.0 - math.pow(1.0 - t_norm, 4)
+                    jitter = (math.sin(i * 19.0 + elapsed_in * 60.0)) * 22.0 * (1.0 - ease)
+                    self.char_offsets_x[i] = jitter
+                    self.char_offsets_y[i] = (math.cos(i * 11.0 + elapsed_in * 45.0)) * 4.0 * (1.0 - ease)
+                    self.char_rotations[i] = 0.0
+                    self.char_alphas[i] = 1.0 if (int(elapsed_in * 35.0) % 2 == 0 or t_norm > 0.6) else 0.40
+                    self.char_scales[i] = 1.0 + 0.08 * (1.0 - ease)
+
+            elif anim == "matrix_rain_cascade":
+                for i in range(n_chars):
+                    lt = elapsed_in - (i * stagger * 0.55)
+                    if lt < 0:
+                        self.char_offsets_y[i] = -50.0
+                        self.char_offsets_x[i] = 0.0
+                        self.char_alphas[i] = 0.0
+                    else:
+                        t_norm = min(lt / 0.18, 1.0)
+                        self.char_offsets_y[i] = -50.0 * (1.0 - math.pow(t_norm, 2))
+                        self.char_offsets_x[i] = 0.0
+                        self.char_alphas[i] = min(1.0, 0.35 + 0.65 * t_norm)
+                    self.char_rotations[i] = 0.0
+                    self.char_scales[i] = 1.0
+
         # ── Focal Hand-Drawn Underline Progress ──
         if self.underline_active:
             u_elapsed = elapsed_in - 0.08
@@ -1139,6 +1264,7 @@ class AnimationEngine:
             "char_offsets_y": self.char_offsets_y,
             "char_alphas": self.char_alphas,
             "char_scales": self.char_scales,
+            "char_rotations": self.char_rotations,
             "underline_progress": self.underline_progress,
             "underline_active": self.underline_active,
             "focal_word_idx": self.focal_word_idx,

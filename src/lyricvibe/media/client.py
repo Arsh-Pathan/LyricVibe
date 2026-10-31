@@ -230,7 +230,7 @@ class SpotifyClient:
                             duration_sec=duration,
                             track_id=track_id,
                             updated_at=updated_at,
-                            local_received_at=time.time(),
+                            local_received_at=time.monotonic(),
                         )
 
                         with self._lock:
@@ -280,10 +280,11 @@ class SpotifyClient:
         if not state.is_playing:
             return state.progress_sec
 
-        now = time.time()
+        # Support both time.monotonic() and Unix timestamps seamlessly
+        now = time.monotonic() if state.local_received_at < 1e8 else time.time()
         elapsed = now - state.local_received_at
-        # Clamp elapsed to a sane range (shouldn't exceed 5.0 seconds between polling frames)
-        elapsed = max(0.0, min(elapsed, 5.0))
+        # Clamp elapsed to a sane range (shouldn't exceed 10.0 seconds between polling frames)
+        elapsed = max(0.0, min(elapsed, 10.0))
         pos = max(0.0, state.progress_sec + elapsed)
         return min(pos, state.duration_sec) if state.duration_sec > 0 else pos
 

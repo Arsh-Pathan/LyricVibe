@@ -254,3 +254,78 @@ def test_animation_engine_word_by_word_enhanced_lrc_sync():
     engine.curr_start_perf = time.perf_counter() - 2.5
     state = engine.update()
     assert state["highlight_word_idx"] == 2
+
+
+def test_rare_experimental_animations_catalog_and_category():
+    assert "rare" in ANIMATION_CATEGORIES
+    rare_anims = ANIMATION_CATEGORIES["rare"]
+    expected_rare = {
+        "supernova_burst",
+        "falling_down_screen",
+        "vortex_black_hole",
+        "quantum_vaporize",
+        "lightning_strike_glitch",
+        "matrix_rain_cascade",
+    }
+    assert expected_rare.issubset(set(rare_anims))
+
+    # Test pick_animation category routing
+    for _ in range(20):
+        picked = pick_animation("Test line for rare animations", duration=3.0, category="rare")
+        assert picked in expected_rare
+
+
+def test_rare_experimental_physics_execution():
+    engine = AnimationEngine()
+    test_text = "Bursting letters across dimensions"
+    rare_anims = [
+        "supernova_burst",
+        "falling_down_screen",
+        "vortex_black_hole",
+        "quantum_vaporize",
+        "lightning_strike_glitch",
+        "matrix_rain_cascade",
+    ]
+
+    for anim in rare_anims:
+        engine.trigger_line(test_text, duration=3.0, anim_type=anim)
+        assert engine.curr_anim_type == anim
+        assert len(engine.char_rotations) == len(test_text)
+
+        # Initial frame
+        state = engine.update()
+        assert "char_rotations" in state
+        assert len(state["char_rotations"]) == len(test_text)
+        assert len(state["char_offsets_x"]) == len(test_text)
+        assert len(state["char_offsets_y"]) == len(test_text)
+        assert len(state["char_alphas"]) == len(test_text)
+
+        # Mid-transition frame (elapsed 0.15s)
+        engine.curr_start_perf = time.perf_counter() - 0.15
+        mid_state = engine.update()
+        assert 0.0 <= mid_state["curr_alpha"] <= 1.0
+
+
+def test_word_to_word_sync_with_intro_silence_line_start_sec():
+    engine = AnimationEngine()
+    # Line starts at 15.0s, but first vocal word isn't sung until 15.6s
+    engine.trigger_line(
+        "Never gonna give you up",
+        duration=3.5,
+        word_times=[15.6, 16.0, 16.4, 16.8, 17.2],
+        word_durations=[0.35, 0.35, 0.35, 0.35, 0.40],
+        line_start_sec=15.0,
+    )
+    # First word starts at 0.6s relative to line start!
+    assert engine.word_starts[0] == 0.6
+    assert engine.word_ends[0] == 0.95
+
+    # At elapsed 0.2s (during intro silence): NO word should be highlighted yet!
+    engine.curr_start_perf = time.perf_counter() - 0.2
+    state = engine.update()
+    assert state["highlight_word_idx"] == -1
+
+    # At elapsed 0.65s: Word 0 ("Never") is actively sung and highlighted!
+    engine.curr_start_perf = time.perf_counter() - 0.65
+    state = engine.update()
+    assert state["highlight_word_idx"] == 0

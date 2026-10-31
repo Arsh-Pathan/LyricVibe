@@ -449,3 +449,186 @@ def test_draw_sharp_line_highlight_slicing_no_bleed():
         if widget.tray_icon:
             widget.tray_icon.hide()
         widget.close()
+
+
+def test_font_family_resolution_all_nine_fonts():
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    with patch("lyricvibe.ui.overlay.SpotifyClient"):
+        widget = FloatingLyricsWidget(DEFAULT_SETTINGS)
+
+        expected = [
+            ("7clouds Signature (Edo SZ)", "Edo SZ"),
+            ("7clouds Modern (Montserrat Black)", "Montserrat"),
+            ("Poppins Bold (Modern Geometric)", "Poppins"),
+            ("Bahnschrift Bold (DIN Geometric)", "Bahnschrift"),
+            ("Impact Classic (Bold Poster)", "Impact"),
+            ("Franklin Gothic (Vintage Headline)", "Franklin Gothic Medium"),
+            ("Trebuchet Bold (Dynamic Modern)", "Trebuchet MS"),
+            ("Georgia Bold (Editorial Serif)", "Georgia"),
+            ("System Clean (Segoe UI)", "Segoe UI"),
+        ]
+
+        for setting_val, expected_family in expected:
+            widget.settings["font_family"] = setting_val
+            resolved = widget._get_active_font_family()
+            assert resolved == expected_family, f"Expected {expected_family} for {setting_val}, got {resolved}"
+
+        widget.render_timer.stop()
+        widget.poll_timer.stop()
+        widget.smooth_timer.stop()
+        if widget.tray_icon:
+            widget.tray_icon.hide()
+        widget.close()
+
+
+def test_settings_dialog_presets_tab_and_preview():
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    dlg = SettingsDialog(DEFAULT_SETTINGS)
+
+    assert hasattr(dlg, "preset_preview")
+    assert dlg.preset_preview is not None
+
+    sample_preset = {
+        "font_family": "Bahnschrift Bold (DIN Geometric)",
+        "highlight_color": "#00E5FF",
+        "font_size": 44,
+        "target_fps": 144,
+        "animation_style": "kinetic",
+    }
+    dlg._preview_preset(sample_preset)
+    assert dlg.preset_preview.settings["highlight_color"] == "#00E5FF"
+    assert dlg.preset_preview.settings["font_family"] == "Bahnschrift Bold (DIN Geometric)"
+
+    dlg._apply_preset(sample_preset)
+    assert dlg.combo_font.currentText() == "Bahnschrift Bold (DIN Geometric)"
+    assert dlg.settings["highlight_color"] == "#00E5FF"
+    assert dlg.settings["target_fps"] == 144
+
+    dlg.close()
+
+
+def test_settings_dialog_header_version_pill_no_active_pill():
+    from PyQt6.QtWidgets import QLabel
+
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    dlg = SettingsDialog(DEFAULT_SETTINGS)
+
+    labels = dlg.findChildren(QLabel)
+    texts = [lbl.text() for lbl in labels]
+
+    assert not any("● Active" in t for t in texts)
+    assert not any(t.strip() == "Active" for t in texts)
+    assert any("v1.1.0" in t for t in texts)
+
+    dlg.close()
+
+
+def test_settings_dialog_effects_tab_categories():
+    from lyricvibe.core.animation import ANIMATION_CATALOG, ANIMATION_CATEGORIES
+
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    dlg = SettingsDialog(DEFAULT_SETTINGS)
+    assert hasattr(dlg, "effects_preview")
+    assert dlg.effects_preview is not None
+    assert hasattr(dlg, "combo_fx_anim")
+
+    # Test filtering to 'smooth'
+    dlg._filter_animation_category("smooth")
+    smooth_keys = [dlg.combo_fx_anim.itemData(i) for i in range(1, dlg.combo_fx_anim.count())]
+    for anim in ANIMATION_CATEGORIES["smooth"]:
+        assert anim in smooth_keys
+
+    # Test filtering back to 'all'
+    dlg._filter_animation_category("all")
+    all_keys = [dlg.combo_fx_anim.itemData(i) for i in range(1, dlg.combo_fx_anim.count())]
+    assert len(all_keys) == len(ANIMATION_CATALOG)
+
+    dlg.close()
+
+
+def test_overlay_ensure_topmost_safely_calls_win32():
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    with patch("lyricvibe.ui.overlay.SpotifyClient"):
+        widget = FloatingLyricsWidget(DEFAULT_SETTINGS)
+
+        # Calling _ensure_topmost should succeed without raising any exception
+        widget._ensure_topmost()
+
+        # Calling toggle_lock should invoke _set_window_clickthrough and _ensure_topmost
+        with patch.object(widget, "_ensure_topmost") as mock_top:
+            widget.toggle_lock()
+            mock_top.assert_called_once()
+            widget.toggle_lock()
+
+        widget.render_timer.stop()
+        widget.poll_timer.stop()
+        widget.smooth_timer.stop()
+        if widget.tray_icon:
+            widget.tray_icon.hide()
+        widget.close()
+
+
+def test_overlay_per_character_rotation_rendering():
+    from PyQt6.QtGui import QColor, QFont, QFontMetrics, QImage, QPainter
+
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    with patch("lyricvibe.ui.overlay.SpotifyClient"):
+        widget = FloatingLyricsWidget(DEFAULT_SETTINGS)
+
+        img = QImage(800, 200, QImage.Format.Format_ARGB32_Premultiplied)
+        img.fill(0)
+        painter = QPainter(img)
+        font = QFont("Arial", 24)
+        metrics = QFontMetrics(font)
+        painter.setFont(font)
+
+        test_text = "Bursting letters"
+        n = len(test_text)
+        ox = [2.0] * n
+        oy = [-5.0] * n
+        alphas = [0.8] * n
+        scales = [1.1] * n
+        rotations = [15.0] * n
+
+        # Test _draw_per_char with character rotations and scaling
+        widget._draw_per_char(
+            painter=painter,
+            metrics=metrics,
+            text=test_text,
+            offsets_x=ox,
+            offsets_y=oy,
+            char_alphas=alphas,
+            char_scales=scales,
+            char_rotations=rotations,
+            master_alpha=255,
+            hl_enabled=True,
+            hl_color=QColor("#1DB954"),
+            hl_word_idx=0,
+        )
+
+        painter.end()
+
+        widget.render_timer.stop()
+        widget.poll_timer.stop()
+        widget.smooth_timer.stop()
+        if widget.tray_icon:
+            widget.tray_icon.hide()
+        widget.close()

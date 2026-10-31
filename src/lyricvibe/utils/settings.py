@@ -246,7 +246,7 @@ def load_settings() -> dict:
     for candidate in (SETTINGS_FILE, fallback_file):
         if os.path.exists(candidate):
             try:
-                with open(candidate, "r", encoding="utf-8") as f:
+                with open(candidate, encoding="utf-8") as f:
                     saved = json.load(f)
                     return _validate_settings(saved)
             except (json.JSONDecodeError, OSError) as e:

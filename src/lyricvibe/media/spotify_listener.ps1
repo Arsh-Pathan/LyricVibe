@@ -88,7 +88,8 @@ while ($true) {
                 if ($isPlaying -and $timeline.LastUpdatedTime) {
                     $nowOffset = [DateTimeOffset]::UtcNow
                     $elapsed = ($nowOffset - $timeline.LastUpdatedTime).TotalSeconds
-                    if ($elapsed -gt 0 -and $elapsed -lt 600) {
+                    $durLimit = if ($timeline -and $timeline.EndTime.TotalSeconds -gt 0) { $timeline.EndTime.TotalSeconds + 60 } else { 7200 }
+                    if ($elapsed -gt 0 -and $elapsed -lt $durLimit) {
                         $pos = $pos + $elapsed
                     }
                 }

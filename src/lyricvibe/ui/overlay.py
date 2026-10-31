@@ -149,7 +149,6 @@ class FloatingLyricsWidget(QWidget):
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.SubWindow
             | Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -225,6 +224,16 @@ class FloatingLyricsWidget(QWidget):
             return "Edo SZ"
         elif "Poppins" in choice:
             return "Poppins"
+        elif "Bahnschrift" in choice:
+            return "Bahnschrift"
+        elif "Impact" in choice:
+            return "Impact"
+        elif "Franklin" in choice:
+            return "Franklin Gothic Medium"
+        elif "Trebuchet" in choice:
+            return "Trebuchet MS"
+        elif "Georgia" in choice:
+            return "Georgia"
         elif "Segoe" in choice:
             return "Segoe UI"
         return "Montserrat"
@@ -419,7 +428,11 @@ class FloatingLyricsWidget(QWidget):
             if (
                 anim_type in PER_CHAR_ANIMS
                 and data.get("char_alphas")
-                and any(oy != 0.0 for oy in data.get("char_offsets_y", []))
+                and (
+                    any(oy != 0.0 for oy in data.get("char_offsets_y", []))
+                    or any(ox != 0.0 for ox in data.get("char_offsets_x", []))
+                    or any(rot != 0.0 for rot in data.get("char_rotations", []))
+                )
             ):
                 self._draw_per_char(
                     painter,
@@ -429,6 +442,7 @@ class FloatingLyricsWidget(QWidget):
                     data["char_offsets_y"],
                     data["char_alphas"],
                     data["char_scales"],
+                    data.get("char_rotations"),
                     in_alpha,
                     highlight_enabled,
                     highlight_color,
@@ -602,12 +616,13 @@ class FloatingLyricsWidget(QWidget):
         offsets_y: list,
         char_alphas: list,
         char_scales: list,
+        char_rotations: list | None,
         master_alpha: int,
         hl_enabled: bool,
         hl_color: QColor,
         hl_word_idx: int,
     ):
-        """Renders individual characters with exact kerning preservation."""
+        """Renders individual characters with O(N) kerning and 2D physics rotation."""
         total_w = metrics.horizontalAdvance(text)
         start_x = -total_w / 2.0
         baseline_y = (metrics.ascent() - metrics.descent()) / 2.0
@@ -619,13 +634,18 @@ class FloatingLyricsWidget(QWidget):
             hl_start = words[hl_word_idx][1]
             hl_end = words[hl_word_idx][2]
 
+        char_x_starts = [start_x]
+        for ch in text[:-1]:
+            char_x_starts.append(char_x_starts[-1] + metrics.horizontalAdvance(ch))
+
         for i, ch in enumerate(text):
             ch_w = metrics.horizontalAdvance(ch)
-            ch_x = start_x + metrics.horizontalAdvance(text[:i])
+            ch_x = char_x_starts[i]
             ca = char_alphas[i] if i < len(char_alphas) else 1.0
             ox = offsets_x[i] if i < len(offsets_x) else 0.0
             oy = offsets_y[i] if i < len(offsets_y) else 0.0
             cs = char_scales[i] if i < len(char_scales) else 1.0
+            rot = char_rotations[i] if (char_rotations and i < len(char_rotations)) else 0.0
             final_a = max(0, min(255, int(master_alpha * ca)))
 
             if hl_start <= i < hl_end:
@@ -635,10 +655,13 @@ class FloatingLyricsWidget(QWidget):
             else:
                 painter.setPen(QColor(255, 255, 255, final_a))
 
-            if cs != 1.0:
+            if cs != 1.0 or rot != 0.0:
                 painter.save()
                 painter.translate(ch_x + ch_w / 2.0 + ox, baseline_y + oy)
-                painter.scale(cs, cs)
+                if rot != 0.0:
+                    painter.rotate(rot)
+                if cs != 1.0:
+                    painter.scale(cs, cs)
                 painter.drawText(QPointF(-ch_w / 2.0, 0), ch)
                 painter.restore()
             else:
@@ -913,12 +936,50 @@ class FloatingLyricsWidget(QWidget):
 
         threading.Thread(target=_hotkey_worker, daemon=True).start()
 
+    def _ensure_topmost(self):
+        """Actively enforces HWND_TOPMOST and WS_EX_TOPMOST to prevent other apps from occluding the overlay."""
+        if not sys.platform.startswith("win"):
+            return
+        try:
+            hwnd = int(self.winId())
+            if not hwnd:
+                return
+            user32 = ctypes.windll.user32
+            GWL_EXSTYLE = -20
+            WS_EX_TOPMOST = 0x00000008
+            HWND_TOPMOST = wintypes.HWND(-1)
+            SWP_FLAGS = 0x0001 | 0x0002 | 0x0010 | 0x0040  # SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE | SWP_SHOWWINDOW
+
+            get_long = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
+            set_long = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
+            get_long.argtypes = [wintypes.HWND, ctypes.c_int]
+            get_long.restype = ctypes.c_ssize_t
+            set_long.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t]
+            set_long.restype = ctypes.c_ssize_t
+
+            style = get_long(wintypes.HWND(hwnd), GWL_EXSTYLE)
+            if not (style & WS_EX_TOPMOST):
+                set_long(wintypes.HWND(hwnd), GWL_EXSTYLE, style | WS_EX_TOPMOST)
+
+            user32.SetWindowPos(
+                wintypes.HWND(hwnd),
+                HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_FLAGS,
+            )
+        except (AttributeError, OSError, TypeError) as e:
+            logger.debug("[overlay] _ensure_topmost error: %s", e)
+
     def toggle_lock(self):
         self.is_locked = not self.is_locked
         if hasattr(self, "tray_lock_action") and self.tray_lock_action:
             self.tray_lock_action.setChecked(self.is_locked)
         hwnd = int(self.winId())
         self._set_window_clickthrough(hwnd, self.is_locked)
+        self._ensure_topmost()
 
     def _set_window_clickthrough(self, hwnd: int, clickthrough: bool):
         """Safely applies WS_EX_TRANSPARENT layered style with 64-bit pointer and frame refresh safety."""
@@ -927,9 +988,8 @@ class FloatingLyricsWidget(QWidget):
             GWL_EXSTYLE = -20
             WS_EX_LAYERED = 0x00080000
             WS_EX_TRANSPARENT = 0x00000020
-            SWP_FLAGS = (
-                0x0027  # SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
-            )
+            HWND_TOPMOST = wintypes.HWND(-1)
+            SWP_FLAGS = 0x0001 | 0x0002 | 0x0010 | 0x0020  # SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE | SWP_FRAMECHANGED
 
             get_long = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
             set_long = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
@@ -939,14 +999,14 @@ class FloatingLyricsWidget(QWidget):
             set_long.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t]
             set_long.restype = ctypes.c_ssize_t
 
-            current_style = get_long(hwnd, GWL_EXSTYLE)
+            current_style = get_long(wintypes.HWND(hwnd), GWL_EXSTYLE)
             if clickthrough:
                 new_style = current_style | WS_EX_LAYERED | WS_EX_TRANSPARENT
             else:
                 new_style = (current_style & ~WS_EX_TRANSPARENT) | WS_EX_LAYERED
 
-            set_long(hwnd, GWL_EXSTYLE, new_style)
-            user32.SetWindowPos(hwnd, None, 0, 0, 0, 0, SWP_FLAGS)
+            set_long(wintypes.HWND(hwnd), GWL_EXSTYLE, new_style)
+            user32.SetWindowPos(wintypes.HWND(hwnd), HWND_TOPMOST, 0, 0, 0, 0, SWP_FLAGS)
         except (AttributeError, OSError) as e:
             logger.debug("[overlay] set_clickthrough error: %s", e)
 
@@ -963,6 +1023,7 @@ class FloatingLyricsWidget(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
+        self._ensure_topmost()
         fps = int(self.settings.get("target_fps", 165))
         interval_ms = max(4, int(1000.0 / fps))
         if hasattr(self, "render_timer") and not self.render_timer.isActive():
@@ -1062,6 +1123,9 @@ class FloatingLyricsWidget(QWidget):
                 ).start()
                 return
 
+            self._topmost_tick = getattr(self, "_topmost_tick", 0) + 1
+            if self._topmost_tick % 4 == 0:
+                self._ensure_topmost()
             self._check_line_update(state)
         except (
             KeyError,
@@ -1119,6 +1183,7 @@ class FloatingLyricsWidget(QWidget):
                         anim_style=self.settings.get("animation_style", "all"),
                         word_times=getattr(current_line, "word_times", None),
                         word_durations=getattr(current_line, "word_durations", None),
+                        line_start_sec=current_line.time_sec,
                     )
             else:
                 self.current_line_text = ""
@@ -1164,6 +1229,7 @@ class FloatingLyricsWidget(QWidget):
                         anim_style=self.settings.get("animation_style", "all"),
                         word_times=getattr(current_line, "word_times", None),
                         word_durations=getattr(current_line, "word_durations", None),
+                        line_start_sec=current_line.time_sec,
                     )
                     self.update()
                     return

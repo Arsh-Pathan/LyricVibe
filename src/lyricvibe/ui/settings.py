@@ -64,7 +64,9 @@ try:
     import lyricvibe.utils.settings as settings_manager
     from lyricvibe.core.animation import (
         ANIMATION_CATALOG,
+        ANIMATION_CATEGORIES,
         FADE_ANIMS,
+        PER_CHAR_ANIMS,
         AnimationEngine,
     )
     from lyricvibe.core.paths import get_asset_path
@@ -79,7 +81,9 @@ except ImportError:
     import settings_manager
     from animation_engine import (
         ANIMATION_CATALOG,
+        ANIMATION_CATEGORIES,
         FADE_ANIMS,
+        PER_CHAR_ANIMS,
         AnimationEngine,
     )
     from settings_manager import (
@@ -355,6 +359,9 @@ class LivePreview(QWidget):
         "Saari jannatein mere paas ho",
         "I fell in love with a girl I met in hell",
         "Patta chanaron ka jaise havaon mein",
+        "Dancing under neon city lights tonight",
+        "Tere vaaste falak se main chaand laaunga",
+        "We found love in a hopeless place",
     ]
 
     def __init__(self, settings: dict, parent=None):
@@ -479,6 +486,21 @@ class LivePreview(QWidget):
         elif "Poppins" in font_choice:
             fam = "Poppins"
             weight = QFont.Weight.Bold
+        elif "Bahnschrift" in font_choice:
+            fam = "Bahnschrift"
+            weight = QFont.Weight.Bold
+        elif "Impact" in font_choice:
+            fam = "Impact"
+            weight = QFont.Weight.Bold
+        elif "Franklin" in font_choice:
+            fam = "Franklin Gothic Medium"
+            weight = QFont.Weight.Bold
+        elif "Trebuchet" in font_choice:
+            fam = "Trebuchet MS"
+            weight = QFont.Weight.Bold
+        elif "Georgia" in font_choice:
+            fam = "Georgia"
+            weight = QFont.Weight.Bold
         elif "Segoe" in font_choice:
             fam = "Segoe UI"
             weight = QFont.Weight.Bold
@@ -595,9 +617,62 @@ class LivePreview(QWidget):
             if data["curr_scale"] != 1.0:
                 p.scale(data["curr_scale"], data["curr_scale"])
 
+            anim_type = data.get("anim_type", "")
             words = self._get_word_spans(curr_text)
+            hl_start = -1
+            hl_end = -1
+            if hl_enabled and 0 <= hl_idx < len(words):
+                hl_start = words[hl_idx][1]
+                hl_end = words[hl_idx][2]
 
-            if not hl_enabled or hl_idx < 0 or hl_idx >= len(words):
+            if (
+                anim_type in PER_CHAR_ANIMS
+                and data.get("char_alphas")
+                and (
+                    any(oy != 0.0 for oy in data.get("char_offsets_y", []))
+                    or any(ox != 0.0 for ox in data.get("char_offsets_x", []))
+                    or any(rot != 0.0 for rot in data.get("char_rotations", []))
+                )
+            ):
+                offsets_x = data.get("char_offsets_x", [])
+                offsets_y = data.get("char_offsets_y", [])
+                char_alphas = data.get("char_alphas", [])
+                char_scales = data.get("char_scales", [])
+                char_rotations = data.get("char_rotations", [])
+
+                char_x_starts = [start_x]
+                for ch in curr_text[:-1]:
+                    char_x_starts.append(char_x_starts[-1] + metrics.horizontalAdvance(ch))
+
+                for i, ch in enumerate(curr_text):
+                    ch_w = metrics.horizontalAdvance(ch)
+                    ch_x = char_x_starts[i]
+                    ca = char_alphas[i] if i < len(char_alphas) else 1.0
+                    ox = offsets_x[i] if i < len(offsets_x) else 0.0
+                    oy = offsets_y[i] if i < len(offsets_y) else 0.0
+                    cs = char_scales[i] if i < len(char_scales) else 1.0
+                    rot = char_rotations[i] if (char_rotations and i < len(char_rotations)) else 0.0
+                    final_a = max(0, min(255, int(in_alpha * ca)))
+
+                    if hl_start <= i < hl_end:
+                        p.setPen(
+                            QColor(hl_color.red(), hl_color.green(), hl_color.blue(), final_a)
+                        )
+                    else:
+                        p.setPen(QColor(255, 255, 255, final_a))
+
+                    if cs != 1.0 or rot != 0.0:
+                        p.save()
+                        p.translate(ch_x + ch_w / 2.0 + ox, baseline_y + oy)
+                        if rot != 0.0:
+                            p.rotate(rot)
+                        if cs != 1.0:
+                            p.scale(cs, cs)
+                        p.drawText(QPointF(-ch_w / 2.0, 0), ch)
+                        p.restore()
+                    else:
+                        p.drawText(QPointF(ch_x + ox, baseline_y + oy), ch)
+            elif not hl_enabled or hl_idx < 0 or hl_idx >= len(words):
                 p.setPen(QColor(255, 255, 255, in_alpha))
                 p.drawText(QPointF(start_x, baseline_y), curr_text)
             else:
@@ -929,16 +1004,17 @@ class SettingsDialog(QDialog):
 
         h_lay.addStretch()
 
-        status_pill = QLabel("● Active")
-        status_pill.setStyleSheet(f"""
-            color: {MD3.ACCENT_GREEN};
-            background-color: {MD3.ACCENT_GREEN_BG};
-            font-size: 12px;
+        ver_pill = QLabel("v1.1.0")
+        ver_pill.setStyleSheet(f"""
+            color: {MD3.ON_SURFACE_VARIANT};
+            background-color: {MD3.SURFACE_CONTAINER_HIGH};
+            font-size: 11px;
             font-weight: 600;
-            padding: 4px 12px;
-            border-radius: 12px;
+            padding: 4px 10px;
+            border-radius: 8px;
+            border: 1px solid {MD3.OUTLINE_VARIANT};
         """)
-        h_lay.addWidget(status_pill)
+        h_lay.addWidget(ver_pill)
 
         root.addWidget(header)
 
@@ -1116,19 +1192,17 @@ class SettingsDialog(QDialog):
             [
                 "7clouds Signature (Edo SZ)",
                 "7clouds Modern (Montserrat Black)",
-                "Clean Bold (Poppins)",
+                "Poppins Bold (Modern Geometric)",
+                "Bahnschrift Bold (DIN Geometric)",
+                "Impact Classic (Bold Poster)",
+                "Franklin Gothic (Vintage Headline)",
+                "Trebuchet Bold (Dynamic Modern)",
+                "Georgia Bold (Editorial Serif)",
                 "System Clean (Segoe UI)",
             ]
         )
         cur_font = self.settings.get("font_family", "7clouds Signature (Edo SZ)")
-        idx = 0
-        if "Montserrat" in cur_font or "Modern" in cur_font:
-            idx = 1
-        elif "Poppins" in cur_font:
-            idx = 2
-        elif "Segoe" in cur_font:
-            idx = 3
-        self.combo_font.setCurrentIndex(idx)
+        self.combo_font.setCurrentIndex(self._find_font_combo_index(cur_font))
         self.combo_font.currentIndexChanged.connect(self._on_font_changed)
         row_font.add_control(self.combo_font)
         typo_card.add_row(row_font)
@@ -1194,6 +1268,73 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(content)
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(16)
+
+        # Live Effects Studio Preview
+        preview_card = SectionCard("Live Effects Studio")
+        self.effects_preview = LivePreview(self.settings)
+        preview_card.add_row(self.effects_preview)
+
+        # Interactive Animation Explorer
+        p_ctrls = QWidget()
+        p_c_lay = QHBoxLayout(p_ctrls)
+        p_c_lay.setContentsMargins(18, 6, 18, 12)
+        p_c_lay.setSpacing(10)
+
+        self.combo_cat_filter = QComboBox()
+        self.combo_cat_filter.wheelEvent = lambda event: event.ignore()
+        self.combo_cat_filter.addItem("Category: All (72+)", "all")
+        self.combo_cat_filter.addItem("Category: Smooth (14)", "smooth")
+        self.combo_cat_filter.addItem("Category: Kinetic (18)", "kinetic")
+        self.combo_cat_filter.addItem("Category: Vocal (12)", "vocal")
+        self.combo_cat_filter.addItem("Category: Cinematic (16)", "cinematic")
+        self.combo_cat_filter.addItem("Category: Per-Character (12)", "per_char")
+        self.combo_cat_filter.addItem("Category: Rare & Experimental (6)", "rare")
+
+        self.combo_fx_anim = QComboBox()
+        self.combo_fx_anim.wheelEvent = lambda event: event.ignore()
+
+        self._populate_anim_combo("all")
+
+        def _on_cat_filter_changed(idx):
+            cat = self.combo_cat_filter.currentData()
+            self._populate_anim_combo(cat)
+            self.effects_preview.trigger_animation(self.combo_fx_anim.currentData())
+
+        self.combo_cat_filter.currentIndexChanged.connect(_on_cat_filter_changed)
+        self.combo_fx_anim.currentIndexChanged.connect(
+            lambda: self.effects_preview.trigger_animation(
+                self.combo_fx_anim.currentData()
+            )
+        )
+
+        p_c_lay.addWidget(self.combo_cat_filter)
+        p_c_lay.addWidget(self.combo_fx_anim, 1)
+
+        btn_replay = QPushButton("▶ Replay")
+        btn_replay.setStyleSheet(f"""
+            QPushButton {{
+                background: {MD3.PRIMARY_CONTAINER};
+                color: {MD3.ON_PRIMARY_CONTAINER};
+                font-weight: 600;
+                font-size: 12px;
+                border-radius: 14px;
+                padding: 6px 16px;
+                border: none;
+            }}
+            QPushButton:hover {{
+                background: #255BB3;
+            }}
+        """)
+        btn_replay.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_replay.clicked.connect(
+            lambda: self.effects_preview.trigger_animation(
+                self.combo_fx_anim.currentData()
+            )
+        )
+        p_c_lay.addWidget(btn_replay)
+
+        preview_card.add_row(p_ctrls)
+        layout.addWidget(preview_card)
 
         fx_card = SectionCard("Visual Effects & Motion Blur Physics")
 
@@ -1354,6 +1495,7 @@ class SettingsDialog(QDialog):
         self.combo_anim_style.addItem("Kinetic & Snappy Motion", "kinetic")
         self.combo_anim_style.addItem("Cinematic & Expressive 3D", "cinematic")
         self.combo_anim_style.addItem("Vocal & Lyric Flow", "vocal")
+        self.combo_anim_style.addItem("Rare & Experimental (Burst, Fall, Vortex)", "rare")
 
         cur_style = self.settings.get("animation_style", "all")
         for i in range(self.combo_anim_style.count()):
@@ -1483,7 +1625,25 @@ class SettingsDialog(QDialog):
         layout.setContentsMargins(18, 16, 18, 16)
         layout.setSpacing(14)
 
-        card = SectionCard("One-Click Presets")
+        # Preset Studio Live Preview
+        preview_card = SectionCard("Preset Studio Live Preview")
+        self.preset_preview = LivePreview(self.settings)
+        preview_card.add_row(self.preset_preview)
+
+        banner = QLabel(
+            "Click 'Preview' on any preset to test it live on the canvas, or 'Apply' to save."
+        )
+        banner.setStyleSheet(f"""
+            color: {MD3.ON_SURFACE_VARIANT};
+            font-size: 12px;
+            font-style: italic;
+            padding: 4px 20px 10px 20px;
+            background: transparent;
+        """)
+        preview_card.add_row(banner)
+        layout.addWidget(preview_card)
+
+        card = SectionCard("Curated Aesthetic Presets (16 Styles)")
 
         presets = [
             (
@@ -1498,6 +1658,8 @@ class SettingsDialog(QDialog):
                     "highlight_mode": "per_song",
                     "highlight_color": "#1DB954",
                     "animation_style": "all",
+                    "motion_blur_enabled": True,
+                    "motion_blur_intensity": 1.4,
                     "target_fps": 165,
                     "sync_offset_sec": 0.20,
                 },
@@ -1549,6 +1711,7 @@ class SettingsDialog(QDialog):
                     "highlight_mode": "fixed",
                     "highlight_color": "#C084FC",
                     "animation_style": "smooth",
+                    "motion_blur_enabled": False,
                     "target_fps": 165,
                     "sync_offset_sec": 0.20,
                 },
@@ -1583,6 +1746,8 @@ class SettingsDialog(QDialog):
                     "highlight_mode": "fixed",
                     "highlight_color": "#FFD600",
                     "animation_style": "cinematic",
+                    "motion_blur_enabled": True,
+                    "motion_blur_intensity": 1.2,
                     "target_fps": 165,
                     "sync_offset_sec": 0.20,
                 },
@@ -1622,6 +1787,148 @@ class SettingsDialog(QDialog):
                     "sync_offset_sec": 0.20,
                 },
             ),
+            (
+                "Synthwave Sunset",
+                "Industrial DIN geometry (Bahnschrift) with neon hot magenta highlights and kinetic pulse",
+                {
+                    "font_family": "Bahnschrift Bold (DIN Geometric)",
+                    "font_size": 42,
+                    "hand_drawn_underline_enabled": True,
+                    "highlight_enabled": True,
+                    "highlight_block_enabled": False,
+                    "highlight_mode": "fixed",
+                    "highlight_color": "#FF2A85",
+                    "animation_style": "kinetic",
+                    "motion_blur_enabled": True,
+                    "motion_blur_intensity": 1.7,
+                    "target_fps": 165,
+                    "sync_offset_sec": 0.20,
+                },
+            ),
+            (
+                "Nordic Frost",
+                "Crisp high-contrast sans (Montserrat Black) with glacial ice cyan highlights and crystal float",
+                {
+                    "font_family": "7clouds Modern (Montserrat Black)",
+                    "font_size": 42,
+                    "hand_drawn_underline_enabled": False,
+                    "highlight_enabled": True,
+                    "highlight_block_enabled": False,
+                    "highlight_mode": "fixed",
+                    "highlight_color": "#38BDF8",
+                    "animation_style": "smooth",
+                    "motion_blur_enabled": True,
+                    "motion_blur_intensity": 1.2,
+                    "target_fps": 165,
+                    "sync_offset_sec": 0.20,
+                },
+            ),
+            (
+                "Obsidian Gold",
+                "Heavyweight poster typography (Impact) paired with radiant champagne gold and slow cinematic entrance",
+                {
+                    "font_family": "Impact Classic (Bold Poster)",
+                    "font_size": 44,
+                    "hand_drawn_underline_enabled": True,
+                    "highlight_enabled": True,
+                    "highlight_block_enabled": False,
+                    "highlight_mode": "fixed",
+                    "highlight_color": "#FBBF24",
+                    "animation_style": "cinematic",
+                    "motion_blur_enabled": True,
+                    "motion_blur_intensity": 1.4,
+                    "target_fps": 165,
+                    "sync_offset_sec": 0.20,
+                },
+            ),
+            (
+                "Hyperpop Glitch",
+                "Vintage American headline typography (Franklin Gothic) with radioactive lime and high-speed energy",
+                {
+                    "font_family": "Franklin Gothic (Vintage Headline)",
+                    "font_size": 42,
+                    "hand_drawn_underline_enabled": True,
+                    "highlight_enabled": True,
+                    "highlight_block_enabled": False,
+                    "highlight_mode": "fixed",
+                    "highlight_color": "#A3E635",
+                    "animation_style": "kinetic",
+                    "motion_blur_enabled": True,
+                    "motion_blur_intensity": 2.2,
+                    "target_fps": 165,
+                    "sync_offset_sec": 0.20,
+                },
+            ),
+            (
+                "Lo-Fi Cafe",
+                "Warm humanist typography (Trebuchet) with toasted caramel amber highlights and gentle rises",
+                {
+                    "font_family": "Trebuchet Bold (Dynamic Modern)",
+                    "font_size": 40,
+                    "hand_drawn_underline_enabled": True,
+                    "highlight_enabled": True,
+                    "highlight_block_enabled": False,
+                    "highlight_mode": "fixed",
+                    "highlight_color": "#FB923C",
+                    "animation_style": "smooth",
+                    "motion_blur_enabled": False,
+                    "target_fps": 144,
+                    "sync_offset_sec": 0.20,
+                },
+            ),
+            (
+                "Deep Amethyst",
+                "Modern round sans (Poppins Bold) with royal velvet violet highlights and nebula bloom",
+                {
+                    "font_family": "Poppins Bold (Modern Geometric)",
+                    "font_size": 42,
+                    "hand_drawn_underline_enabled": True,
+                    "highlight_enabled": True,
+                    "highlight_block_enabled": False,
+                    "highlight_mode": "fixed",
+                    "highlight_color": "#8B5CF6",
+                    "animation_style": "cinematic",
+                    "motion_blur_enabled": True,
+                    "motion_blur_intensity": 1.5,
+                    "target_fps": 165,
+                    "sync_offset_sec": 0.20,
+                },
+            ),
+            (
+                "Sakura Blossom",
+                "Classical editorial serif (Georgia) with gentle cherry blossom pink highlights and subtle drift",
+                {
+                    "font_family": "Georgia Bold (Editorial Serif)",
+                    "font_size": 40,
+                    "hand_drawn_underline_enabled": True,
+                    "highlight_enabled": True,
+                    "highlight_block_enabled": False,
+                    "highlight_mode": "fixed",
+                    "highlight_color": "#F472B6",
+                    "animation_style": "smooth",
+                    "motion_blur_enabled": False,
+                    "target_fps": 144,
+                    "sync_offset_sec": 0.20,
+                },
+            ),
+            (
+                "Electric Oceanic",
+                "DIN precision typography (Bahnschrift) with deep seafoam turquoise highlights and wave physics",
+                {
+                    "font_family": "Bahnschrift Bold (DIN Geometric)",
+                    "font_size": 42,
+                    "hand_drawn_underline_enabled": True,
+                    "highlight_enabled": True,
+                    "highlight_block_enabled": False,
+                    "highlight_mode": "fixed",
+                    "highlight_color": "#2DD4BF",
+                    "animation_style": "cinematic",
+                    "motion_blur_enabled": True,
+                    "motion_blur_intensity": 1.7,
+                    "target_fps": 165,
+                    "sync_offset_sec": 0.20,
+                },
+            ),
         ]
 
         for title, desc, preset_dict in presets:
@@ -1630,13 +1937,29 @@ class SettingsDialog(QDialog):
             r_lay.setContentsMargins(20, 12, 20, 12)
             r_lay.setSpacing(14)
 
+            preset_hl = preset_dict.get("highlight_color", "#1DB954")
+            color_dot = QLabel()
+            color_dot.setFixedSize(14, 14)
+            color_dot.setStyleSheet(f"""
+                background-color: {preset_hl};
+                border-radius: 7px;
+                border: 1px solid rgba(255, 255, 255, 0.3);
+            """)
+
             text_box = QVBoxLayout()
             text_box.setSpacing(2)
+
+            t_row = QHBoxLayout()
+            t_row.setSpacing(8)
+            t_row.addWidget(color_dot)
+
             p_title = QLabel(title)
             p_title.setStyleSheet(
                 f"color: {MD3.ON_SURFACE}; font-size: 14px; font-weight: 600; background: transparent; border: none;"
             )
-            text_box.addWidget(p_title)
+            t_row.addWidget(p_title)
+            t_row.addStretch()
+            text_box.addLayout(t_row)
 
             p_desc = QLabel(desc)
             p_desc.setStyleSheet(
@@ -1646,8 +1969,27 @@ class SettingsDialog(QDialog):
             text_box.addWidget(p_desc)
             r_lay.addLayout(text_box, 1)
 
-            btn = QPushButton("Apply")
-            btn.setStyleSheet(f"""
+            btn_prev = QPushButton("Preview")
+            btn_prev.setStyleSheet(f"""
+                QPushButton {{
+                    background: {MD3.SURFACE_CONTAINER_HIGH};
+                    color: {MD3.ON_SURFACE};
+                    font-weight: 500;
+                    font-size: 12px;
+                    border-radius: 14px;
+                    padding: 6px 14px;
+                    border: 1px solid {MD3.OUTLINE_VARIANT};
+                }}
+                QPushButton:hover {{
+                    background: {MD3.SURFACE_CONTAINER_MAX};
+                }}
+            """)
+            btn_prev.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_prev.clicked.connect(lambda _, d=preset_dict: self._preview_preset(d))
+            r_lay.addWidget(btn_prev)
+
+            btn_apply = QPushButton("Apply")
+            btn_apply.setStyleSheet(f"""
                 QPushButton {{
                     background: {MD3.PRIMARY_CONTAINER};
                     color: {MD3.ON_PRIMARY_CONTAINER};
@@ -1661,9 +2003,9 @@ class SettingsDialog(QDialog):
                     background: #255BB3;
                 }}
             """)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.clicked.connect(lambda _, d=preset_dict: self._apply_preset(d))
-            r_lay.addWidget(btn)
+            btn_apply.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_apply.clicked.connect(lambda _, d=preset_dict: self._apply_preset(d))
+            r_lay.addWidget(btn_apply)
 
             card.add_row(row)
             card.add_separator()
@@ -1826,6 +2168,10 @@ class SettingsDialog(QDialog):
             settings_manager.save_settings(self.settings)
             if hasattr(self, "preview_widget"):
                 self.preview_widget.update_settings(self.settings)
+            if hasattr(self, "preset_preview"):
+                self.preset_preview.update_settings(self.settings)
+            if hasattr(self, "effects_preview"):
+                self.effects_preview.update_settings(self.settings)
             self.settings_changed.emit(self.settings)
         except (KeyError, ValueError, TypeError, AttributeError, OSError) as e:
             logger.debug("[settings] _update_and_sync error: %s", e)
@@ -1833,6 +2179,12 @@ class SettingsDialog(QDialog):
     def _on_font_changed(self, idx):
         choice = self.combo_font.currentText()
         self._update_and_sync("font_family", choice)
+        if hasattr(self, "preview_widget"):
+            self.preview_widget.trigger_animation()
+        if hasattr(self, "preset_preview"):
+            self.preset_preview.trigger_animation()
+        if hasattr(self, "effects_preview"):
+            self.effects_preview.trigger_animation()
 
     def _on_slider_size_changed(self, val: int):
         self._update_and_sync("font_size", val)
@@ -1857,28 +2209,89 @@ class SettingsDialog(QDialog):
         set_autostart_enabled(checked)
         self._update_and_sync("autostart_enabled", checked)
 
+    def _find_font_combo_index(self, target: str) -> int:
+        target_clean = (target or "").lower().strip()
+        for i in range(self.combo_font.count()):
+            if self.combo_font.itemText(i).lower().strip() == target_clean:
+                return i
+        font_identifiers = [
+            "edo",
+            "montserrat",
+            "poppins",
+            "bahnschrift",
+            "impact",
+            "franklin",
+            "trebuchet",
+            "georgia",
+            "segoe",
+        ]
+        for ident in font_identifiers:
+            if ident in target_clean:
+                for i in range(self.combo_font.count()):
+                    if ident in self.combo_font.itemText(i).lower():
+                        return i
+        for i in range(self.combo_font.count()):
+            txt = self.combo_font.itemText(i).lower()
+            if target_clean in txt or txt in target_clean:
+                return i
+        return 0
+
+    def _populate_anim_combo(self, category="all"):
+        if not hasattr(self, "combo_fx_anim"):
+            return
+        self.combo_fx_anim.blockSignals(True)
+        self.combo_fx_anim.clear()
+        self.combo_fx_anim.addItem("Random Pick from Category", "")
+        cat = (category or "all").lower()
+        if cat == "all":
+            anims = [name for name, _ in ANIMATION_CATALOG]
+        else:
+            anims = ANIMATION_CATEGORIES.get(
+                cat, [name for name, _ in ANIMATION_CATALOG]
+            )
+        for name in anims:
+            clean_name = name.replace("_", " ").title()
+            self.combo_fx_anim.addItem(clean_name, name)
+        self.combo_fx_anim.blockSignals(False)
+
+    def _filter_animation_category(self, category: str):
+        cat = (category or "all").lower()
+        if hasattr(self, "combo_cat_filter"):
+            for i in range(self.combo_cat_filter.count()):
+                if self.combo_cat_filter.itemData(i).lower() == cat:
+                    self.combo_cat_filter.setCurrentIndex(i)
+                    return
+        self._populate_anim_combo(cat)
+
+    def _preview_preset(self, preset: dict):
+        """Immediately displays preset styles and animations on all active preview canvases."""
+        if hasattr(self, "preset_preview"):
+            self.preset_preview.update_settings(preset)
+            self.preset_preview.trigger_animation(preset.get("animation_style", "all"))
+        if hasattr(self, "preview_widget"):
+            self.preview_widget.update_settings(preset)
+            self.preview_widget.trigger_animation(preset.get("animation_style", "all"))
+        if hasattr(self, "effects_preview"):
+            self.effects_preview.update_settings(preset)
+            self.effects_preview.trigger_animation(preset.get("animation_style", "all"))
+
     def _apply_preset(self, preset: dict):
         try:
             self.settings.update(preset)
             settings_manager.save_settings(self.settings)
 
-            if "font_size" in preset:
+            if "font_size" in preset and hasattr(self, "slider_size"):
                 self.slider_size.setValue(preset["font_size"])
-            if "overlay_y" in preset:
+            if "overlay_y" in preset and hasattr(self, "slider_y"):
                 self.slider_y.setValue(preset["overlay_y"])
-            if "font_family" in preset:
-                fam = preset["font_family"]
-                idx = 0
-                if "Montserrat" in fam or "Modern" in fam:
-                    idx = 1
-                elif "Poppins" in fam:
-                    idx = 2
-                elif "Segoe" in fam:
-                    idx = 3
+            if "font_family" in preset and hasattr(self, "combo_font"):
+                idx = self._find_font_combo_index(preset["font_family"])
                 self.combo_font.setCurrentIndex(idx)
-            if "hand_drawn_underline_enabled" in preset:
+            if "hand_drawn_underline_enabled" in preset and hasattr(
+                self, "toggle_underline"
+            ):
                 self.toggle_underline.setChecked(preset["hand_drawn_underline_enabled"])
-            if "highlight_enabled" in preset:
+            if "highlight_enabled" in preset and hasattr(self, "toggle_highlight"):
                 self.toggle_highlight.setChecked(preset["highlight_enabled"])
             if "motion_blur_enabled" in preset and hasattr(self, "toggle_motion_blur"):
                 self.toggle_motion_blur.setChecked(preset["motion_blur_enabled"])
@@ -1886,7 +2299,7 @@ class SettingsDialog(QDialog):
                 self.slider_blur.setValue(
                     int(float(preset["motion_blur_intensity"]) * 10)
                 )
-            if "highlight_color" in preset:
+            if "highlight_color" in preset and hasattr(self, "color_swatch"):
                 self.color_swatch.setColor(preset["highlight_color"])
             if "highlight_mode" in preset and hasattr(self, "combo_hl_mode"):
                 if preset["highlight_mode"] == "per_song":
@@ -1899,7 +2312,7 @@ class SettingsDialog(QDialog):
                         ):
                             self.combo_hl_mode.setCurrentIndex(i)
                             break
-            if "target_fps" in preset:
+            if "target_fps" in preset and hasattr(self, "combo_fps"):
                 fps_map = {60: 0, 120: 1, 144: 2, 165: 3, 240: 4}
                 self.combo_fps.setCurrentIndex(fps_map.get(preset["target_fps"], 3))
             if "animation_style" in preset and hasattr(self, "combo_anim_style"):
@@ -1911,6 +2324,13 @@ class SettingsDialog(QDialog):
 
             if hasattr(self, "preview_widget"):
                 self.preview_widget.update_settings(self.settings)
+                self.preview_widget.trigger_animation()
+            if hasattr(self, "preset_preview"):
+                self.preset_preview.update_settings(self.settings)
+                self.preset_preview.trigger_animation()
+            if hasattr(self, "effects_preview"):
+                self.effects_preview.update_settings(self.settings)
+                self.effects_preview.trigger_animation()
             self.settings_changed.emit(self.settings)
         except (KeyError, ValueError, TypeError, AttributeError, OSError) as e:
             logger.debug("[settings] _apply_preset error: %s", e)
