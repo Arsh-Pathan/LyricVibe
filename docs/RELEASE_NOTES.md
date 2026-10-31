@@ -7,10 +7,13 @@
   - Added native Windows installer (`LyricVibe-Setup-v1.1.0.exe`) created with Inno Setup 6.
   - Guided setup wizard with options for Desktop shortcut, Start Menu folder, Windows Startup integration, and clean uninstaller registered in Windows Add/Remove programs.
   - Per-user and system-wide installation support without requiring elevation.
-- **Expanded 72+ Dynamic Animations Suite**:
+- **Expanded 72+ Dynamic Animations Suite & Motion Personality Switcher**:
   - Expanded catalog from 55+ to 72+ animations with custom mathematical easing functions.
   - 15 new animations: `aurora_shimmer`, `nebula_bloom`, `horizon_dawn`, `starlight_glimmer`, `whip_pan_left`, `whip_pan_right`, `bass_drop_shake`, `hyper_zoom`, `laser_etch`, `neon_flicker`, `parabolic_arc`, `prism_refract`, `card_flip_3d`, `isometric_slide`, and `cinema_scope_unfold`.
   - Atmospheric fade animations (`aurora_shimmer`, `nebula_bloom`, `horizon_dawn`, `starlight_glimmer`) integrated into zero-blur transition physics.
+  - Added Animation Motion Style preference in Settings (Dynamic Mix, Silky Smooth Fades, Kinetic & Snappy, Cinematic & Expressive 3D, and Vocal & Lyric Flow).
+- **8 Curated One-Click Style Presets**:
+  - Added dedicated one-click aesthetic style presets in Settings: 7clouds Signature, Cyberpunk Neon, Midnight Emerald, Aesthetic Dream, Crimson Bass, Golden Hour, Tokyo Drift, and Minimalist Pure.
 - **Multi-Script Transliteration Suite**:
   - Full native phonetic transliteration for Devanagari (Hindi), Perso-Arabic (Urdu), Gurmukhi (Punjabi), Bengali, Gujarati, Tamil, and Telugu into Latin Roman text.
   - Zero-width character and bidi formatter filtering (ZWNJ, ZWJ, LRM, RLM, BOM) to prevent missing glyph rectangle boxes in brush fonts.
@@ -30,7 +33,7 @@
   - Screen boundary clamping keeps the overlay within viewable display bounds across monitor moves and resolution drops.
   - Dynamic `windowHandle().screenChanged` listener for multi-display setups.
 - **Durability & Stress Test Suite**:
-  - 90 unit tests validating LRU bounded caches, multi-hour continuous playback, easing calculations, and thread safety.
+  - 93 unit tests validating LRU bounded caches, multi-hour continuous playback, animation categories, easing calculations, and thread safety.
 
 ---
 

@@ -363,6 +363,7 @@ class LivePreview(QWidget):
         self.setFixedHeight(180)
 
         self.engine = AnimationEngine()
+        self.engine.anim_style = str(self.settings.get("animation_style", "all"))
         self._line_idx = 0
         self._current_anim_choice = ""
         self._color_idx = 0
@@ -381,7 +382,9 @@ class LivePreview(QWidget):
     def trigger_animation(self, anim_name: str = ""):
         self._current_anim_choice = anim_name
         text = self.PREVIEW_LINES[self._line_idx]
-        self.engine.trigger_line(text, 3.8, anim_name)
+        self.engine.trigger_line(
+            text, 3.8, anim_name, anim_style=self.engine.anim_style
+        )
         self.update()
 
     def next_line(self):
@@ -389,10 +392,13 @@ class LivePreview(QWidget):
         text = self.PREVIEW_LINES[self._line_idx]
         # Simulate new song change by picking next distinct ultra-bright color
         self._color_idx = (self._color_idx + 1) % len(BRIGHT_HIGHLIGHT_HEX_LIST)
-        self.engine.trigger_line(text, 3.8, self._current_anim_choice)
+        self.engine.trigger_line(
+            text, 3.8, self._current_anim_choice, anim_style=self.engine.anim_style
+        )
 
     def update_settings(self, settings: dict):
         self.settings.update(settings)
+        self.engine.anim_style = str(self.settings.get("animation_style", "all"))
         self._word_span_cache.clear()
         self.update()
 
@@ -1031,7 +1037,7 @@ class SettingsDialog(QDialog):
 
         self.combo_test_anim = QComboBox()
         self.combo_test_anim.wheelEvent = lambda event: event.ignore()
-        self.combo_test_anim.addItem("Random 55+ Animations", "")
+        self.combo_test_anim.addItem("Random 72+ Animations", "")
         for name, _ in ANIMATION_CATALOG:
             clean_name = name.replace("_", " ").title()
             self.combo_test_anim.addItem(f"Test: {clean_name}", name)
@@ -1322,15 +1328,44 @@ class SettingsDialog(QDialog):
         self.toggle_autostart.toggled.connect(self._on_autostart_toggled)
         row_autostart.add_control(self.toggle_autostart)
         fx_card.add_row(row_autostart)
+        fx_card.add_separator()
+
+        # Animation Motion Style Preference
+        row_anim_style = SettingRow(
+            "Animation Motion Style",
+            "Choose your preferred easing physics and visual movement personality",
+        )
+        self.combo_anim_style = QComboBox()
+        self.combo_anim_style.wheelEvent = lambda event: event.ignore()
+        self.combo_anim_style.addItem("Dynamic Mix (All 72+ Animations)", "all")
+        self.combo_anim_style.addItem("Silky Smooth Fades & Dissolves", "smooth")
+        self.combo_anim_style.addItem("Kinetic & Snappy Motion", "kinetic")
+        self.combo_anim_style.addItem("Cinematic & Expressive 3D", "cinematic")
+        self.combo_anim_style.addItem("Vocal & Lyric Flow", "vocal")
+
+        cur_style = self.settings.get("animation_style", "all")
+        for i in range(self.combo_anim_style.count()):
+            if self.combo_anim_style.itemData(i) == cur_style:
+                self.combo_anim_style.setCurrentIndex(i)
+                break
+
+        def _on_anim_style_changed(idx):
+            val = self.combo_anim_style.itemData(idx)
+            self._update_and_sync("animation_style", val)
+
+        self.combo_anim_style.currentIndexChanged.connect(_on_anim_style_changed)
+        row_anim_style.add_control(self.combo_anim_style)
+        fx_card.add_row(row_anim_style)
 
         layout.addWidget(fx_card)
 
-        # 55+ Animations Showcase Card
-        anim_card = SectionCard("55+ Dynamic Animations & Smooth Physics")
+        # 72+ Animations Showcase Card
+        anim_card = SectionCard("72+ Dynamic Animations & Smooth Physics")
         anim_info = QLabel(
             "<b>Smooth Fade & Continuous 165Hz Physics:</b><br>"
-            "Whisper dissolve, silky crossfades, luminous drift, cinematic rise, "
-            "kinetic snaps, and gentle elastic springs interpolating continuously at sub-millisecond precision.<br><br>"
+            "Whisper dissolve, silky crossfades, aurora shimmer, nebula bloom, horizon dawn, "
+            "whip pans, bass drop shake, hyper zoom, prism refract, 3D card flips, "
+            "and gentle elastic springs interpolating continuously at 165Hz sub-millisecond precision.<br><br>"
             "<b>Aesthetic Smooth Soft Colors (Per-Song Rotation):</b><br>"
             "Every song is automatically assigned a distinct, vibrant, smooth soft color (Mint Emerald, "
             "Electric Cyan, Lavender Lilac, Coral Rose, Golden Canary, Sky Azure, Bubblegum Pink, etc.) "
@@ -1447,9 +1482,45 @@ class SettingsDialog(QDialog):
                     "font_size": 42,
                     "hand_drawn_underline_enabled": True,
                     "highlight_enabled": True,
-                    "highlight_block_enabled": True,
+                    "highlight_block_enabled": False,
                     "highlight_mode": "per_song",
-                    "highlight_color": "#2EE59D",
+                    "highlight_color": "#1DB954",
+                    "animation_style": "all",
+                    "target_fps": 165,
+                    "sync_offset_sec": 0.20,
+                },
+            ),
+            (
+                "Cyberpunk Neon",
+                "Modern sans-serif (Montserrat Black) with electric cyan, kinetic whip pans, and motion blur",
+                {
+                    "font_family": "7clouds Modern (Montserrat Black)",
+                    "font_size": 42,
+                    "hand_drawn_underline_enabled": True,
+                    "highlight_enabled": True,
+                    "highlight_block_enabled": False,
+                    "highlight_mode": "fixed",
+                    "highlight_color": "#00E5FF",
+                    "animation_style": "kinetic",
+                    "motion_blur_enabled": True,
+                    "motion_blur_intensity": 1.8,
+                    "target_fps": 165,
+                    "sync_offset_sec": 0.20,
+                },
+            ),
+            (
+                "Midnight Emerald",
+                "Signature brush typography paired with Spotify deep emerald tones and smooth dissolves",
+                {
+                    "font_family": "7clouds Signature (Edo SZ)",
+                    "font_size": 42,
+                    "hand_drawn_underline_enabled": True,
+                    "highlight_enabled": True,
+                    "highlight_block_enabled": False,
+                    "highlight_mode": "fixed",
+                    "highlight_color": "#0E8A42",
+                    "animation_style": "smooth",
+                    "motion_blur_enabled": False,
                     "target_fps": 165,
                     "sync_offset_sec": 0.20,
                 },
@@ -1462,37 +1533,79 @@ class SettingsDialog(QDialog):
                     "font_size": 40,
                     "hand_drawn_underline_enabled": True,
                     "highlight_enabled": True,
-                    "highlight_block_enabled": True,
-                    "highlight_mode": "per_song",
+                    "highlight_block_enabled": False,
+                    "highlight_mode": "fixed",
                     "highlight_color": "#C084FC",
+                    "animation_style": "smooth",
                     "target_fps": 165,
                     "sync_offset_sec": 0.20,
                 },
             ),
             (
-                "7clouds Modern",
-                "Ultra-bold sans-serif (Montserrat Black) with smooth whisper dissolve and electric cyan",
+                "Crimson Bass",
+                "Geometric Poppins typography with crimson punch, bass drop shake, and high-impact momentum",
                 {
-                    "font_family": "7clouds Modern (Montserrat Black)",
+                    "font_family": "Poppins Bold (Modern Geometric)",
                     "font_size": 42,
                     "hand_drawn_underline_enabled": True,
                     "highlight_enabled": True,
-                    "highlight_block_enabled": True,
-                    "highlight_mode": "per_song",
-                    "highlight_color": "#00E5FF",
+                    "highlight_block_enabled": False,
+                    "highlight_mode": "fixed",
+                    "highlight_color": "#D32F2F",
+                    "animation_style": "kinetic",
+                    "motion_blur_enabled": True,
+                    "motion_blur_intensity": 2.0,
+                    "target_fps": 165,
+                    "sync_offset_sec": 0.20,
+                },
+            ),
+            (
+                "Golden Hour",
+                "Luminous golden canary typography with aurora shimmers, gentle rises, and warm glowing ambiance",
+                {
+                    "font_family": "7clouds Signature (Edo SZ)",
+                    "font_size": 42,
+                    "hand_drawn_underline_enabled": True,
+                    "highlight_enabled": True,
+                    "highlight_block_enabled": False,
+                    "highlight_mode": "fixed",
+                    "highlight_color": "#FFD600",
+                    "animation_style": "cinematic",
+                    "target_fps": 165,
+                    "sync_offset_sec": 0.20,
+                },
+            ),
+            (
+                "Tokyo Drift",
+                "Stylized Japanese street brush aesthetics with royal purple highlights and parabolic arc streaks",
+                {
+                    "font_family": "7clouds Signature (Edo SZ)",
+                    "font_size": 44,
+                    "hand_drawn_underline_enabled": True,
+                    "highlight_enabled": True,
+                    "highlight_block_enabled": False,
+                    "highlight_mode": "fixed",
+                    "highlight_color": "#A855F7",
+                    "animation_style": "cinematic",
+                    "motion_blur_enabled": True,
+                    "motion_blur_intensity": 1.6,
                     "target_fps": 165,
                     "sync_offset_sec": 0.20,
                 },
             ),
             (
                 "Minimalist Pure",
-                "Distraction-free pure white typography without highlights",
+                "Clean white distraction-free typography with soft whisper fades and zero highlights",
                 {
-                    "font_family": "7clouds Signature (Edo SZ)",
+                    "font_family": "7clouds Modern (Montserrat Black)",
                     "font_size": 38,
                     "hand_drawn_underline_enabled": False,
                     "highlight_enabled": False,
                     "highlight_block_enabled": False,
+                    "highlight_mode": "fixed",
+                    "highlight_color": "#FFFFFF",
+                    "animation_style": "smooth",
+                    "motion_blur_enabled": False,
                     "target_fps": 120,
                     "sync_offset_sec": 0.20,
                 },
@@ -1777,6 +1890,12 @@ class SettingsDialog(QDialog):
             if "target_fps" in preset:
                 fps_map = {60: 0, 120: 1, 144: 2, 165: 3, 240: 4}
                 self.combo_fps.setCurrentIndex(fps_map.get(preset["target_fps"], 3))
+            if "animation_style" in preset and hasattr(self, "combo_anim_style"):
+                style_val = preset["animation_style"]
+                for i in range(self.combo_anim_style.count()):
+                    if self.combo_anim_style.itemData(i) == style_val:
+                        self.combo_anim_style.setCurrentIndex(i)
+                        break
 
             if hasattr(self, "preview_widget"):
                 self.preview_widget.update_settings(self.settings)

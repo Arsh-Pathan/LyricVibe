@@ -193,6 +193,7 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "auto_hide_idle": True,
     "autostart_enabled": True,  # Launch with Windows & Spotify in background
     "animation_intensity": 1.0,  # 0.5 (subtle) to 1.5 (dynamic)
+    "animation_style": "all",  # "all", "smooth", "kinetic", "cinematic", "vocal"
 }
 
 

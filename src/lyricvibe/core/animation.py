@@ -131,9 +131,98 @@ FADE_ANIMS = {
     "starlight_glimmer",
 }
 
+ANIMATION_CATEGORIES: dict[str, list[str]] = {
+    "smooth": [
+        "cinematic_crossfade",
+        "whisper_dissolve",
+        "gentle_rise_fade",
+        "gentle_sink_fade",
+        "feather_dissolve",
+        "luminous_glow_fade",
+        "smooth_drift_fade",
+        "ambient_breathe",
+        "soft_dissolve",
+        "mist_evaporate",
+        "velvet_wipe",
+        "aurora_shimmer",
+        "nebula_bloom",
+        "horizon_dawn",
+        "starlight_glimmer",
+    ],
+    "kinetic": [
+        "gravity_drop",
+        "slide_up",
+        "kinetic_snap",
+        "scale_pop",
+        "drift_left",
+        "drift_right",
+        "overshoot_rise",
+        "whip_pan_left",
+        "whip_pan_right",
+        "bass_drop_shake",
+        "hyper_zoom",
+        "magnetic_snap",
+        "bounce_land",
+        "impact_slam",
+        "elastic_twang",
+        "quick_flick",
+    ],
+    "vocal": [
+        "word_reveal",
+        "zoom_in",
+        "zoom_out_settle",
+        "focus_pull",
+        "curtain_reveal",
+        "letter_tracking",
+        "typewriter_snap",
+        "hand_drawn_flourish",
+        "spotlight_reveal",
+        "echo_pulse",
+        "laser_etch",
+        "neon_flicker",
+        "parabolic_arc",
+    ],
+    "cinematic": [
+        "pendulum_swing",
+        "split_horizon",
+        "skew_slide",
+        "flip_drop",
+        "velocity_streak",
+        "wave_cascade",
+        "shimmer_sweep",
+        "spiral_settle",
+        "strobe_snap",
+        "glide_in",
+        "subtle_float",
+        "cascade_fall",
+        "tilt_glide",
+        "orbit_arc",
+        "shutter_expand",
+        "spring_rebound",
+        "ripple_snap",
+        "vortex_spin",
+        "prism_refract",
+        "card_flip_3d",
+        "isometric_slide",
+        "cinema_scope_unfold",
+    ],
+    "per_char": [
+        "letter_drop",
+        "letter_burst",
+        "balloon_inflate",
+        "erase_reveal",
+        "letter_scatter",
+    ],
+}
 
-def pick_animation(line_text: str, duration: float) -> str:
-    """Dynamically picks from the 55+ animation catalog based on line pacing and rarity."""
+
+def pick_animation(line_text: str, duration: float, category: str = "all") -> str:
+    """Dynamically picks from the 72+ animation catalog based on category and line pacing."""
+    cat = (category or "all").lower()
+    if cat in ANIMATION_CATEGORIES:
+        pool = ANIMATION_CATEGORIES[cat]
+        return random.choice(pool)
+
     words = line_text.strip().split()
 
     if duration > 0 and duration < 1.6:
@@ -144,6 +233,10 @@ def pick_animation(line_text: str, duration: float) -> str:
             "overshoot_rise",
             "whisper_dissolve",
             "quick_flick",
+            "whip_pan_left",
+            "whip_pan_right",
+            "hyper_zoom",
+            "laser_etch",
         ]
         return random.choice(fast_pool)
 
@@ -157,6 +250,11 @@ def pick_animation(line_text: str, duration: float) -> str:
             "feather_dissolve",
             "luminous_glow_fade",
             "spotlight_reveal",
+            "aurora_shimmer",
+            "nebula_bloom",
+            "horizon_dawn",
+            "starlight_glimmer",
+            "cinema_scope_unfold",
         ]
         return random.choice(slow_pool)
 
@@ -173,6 +271,7 @@ class AnimationEngine:
         self.curr_start_perf = 0.0
         self.curr_duration = 3.0
         self.curr_anim_type = "cinematic_crossfade"
+        self.anim_style = "all"
 
         # Outgoing line transition (anti-overlap lifted exit)
         self.prev_text = ""
@@ -203,7 +302,12 @@ class AnimationEngine:
         self.underline_active = False
 
     def trigger_line(
-        self, new_text: str, duration: float, anim_type: str = "", lead_sec: float = 0.0
+        self,
+        new_text: str,
+        duration: float,
+        anim_type: str = "",
+        lead_sec: float = 0.0,
+        anim_style: str = "",
     ):
         now_perf = time.perf_counter()
 
@@ -215,8 +319,11 @@ class AnimationEngine:
         self.curr_text = new_text
         self.curr_start_perf = now_perf - max(0.0, lead_sec)
         self.curr_duration = max(duration, 1.2)
+        style_to_use = anim_style or self.anim_style
         self.curr_anim_type = (
-            anim_type if anim_type else pick_animation(new_text, self.curr_duration)
+            anim_type
+            if anim_type
+            else pick_animation(new_text, self.curr_duration, style_to_use)
         )
 
         if self.curr_anim_type in FADE_ANIMS:

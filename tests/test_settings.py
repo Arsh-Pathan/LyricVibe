@@ -205,3 +205,14 @@ def test_get_asset_path_frozen_exe_dir_override():
         with patch("sys.frozen", True, create=True), patch("sys.executable", fake_exe):
             resolved = get_asset_path("CustomFont.ttf")
             assert resolved == fake_font
+
+
+def test_animation_style_setting_validation():
+    assert "animation_style" in DEFAULT_SETTINGS
+    assert DEFAULT_SETTINGS["animation_style"] == "all"
+
+    validated = _validate_settings({"animation_style": "smooth"})
+    assert validated["animation_style"] == "smooth"
+
+    validated_kinetic = _validate_settings({"animation_style": "kinetic"})
+    assert validated_kinetic["animation_style"] == "kinetic"

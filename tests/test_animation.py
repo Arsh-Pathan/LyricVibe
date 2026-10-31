@@ -5,6 +5,7 @@ import time
 
 from lyricvibe.core.animation import (
     ANIMATION_CATALOG,
+    ANIMATION_CATEGORIES,
     FADE_ANIMS,
     AnimationEngine,
     HandDrawnStroke,
@@ -156,3 +157,28 @@ def test_new_cinematic_animations_properties():
     engine.trigger_line("Cinemascope test", duration=3.0, anim_type="cinema_scope_unfold")
     state = engine.update()
     assert state["curr_scale"] >= 0.90
+
+
+def test_pick_animation_by_category():
+    assert "smooth" in ANIMATION_CATEGORIES
+    assert "kinetic" in ANIMATION_CATEGORIES
+    assert "cinematic" in ANIMATION_CATEGORIES
+    assert "vocal" in ANIMATION_CATEGORIES
+
+    for cat in ["smooth", "kinetic", "cinematic", "vocal"]:
+        for _ in range(10):
+            anim = pick_animation("Test line for category selection", duration=3.0, category=cat)
+            assert anim in ANIMATION_CATEGORIES[cat]
+
+
+def test_animation_engine_style_selection():
+    engine = AnimationEngine()
+
+    engine.trigger_line("Smooth line", duration=3.0, anim_style="smooth")
+    assert engine.curr_anim_type in ANIMATION_CATEGORIES["smooth"]
+
+    engine.trigger_line("Kinetic line", duration=3.0, anim_style="kinetic")
+    assert engine.curr_anim_type in ANIMATION_CATEGORIES["kinetic"]
+
+    engine.trigger_line("Cinematic line", duration=3.0, anim_style="cinematic")
+    assert engine.curr_anim_type in ANIMATION_CATEGORIES["cinematic"]

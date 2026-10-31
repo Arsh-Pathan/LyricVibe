@@ -138,8 +138,9 @@ class FloatingLyricsWidget(QWidget):
         self.drag_position = QPoint()
         self._registered_hotkeys = [801, 802, 803, 804, 805, 806]
 
-        # Physics & Animation Engine (55+ animations, butter-smooth 165Hz)
+        # Physics & Animation Engine (72+ animations, butter-smooth 165Hz)
         self.engine = AnimationEngine()
+        self.engine.anim_style = str(self.settings.get("animation_style", "all"))
 
         # Load 7clouds fonts (Edo SZ, Montserrat Black, Poppins)
         self._load_fonts()
@@ -271,6 +272,9 @@ class FloatingLyricsWidget(QWidget):
             fps = int(self.settings.get("target_fps", 165))
             interval_ms = max(4, int(1000.0 / fps))
             self.render_timer.setInterval(interval_ms)
+
+            # Update animation style
+            self.engine.anim_style = str(self.settings.get("animation_style", "all"))
 
             # Update screen vertical position
             self.window_y = int(self.settings.get("overlay_y", 55))
