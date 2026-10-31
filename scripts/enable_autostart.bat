@@ -12,7 +12,7 @@ if not exist "%TARGET_EXE%" (
     set "TARGET_EXE=%cd%\main.py"
 )
 
-powershell -NoProfile -Command "$wsh = New-Object -ComObject WScript.Shell; $sc = $wsh.CreateShortcut([Environment]::GetFolderPath('Startup') + '\LyricVibe.lnk'); $sc.TargetPath = '%TARGET_EXE%'; $sc.WorkingDirectory = '%cd%\dist'; $sc.IconLocation = '%cd%\icon.ico'; $sc.Description = 'LyricVibe Floating Lyrics Overlay'; $sc.Save()"
+powershell -NoProfile -Command "$wsh = New-Object -ComObject WScript.Shell; $sc = $wsh.CreateShortcut([Environment]::GetFolderPath('Startup') + '\LyricVibe.lnk'); $sc.TargetPath = '%TARGET_EXE%'; $sc.Arguments = '--autostart'; $sc.WorkingDirectory = '%cd%\dist'; $sc.IconLocation = '%cd%\icon.ico'; $sc.Description = 'LyricVibe Floating Lyrics Overlay'; $sc.Save(); Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'LyricVibe' -Value '\"%TARGET_EXE%\" --autostart'"
 
 if errorlevel 0 (
     echo [OK] Auto-Start enabled!

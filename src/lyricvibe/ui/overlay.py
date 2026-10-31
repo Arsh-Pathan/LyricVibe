@@ -58,12 +58,12 @@ try:
     from lyricvibe.lyrics.fetcher import LyricLine, get_lyrics
     from lyricvibe.media.client import PlaybackState, SpotifyClient
     from lyricvibe.ui.settings import SettingsDialog
-    from lyricvibe.utils.settings import BRIGHT_HIGHLIGHT_HEX_LIST
+    from lyricvibe.utils.settings import BRIGHT_HIGHLIGHT_HEX_LIST, ensure_bright_hex
 except ImportError:
     import settings_manager
     from animation_engine import FADE_ANIMS, PER_CHAR_ANIMS, AnimationEngine
     from lyrics_fetcher import LyricLine, get_lyrics
-    from settings_manager import BRIGHT_HIGHLIGHT_HEX_LIST
+    from settings_manager import BRIGHT_HIGHLIGHT_HEX_LIST, ensure_bright_hex
     from settings_window import SettingsDialog
     from spotify_client import PlaybackState, SpotifyClient
     get_asset_path = lambda p: p
@@ -227,7 +227,7 @@ class FloatingLyricsWidget(QWidget):
         return "Montserrat"
 
     def _pick_next_song_color(self, track_identifier: str):
-        """Picks a distinct, ultra-bright neon color for each song."""
+        """Picks a distinct, ultra-bright neon color for each song, guaranteed never a darker shade."""
         palette_len = len(BRIGHT_HIGHLIGHT_HEX_LIST)
         if not palette_len:
             return
@@ -238,18 +238,19 @@ class FloatingLyricsWidget(QWidget):
         if chosen_idx == getattr(self, "_last_color_idx", -1):
             chosen_idx = (chosen_idx + 1) % palette_len
         self._last_color_idx = chosen_idx
-        self.current_song_color = QColor(BRIGHT_HIGHLIGHT_HEX_LIST[chosen_idx])
+        bright_hex = ensure_bright_hex(BRIGHT_HIGHLIGHT_HEX_LIST[chosen_idx])
+        self.current_song_color = QColor(bright_hex)
 
     def _get_highlight_color(self) -> QColor:
         """
         Returns the vibrant ultra-bright highlight color for the active spoken word.
-        Rotates automatically per song or uses fixed user selection.
+        Rotates automatically per song or uses fixed user selection, guaranteed never dark.
         """
         mode = self.settings.get("highlight_mode", "per_song")
         if mode == "per_song":
             return getattr(self, "current_song_color", QColor(BRIGHT_HIGHLIGHT_HEX_LIST[0]))
         hex_color = self.settings.get("highlight_color", BRIGHT_HIGHLIGHT_HEX_LIST[0])
-        return QColor(hex_color)
+        return QColor(ensure_bright_hex(hex_color))
 
     def apply_settings(self, new_settings: dict):
         """Real-time live settings sync without restarts or crashes."""
@@ -1017,7 +1018,13 @@ def main():
 
     server.newConnection.connect(handle_client_connection)
 
-    widget.show()
+    # When starting on system boot (--autostart / --minimized), stay hidden until Spotify plays
+    is_autostart = any(arg in sys.argv for arg in ("--autostart", "--minimized", "-m"))
+    if not is_autostart:
+        widget.show()
+    else:
+        widget.is_hidden_by_idle = True
+
     sys.exit(app.exec())
 
 

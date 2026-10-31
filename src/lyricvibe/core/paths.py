@@ -46,3 +46,21 @@ def get_settings_file_path() -> str:
 
     base = get_base_dir()
     return os.path.join(base, "settings.json")
+
+
+def get_executable_command() -> str:
+    """Returns the executable command line for auto-start (handling frozen and script modes)."""
+    if getattr(sys, "frozen", False):
+        return f'"{sys.executable}"'
+
+    base = get_base_dir()
+    dist_exe = os.path.join(base, "dist", "LyricVibe.exe")
+    if os.path.exists(dist_exe):
+        return f'"{dist_exe}"'
+
+    main_py = os.path.join(base, "main.py")
+    python_dir = os.path.dirname(sys.executable)
+    pythonw = os.path.join(python_dir, "pythonw.exe")
+    if not os.path.exists(pythonw):
+        pythonw = sys.executable
+    return f'"{pythonw}" "{main_py}"'

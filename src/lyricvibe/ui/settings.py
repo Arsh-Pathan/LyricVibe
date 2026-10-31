@@ -70,6 +70,9 @@ try:
     from lyricvibe.utils.settings import (
         BRIGHT_HIGHLIGHT_HEX_LIST,
         BRIGHT_HIGHLIGHT_PALETTE,
+        ensure_bright_hex,
+        is_autostart_enabled,
+        set_autostart_enabled,
     )
 except ImportError:
     import settings_manager
@@ -81,6 +84,9 @@ except ImportError:
     from settings_manager import (
         BRIGHT_HIGHLIGHT_HEX_LIST,
         BRIGHT_HIGHLIGHT_PALETTE,
+        ensure_bright_hex,
+        is_autostart_enabled,
+        set_autostart_enabled,
     )
     get_asset_path = lambda p: p
 
@@ -439,11 +445,13 @@ class LivePreview(QWidget):
         p.setFont(font)
 
         hl_enabled = self.settings.get("highlight_enabled", True)
-        # Use ultra-bright neon colorful highlight
+        # Use ultra-bright neon colorful highlight (guaranteed never a darker shade)
         if self.settings.get("highlight_mode", "per_song") == "per_song":
-            hl_color = QColor(BRIGHT_HIGHLIGHT_HEX_LIST[self._color_idx])
+            hl_hex = ensure_bright_hex(BRIGHT_HIGHLIGHT_HEX_LIST[self._color_idx])
+            hl_color = QColor(hl_hex)
         else:
-            hl_color = QColor(self.settings.get("highlight_color", BRIGHT_HIGHLIGHT_HEX_LIST[0]))
+            hl_hex = ensure_bright_hex(self.settings.get("highlight_color", BRIGHT_HIGHLIGHT_HEX_LIST[0]))
+            hl_color = QColor(hl_hex)
         hl_idx = data.get("highlight_word_idx", -1)
 
         # ── 1. Outgoing Line Cross-Transition (Anti-Overlap: lifts cleanly away) ──
@@ -601,12 +609,12 @@ class ColorSwatch(QPushButton):
 
     PALETTE = BRIGHT_HIGHLIGHT_HEX_LIST
 
-    def __init__(self, current_hex: str = "#00FF66", parent=None):
+    def __init__(self, current_hex: str = "#26FF7C", parent=None):
         super().__init__(parent)
-        self._color = current_hex
+        self._color = ensure_bright_hex(current_hex)
         self._idx = 0
         for i, c in enumerate(self.PALETTE):
-            if c.upper() == current_hex.upper():
+            if c.upper() == self._color.upper():
                 self._idx = i
                 break
         self.setFixedSize(36, 36)
@@ -634,7 +642,7 @@ class ColorSwatch(QPushButton):
 
     def _cycle_color(self):
         self._idx = (self._idx + 1) % len(self.PALETTE)
-        self._color = self.PALETTE[self._idx]
+        self._color = ensure_bright_hex(self.PALETTE[self._idx])
         self._apply_style()
         self.color_changed.emit(self._color)
 
@@ -642,9 +650,10 @@ class ColorSwatch(QPushButton):
         return self._color
 
     def setColor(self, hex_color: str):
-        self._color = hex_color
+        bright_hex = ensure_bright_hex(hex_color)
+        self._color = bright_hex
         for i, c in enumerate(self.PALETTE):
-            if c.upper() == hex_color.upper():
+            if c.upper() == bright_hex.upper():
                 self._idx = i
                 break
         self._apply_style()
@@ -1153,6 +1162,17 @@ class SettingsDialog(QDialog):
         self.toggle_hide.toggled.connect(lambda v: self._update_and_sync("auto_hide_idle", v))
         row_hide.add_control(self.toggle_hide)
         fx_card.add_row(row_hide)
+        fx_card.add_separator()
+
+        # Auto-Start with Windows & Spotify
+        row_autostart = SettingRow(
+            "Start with Windows (Auto-Start)",
+            "Launch silently in background so lyrics show whenever Spotify starts"
+        )
+        self.toggle_autostart = PillToggle(is_autostart_enabled())
+        self.toggle_autostart.toggled.connect(self._on_autostart_toggled)
+        row_autostart.add_control(self.toggle_autostart)
+        fx_card.add_row(row_autostart)
 
         layout.addWidget(fx_card)
 
@@ -1488,6 +1508,10 @@ class SettingsDialog(QDialog):
         chosen = fps_values[self.combo_fps.currentIndex()]
         self._update_and_sync("target_fps", chosen)
 
+    def _on_autostart_toggled(self, checked: bool):
+        set_autostart_enabled(checked)
+        self._update_and_sync("autostart_enabled", checked)
+
     def _apply_preset(self, preset: dict):
         try:
             self.settings.update(preset)
@@ -1546,16 +1570,19 @@ class SettingsDialog(QDialog):
             "hand_drawn_underline_enabled": True,
             "highlight_enabled": True,
             "highlight_block_enabled": False,
-            "highlight_color": "#00FF66",
+            "highlight_color": "#26FF7C",
             "highlight_mode": "per_song",
             "motion_blur_enabled": True,
             "motion_blur_intensity": 1.4,
+            "autostart_enabled": True,
         }
         self._apply_preset(defaults)
         self.slider_sync.setValue(2)
         if hasattr(self, "slider_blur"):
             self.slider_blur.setValue(14)
         self.toggle_hide.setChecked(True)
+        if hasattr(self, "toggle_autostart"):
+            self.toggle_autostart.setChecked(is_autostart_enabled())
 
     def _on_done_clicked(self):
         """Only hides the settings dialog. Does NOT quit the overlay app."""

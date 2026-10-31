@@ -66,7 +66,7 @@ def test_save_and_load_roundtrip():
             custom = DEFAULT_SETTINGS.copy()
             custom["font_size"] = 54
             custom["target_fps"] = 144
-            custom["highlight_color"] = "#FF00FF"
+            custom["highlight_color"] = "#26FF7C"
 
             save_settings(custom)
             assert os.path.exists(test_file)
@@ -74,7 +74,7 @@ def test_save_and_load_roundtrip():
             loaded = load_settings()
             assert loaded["font_size"] == 54
             assert loaded["target_fps"] == 144
-            assert loaded["highlight_color"] == "#FF00FF"
+            assert loaded["highlight_color"] == "#26FF7C"
 
 
 def test_load_settings_corrupted_json_recovery():
@@ -109,3 +109,58 @@ def test_get_settings_file_path_fallback():
          patch.dict("os.environ", {"APPDATA": "C:\\Users\\Test\\AppData\\Roaming"}):
         fallback_path = get_settings_file_path()
         assert "AppData\\Roaming\\LyricVibe\\settings.json" in fallback_path
+
+
+def test_ensure_bright_hex_never_dark():
+    from lyricvibe.utils.settings import BRIGHT_HIGHLIGHT_PALETTE, ensure_bright_hex
+
+    # 1. Dark colors must be boosted to luminance >= 175.0
+    dark_inputs = [
+        "#000000",  # Pure black
+        "#111111",  # Dark grey
+        "#000080",  # Navy blue
+        "#800000",  # Maroon
+        "#004400",  # Dark green
+        "#330033",  # Deep purple
+        "#FF00A0",  # Darker magenta
+        "#B026FF",  # Darker electric violet
+    ]
+    for d in dark_inputs:
+        bright = ensure_bright_hex(d)
+        h = bright.lstrip("#")
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        lum = 0.299 * r + 0.587 * g + 0.114 * b
+        assert lum >= 175.0, f"Expected {d} to be lifted >= 175.0 lum, got {lum} ({bright})"
+
+    # 2. Already bright colors preserve high luminance
+    for bright_in in ["#00FFFF", "#FFE600", "#26FF7C"]:
+        res = ensure_bright_hex(bright_in)
+        assert res.upper() == bright_in.upper()
+
+    # 3. All colors in BRIGHT_HIGHLIGHT_PALETTE are strictly >= 175.0 lum
+    for item in BRIGHT_HIGHLIGHT_PALETTE:
+        h = item["hex"].lstrip("#")
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        lum = 0.299 * r + 0.587 * g + 0.114 * b
+        assert lum >= 175.0, f"Palette color {item['name']} ({item['hex']}) is below 175.0 lum: {lum}"
+
+    # 4. Invalid or malformed inputs return bright fallback
+    assert ensure_bright_hex(None).startswith("#")
+    assert ensure_bright_hex("invalid").startswith("#")
+    assert ensure_bright_hex("#123").startswith("#")
+
+
+def test_autostart_toggle():
+    from lyricvibe.utils.settings import is_autostart_enabled, set_autostart_enabled
+
+    initial = is_autostart_enabled()
+
+    # Test toggling
+    set_autostart_enabled(True)
+    assert is_autostart_enabled() is True
+
+    set_autostart_enabled(False)
+    assert is_autostart_enabled() is False
+
+    # Restore initial state
+    set_autostart_enabled(initial)
