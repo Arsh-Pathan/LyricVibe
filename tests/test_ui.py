@@ -37,10 +37,12 @@ def test_settings_dialog_lifecycle():
     assert dlg.settings["font_size"] == 42
 
     # Test preset application
-    dlg._apply_preset({
-        "font_size": 48,
-        "target_fps": 120,
-    })
+    dlg._apply_preset(
+        {
+            "font_size": 48,
+            "target_fps": 120,
+        }
+    )
     assert dlg.settings["font_size"] == 48
     assert dlg.settings["target_fps"] == 120
 
@@ -81,11 +83,15 @@ def test_fit_font_dynamic_scaling():
 
     with patch("lyricvibe.ui.overlay.SpotifyClient"):
         widget = FloatingLyricsWidget(DEFAULT_SETTINGS)
-        font_short, _ = widget._fit_font("Short line", max_w=800, base_size=42, family="Montserrat")
+        font_short, _ = widget._fit_font(
+            "Short line", max_w=800, base_size=42, family="Montserrat"
+        )
         assert font_short.pointSize() == 42
 
         long_line = "This is an extraordinarily long sentence with numerous words that exceeds width"
-        font_long, _ = widget._fit_font(long_line, max_w=200, base_size=42, family="Montserrat")
+        font_long, _ = widget._fit_font(
+            long_line, max_w=200, base_size=42, family="Montserrat"
+        )
         assert font_long.pointSize() < 42
         assert font_long.pointSize() >= 16
 
@@ -174,15 +180,21 @@ def test_track_switch_race_condition_protection():
         valid_lyrics = [LyricLine(1.0, "Valid song lyrics")]
 
         # Case 1: Out-of-order response with stale fetch_id
-        widget._on_lyrics_fetched(fetch_id=4, req_track_id="Artist B - Song B", lyrics=stale_lyrics)
+        widget._on_lyrics_fetched(
+            fetch_id=4, req_track_id="Artist B - Song B", lyrics=stale_lyrics
+        )
         assert widget.lyrics is None
 
         # Case 2: Out-of-order response with mismatched track_id
-        widget._on_lyrics_fetched(fetch_id=5, req_track_id="Artist A - Song A", lyrics=stale_lyrics)
+        widget._on_lyrics_fetched(
+            fetch_id=5, req_track_id="Artist A - Song A", lyrics=stale_lyrics
+        )
         assert widget.lyrics is None
 
         # Case 3: Matching response
-        widget._on_lyrics_fetched(fetch_id=5, req_track_id="Artist B - Song B", lyrics=valid_lyrics)
+        widget._on_lyrics_fetched(
+            fetch_id=5, req_track_id="Artist B - Song B", lyrics=valid_lyrics
+        )
         assert widget.lyrics == valid_lyrics
 
         widget.render_timer.stop()
@@ -238,6 +250,103 @@ def test_word_span_cache_and_irregular_spaces():
         # Verify spans match actual substring indices exactly
         for word, start, end in spans:
             assert text_with_spaces[start:end] == word
+
+        widget.render_timer.stop()
+        widget.poll_timer.stop()
+        widget.smooth_timer.stop()
+        if widget.tray_icon:
+            widget.tray_icon.hide()
+        widget.close()
+
+
+def test_empty_lyric_line_clears_gracefully():
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    with patch("lyricvibe.ui.overlay.SpotifyClient"):
+        widget = FloatingLyricsWidget(DEFAULT_SETTINGS)
+        widget.current_track_id = "Artist - Song"
+        widget.lyrics = [
+            LyricLine(10.0, "Real lyric"),
+            LyricLine(20.0, "   "),
+        ]
+
+        from lyricvibe.media.client import PlaybackState
+
+        state = PlaybackState(
+            is_playing=True,
+            track_name="Song",
+            artist_name="Artist",
+            album_name="Album",
+            album_art_url="",
+            progress_sec=20.0,
+            duration_sec=200.0,
+            track_id="Artist - Song",
+            updated_at=0.0,
+            local_received_at=0.0,
+        )
+
+        with patch.object(widget.spotify, "estimate_progress", return_value=20.0):
+            widget._check_line_update(state)
+            assert widget.current_line_text == ""
+            assert widget.engine.curr_text == ""
+
+        widget.render_timer.stop()
+        widget.poll_timer.stop()
+        widget.smooth_timer.stop()
+        if widget.tray_icon:
+            widget.tray_icon.hide()
+        widget.close()
+
+
+def test_instrumental_gap_and_scrub_revival():
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    with patch("lyricvibe.ui.overlay.SpotifyClient"):
+        widget = FloatingLyricsWidget(DEFAULT_SETTINGS)
+        widget.current_track_id = "Artist - Song"
+        widget.lyrics = [
+            LyricLine(10.0, "Hello vocal line"),
+            LyricLine(40.0, "Next line after 30s guitar solo"),
+        ]
+
+        from lyricvibe.media.client import PlaybackState
+
+        state = PlaybackState(
+            is_playing=True,
+            track_name="Song",
+            artist_name="Artist",
+            album_name="Album",
+            album_art_url="",
+            progress_sec=11.0,
+            duration_sec=200.0,
+            track_id="Artist - Song",
+            updated_at=0.0,
+            local_received_at=0.0,
+        )
+
+        # 1. Active singing at 11s (adjusted ~11.2s)
+        with patch.object(widget.spotify, "estimate_progress", return_value=11.0):
+            widget._check_line_update(state)
+            assert widget.current_line_text == "Hello vocal line"
+            assert widget.engine.curr_text == "Hello vocal line"
+
+        # 2. Reached instrumental break at 25s (line_elapsed = 15s > vocal_dur ~2.5s)
+        with patch.object(widget.spotify, "estimate_progress", return_value=25.0):
+            widget._check_line_update(state)
+            # Text should be cleared during instrumental solo
+            assert widget.engine.curr_text == ""
+            assert widget.current_line_text == ""
+
+        # 3. User rewinds back to 11.5s inside the same line's vocal window
+        with patch.object(widget.spotify, "estimate_progress", return_value=11.5):
+            widget._check_line_update(state)
+            # Line must be revived smoothly!
+            assert widget.current_line_text == "Hello vocal line"
+            assert widget.engine.curr_text == "Hello vocal line"
 
         widget.render_timer.stop()
         widget.poll_timer.stop()

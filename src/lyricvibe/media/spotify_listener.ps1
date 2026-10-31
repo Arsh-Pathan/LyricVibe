@@ -95,6 +95,9 @@ while ($true) {
             }
 
             $dur = if ($timeline) { $timeline.EndTime.TotalSeconds } else { 0.0 }
+            if ($pos -lt 0) { $pos = 0.0 }
+            if ($updatedEpoch -lt 0) { $updatedEpoch = 0.0 }
+            if ($dur -lt 0) { $dur = 0.0 }
             # Clamp position to duration
             if ($dur -gt 0 -and $pos -gt $dur) { $pos = $dur }
 

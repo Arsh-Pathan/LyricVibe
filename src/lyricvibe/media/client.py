@@ -35,8 +35,8 @@ class PlaybackState:
     progress_sec: float
     duration_sec: float
     track_id: str
-    updated_at: float        # timestamp when Windows SMTC last updated
-    local_received_at: float # local clock when we received the update
+    updated_at: float  # timestamp when Windows SMTC last updated
+    local_received_at: float  # local clock when we received the update
 
 
 class SpotifyClient:
@@ -60,7 +60,9 @@ class SpotifyClient:
             from lyricvibe.core.paths import get_asset_path
 
             candidates.append(get_asset_path("spotify_listener.ps1"))
-            candidates.append(get_asset_path("src/lyricvibe/media/spotify_listener.ps1"))
+            candidates.append(
+                get_asset_path("src/lyricvibe/media/spotify_listener.ps1")
+            )
         except ImportError:
             pass
 
@@ -68,7 +70,9 @@ class SpotifyClient:
             meipass = getattr(sys, "_MEIPASS", None)
             if meipass:
                 candidates.append(os.path.join(meipass, "spotify_listener.ps1"))
-            candidates.append(os.path.join(os.path.dirname(sys.executable), "spotify_listener.ps1"))
+            candidates.append(
+                os.path.join(os.path.dirname(sys.executable), "spotify_listener.ps1")
+            )
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
         candidates.append(os.path.join(script_dir, "spotify_listener.ps1"))
@@ -95,8 +99,10 @@ class SpotifyClient:
                 [
                     "powershell.exe",
                     "-NoProfile",
-                    "-ExecutionPolicy", "Bypass",
-                    "-File", ps_script,
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    ps_script,
                 ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
@@ -108,7 +114,9 @@ class SpotifyClient:
                 creationflags=creationflags,
             )
         except (subprocess.SubprocessError, OSError) as e:
-            logger.warning("[spotify_client] Failed to spawn PowerShell listener: %s", e)
+            logger.warning(
+                "[spotify_client] Failed to spawn PowerShell listener: %s", e
+            )
             return None
 
     def _fetch_art(self, track: str, artist: str):
@@ -123,14 +131,24 @@ class SpotifyClient:
             )
             if resp.status_code == 200:
                 payload = resp.json()
-                results = payload.get("results", []) if isinstance(payload, dict) else []
+                results = (
+                    payload.get("results", []) if isinstance(payload, dict) else []
+                )
                 if results and isinstance(results[0], dict):
-                    art = results[0].get("artworkUrl100", "").replace("100x100bb", "300x300bb")
+                    art = (
+                        results[0]
+                        .get("artworkUrl100", "")
+                        .replace("100x100bb", "300x300bb")
+                    )
                     with self._lock:
                         if len(self._art_cache) > 200:
                             self._art_cache.pop(next(iter(self._art_cache)), None)
                         self._art_cache[cache_key] = art
-                        if self._state and self._state.track_name == track and not self._state.album_art_url:
+                        if (
+                            self._state
+                            and self._state.track_name == track
+                            and not self._state.album_art_url
+                        ):
                             self._state.album_art_url = art
                     return
         except (requests.RequestException, ValueError, AttributeError) as e:
@@ -187,7 +205,10 @@ class SpotifyClient:
 
                         with self._lock:
                             art_url = self._art_cache.get(cache_key, "")
-                            needs_fetch = cache_key not in self._art_cache and cache_key not in self._art_pending
+                            needs_fetch = (
+                                cache_key not in self._art_cache
+                                and cache_key not in self._art_pending
+                            )
                             if needs_fetch:
                                 self._art_pending.add(cache_key)
 
@@ -215,7 +236,12 @@ class SpotifyClient:
                         with self._lock:
                             self._state = state
 
-                    except (json.JSONDecodeError, ValueError, AttributeError, TypeError):
+                    except (
+                        json.JSONDecodeError,
+                        ValueError,
+                        AttributeError,
+                        TypeError,
+                    ):
                         continue
 
             except (OSError, ValueError) as e:
@@ -264,13 +290,14 @@ class SpotifyClient:
     def close(self):
         """Cleanly terminates the client and stops the background PowerShell process."""
         self._stopped = True
-        if self._proc:
+        proc = self._proc
+        if proc:
             try:
-                self._proc.terminate()
-                self._proc.wait(timeout=0.8)
+                proc.terminate()
+                proc.wait(timeout=0.8)
             except (subprocess.SubprocessError, OSError):
                 try:
-                    self._proc.kill()
+                    proc.kill()
                 except OSError:
                     pass
             self._proc = None

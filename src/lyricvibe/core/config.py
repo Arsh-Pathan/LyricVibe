@@ -13,8 +13,8 @@ FONT_WEIGHT = "bold"
 # Overlay Dimensions & Position (Top of Screen)
 OVERLAY_WIDTH = 1400
 OVERLAY_HEIGHT = 120
-OVERLAY_X = None   # None = centered horizontally
-OVERLAY_Y = 50     # 50px from top of screen
+OVERLAY_X = None  # None = centered horizontally
+OVERLAY_Y = 50  # 50px from top of screen
 
 # Auto-Hide when idle
 AUTO_HIDE_WHEN_IDLE = True

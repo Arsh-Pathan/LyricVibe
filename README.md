@@ -63,7 +63,7 @@
 - **Vibrant Highlight Palette**: 16 ultra-bright neon colors that rotate automatically per song, or can be pinned in settings.
 - **Hindi to Hinglish Transliteration**: Automatically converts Devanagari and Urdu lyrics into natural Roman Hinglish.
 - **Smart LRCLIB Matching**: Automatically strips movie tags, featured artists, and remaster suffixes for accurate lyrics retrieval.
-- **Settings Customizer**: Double-click or press `Ctrl + S` to customize fonts, colors, physics, and timing offsets.
+- **Settings Customizer**: Double-click or press `Ctrl + Alt + S` to customize fonts, colors, physics, and timing offsets.
 
 ---
 
@@ -94,7 +94,7 @@ python main.py
 | Shortcut | Action |
 |:---|:---|
 | **Click & Drag** | Move lyrics anywhere on screen |
-| **`Ctrl + Alt + S`** (or `Ctrl + S`) | Open Settings Customizer (or double-click text / tray icon) |
+| **`Ctrl + Alt + S`** | Open Settings Customizer (or double-click text / tray icon) |
 | **`Ctrl + Alt + L`** | Lock / Click-through mode (clicks pass through text) |
 | **`Ctrl + Alt + H`** | Hide / Show overlay |
 | **`[` / `]`** | Shift lyrics 0.5s earlier / later |

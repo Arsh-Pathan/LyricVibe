@@ -11,174 +11,251 @@ import re
 # ── 1. Comprehensive Urdu / Arabic / Persian to Latin Table ──────────
 URDU_MAP = {
     # Consonants & Vowels
-    '\u0622': 'aa',     # آ (Alef with Madda)
-    '\u0627': 'a',      # ا (Alef)
-    '\u0623': 'a',      # أ (Alef with Hamza above)
-    '\u0625': 'i',      # إ (Alef with Hamza below)
-    '\u0628': 'b',      # ب (Beh)
-    '\u067E': 'p',      # پ (Peh)
-    '\u062A': 't',      # ت (Teh)
-    '\u0679': 't',      # ٹ (Tteh)
-    '\u062B': 's',      # ث (Theh)
-    '\u062C': 'j',      # ج (Jeem)
-    '\u0686': 'ch',     # چ (Tcheh)
-    '\u062D': 'h',      # ح (Hah)
-    '\u062E': 'kh',     # خ (Khah)
-    '\u062F': 'd',      # د (Dal)
-    '\u0688': 'd',      # ڈ (Ddal)
-    '\u0630': 'z',      # ذ (Thal)
-    '\u0631': 'r',      # ر (Reh) - CRITICAL!
-    '\u0691': 'r',      # ڑ (Rreh)
-    '\u0632': 'z',      # ز (Zain)
-    '\u0698': 'zh',     # ژ (Zheh)
-    '\u0633': 's',      # س (Seen)
-    '\u0634': 'sh',     # ش (Sheen)
-    '\u0635': 's',      # ص (Sad)
-    '\u0636': 'z',      # ض (Dad)
-    '\u0637': 't',      # ط (Tah)
-    '\u0638': 'z',      # ظ (Zah)
-    '\u0639': 'a',      # ع (Ain)
-    '\u063A': 'gh',     # غ (Ghain)
-    '\u0641': 'f',      # ف (Feh)
-    '\u0642': 'q',      # ق (Qaf)
-    '\u06A9': 'k',      # ک (Keheh)
-    '\u0643': 'k',      # ك (Kaf)
-    '\u06AF': 'g',      # گ (Gaf)
-    '\u0644': 'l',      # ل (Lam)
-    '\u0645': 'm',      # م (Meem) - CRITICAL!
-    '\u0646': 'n',      # ن (Noon)
-    '\u06BA': 'n',      # ں (Noon Ghunna)
-    '\u0648': 'o',      # و (Waw)
-    '\u06C1': 'h',      # ہ (Heh Goal)
-    '\u06BE': 'h',      # ھ (Heh Doachashmee)
-    '\u0629': 't',      # ة (Teh Marbuta)
-    '\u06C2': 'h',      # ۂ (Heh Goal with Hamza)
-    '\u06C3': 'h',      # ۃ (Teh Marbuta Goal)
-    '\u0649': 'a',      # ى (Alef Maksura)
-    '\u06CC': 'i',      # ی (Farsi Yeh)
-    '\u064A': 'i',      # ي (Arabic Yeh)
-    '\u06D2': 'e',      # ے (Bari Yeh)
-    '\u0626': 'i',      # ئ (Yeh with Hamza)
-    '\u0624': 'o',      # ؤ (Waw with Hamza)
-    '\u0621': '',       # ء (Hamza)
-    '\u0674': '',       # ٴ (High Hamza)
-    '\u0670': 'aa',     # ٰ (Superscript Alef)
-
+    "\u0622": "aa",  # آ (Alef with Madda)
+    "\u0627": "a",  # ا (Alef)
+    "\u0623": "a",  # أ (Alef with Hamza above)
+    "\u0625": "i",  # إ (Alef with Hamza below)
+    "\u0628": "b",  # ب (Beh)
+    "\u067e": "p",  # پ (Peh)
+    "\u062a": "t",  # ت (Teh)
+    "\u0679": "t",  # ٹ (Tteh)
+    "\u062b": "s",  # ث (Theh)
+    "\u062c": "j",  # ج (Jeem)
+    "\u0686": "ch",  # چ (Tcheh)
+    "\u062d": "h",  # ح (Hah)
+    "\u062e": "kh",  # خ (Khah)
+    "\u062f": "d",  # د (Dal)
+    "\u0688": "d",  # ڈ (Ddal)
+    "\u0630": "z",  # ذ (Thal)
+    "\u0631": "r",  # ر (Reh) - CRITICAL!
+    "\u0691": "r",  # ڑ (Rreh)
+    "\u0632": "z",  # ز (Zain)
+    "\u0698": "zh",  # ژ (Zheh)
+    "\u0633": "s",  # س (Seen)
+    "\u0634": "sh",  # ش (Sheen)
+    "\u0635": "s",  # ص (Sad)
+    "\u0636": "z",  # ض (Dad)
+    "\u0637": "t",  # ط (Tah)
+    "\u0638": "z",  # ظ (Zah)
+    "\u0639": "a",  # ع (Ain)
+    "\u063a": "gh",  # غ (Ghain)
+    "\u0641": "f",  # ف (Feh)
+    "\u0642": "q",  # ق (Qaf)
+    "\u06a9": "k",  # ک (Keheh)
+    "\u0643": "k",  # ك (Kaf)
+    "\u06af": "g",  # گ (Gaf)
+    "\u0644": "l",  # ل (Lam)
+    "\u0645": "m",  # م (Meem) - CRITICAL!
+    "\u0646": "n",  # ن (Noon)
+    "\u06ba": "n",  # ں (Noon Ghunna)
+    "\u0648": "o",  # و (Waw)
+    "\u06c1": "h",  # ہ (Heh Goal)
+    "\u06be": "h",  # ھ (Heh Doachashmee)
+    "\u0629": "t",  # ة (Teh Marbuta)
+    "\u06c2": "h",  # ۂ (Heh Goal with Hamza)
+    "\u06c3": "h",  # ۃ (Teh Marbuta Goal)
+    "\u0649": "a",  # ى (Alef Maksura)
+    "\u06cc": "i",  # ی (Farsi Yeh)
+    "\u064a": "i",  # ي (Arabic Yeh)
+    "\u06d2": "e",  # ے (Bari Yeh)
+    "\u0626": "i",  # ئ (Yeh with Hamza)
+    "\u0624": "o",  # ؤ (Waw with Hamza)
+    "\u0621": "",  # ء (Hamza)
+    "\u0674": "",  # ٴ (High Hamza)
+    "\u0670": "aa",  # ٰ (Superscript Alef)
     # Diacritics (Harakat / Aerab)
-    '\u064E': 'a',      # َ (Zabar / Fatha)
-    '\u0650': 'i',      # ِ (Zer / Kasra)
-    '\u064F': 'u',      # ُ (Pesh / Damma)
-    '\u064B': 'an',     # ً (Tanwin Fath)
-    '\u064D': 'in',     # ٍ (Tanwin Kasr)
-    '\u064C': 'un',     # ٌ (Tanwin Damm)
-    '\u0651': '',       # ّ (Tashdeed)
-    '\u0652': '',       # ْ (Sukun)
-    '\u0653': '',       # ٓ (Maddah)
-    '\u0654': '',       # ٔ (Hamza Above)
-    '\u0655': '',       # ٕ (Hamza Below)
-
+    "\u064e": "a",  # َ (Zabar / Fatha)
+    "\u0650": "i",  # ِ (Zer / Kasra)
+    "\u064f": "u",  # ُ (Pesh / Damma)
+    "\u064b": "an",  # ً (Tanwin Fath)
+    "\u064d": "in",  # ٍ (Tanwin Kasr)
+    "\u064c": "un",  # ٌ (Tanwin Damm)
+    "\u0651": "",  # ّ (Tashdeed)
+    "\u0652": "",  # ْ (Sukun)
+    "\u0653": "",  # ٓ (Maddah)
+    "\u0654": "",  # ٔ (Hamza Above)
+    "\u0655": "",  # ٕ (Hamza Below)
     # Punctuation & Numbers
-    '\u060C': ',',      # ، (Arabic Comma)
-    '\u061B': ';',      # ؛ (Arabic Semicolon)
-    '\u061F': '?',      # ؟ (Arabic Question Mark)
-    '\u06D4': '.',      # ۔ (Urdu Full Stop)
-    '\u066A': '%',      # ٪ (Arabic Percent)
-    '\u0660': '0', '\u0661': '1', '\u0662': '2', '\u0663': '3', '\u0664': '4',
-    '\u0665': '5', '\u0666': '6', '\u0667': '7', '\u0668': '8', '\u0669': '9',
-    '\u06F0': '0', '\u06F1': '1', '\u06F2': '2', '\u06F3': '3', '\u06F4': '4',
-    '\u06F5': '5', '\u06F6': '6', '\u06F7': '7', '\u06F8': '8', '\u06F9': '9',
+    "\u060c": ",",  # ، (Arabic Comma)
+    "\u061b": ";",  # ؛ (Arabic Semicolon)
+    "\u061f": "?",  # ؟ (Arabic Question Mark)
+    "\u06d4": ".",  # ۔ (Urdu Full Stop)
+    "\u066a": "%",  # ٪ (Arabic Percent)
+    "\u0660": "0",
+    "\u0661": "1",
+    "\u0662": "2",
+    "\u0663": "3",
+    "\u0664": "4",
+    "\u0665": "5",
+    "\u0666": "6",
+    "\u0667": "7",
+    "\u0668": "8",
+    "\u0669": "9",
+    "\u06f0": "0",
+    "\u06f1": "1",
+    "\u06f2": "2",
+    "\u06f3": "3",
+    "\u06f4": "4",
+    "\u06f5": "5",
+    "\u06f6": "6",
+    "\u06f7": "7",
+    "\u06f8": "8",
+    "\u06f9": "9",
 }
 
 # ── 2. Devanagari Mapping ─────────────────────────────────────────────
 NUKTA_NORMALIZATION = {
-    '\u0915\u093c': '\u0958',  # क़ -> क़
-    '\u0916\u093c': '\u0959',  # ख़ -> ख़
-    '\u0917\u093c': '\u095a',  # ग़ -> ग़
-    '\u091c\u093c': '\u095b',  # ज़ -> ज़
-    '\u0921\u093c': '\u095c',  # ड़ -> ड़
-    '\u0922\u093c': '\u095d',  # ढ़ -> ढ़
-    '\u092b\u093c': '\u095e',  # फ़ -> फ़
-    '\u092f\u093c': '\u095f',  # य़ -> य़
+    "\u0915\u093c": "\u0958",  # क़ -> क़
+    "\u0916\u093c": "\u0959",  # ख़ -> ख़
+    "\u0917\u093c": "\u095a",  # ग़ -> ग़
+    "\u091c\u093c": "\u095b",  # ज़ -> ज़
+    "\u0921\u093c": "\u095c",  # ड़ -> ड़
+    "\u0922\u093c": "\u095d",  # ढ़ -> ढ़
+    "\u092b\u093c": "\u095e",  # फ़ -> फ़
+    "\u092f\u093c": "\u095f",  # य़ -> य़
 }
 
 DEV_VOWELS = {
-    'अ': 'a', 'आ': 'aa', 'इ': 'i', 'ई': 'ee', 'उ': 'u', 'ऊ': 'oo',
-    'ऋ': 'ri', 'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au',
-    'अं': 'an', 'अः': 'ah', 'ऑ': 'o', 'ऍ': 'e',
+    "अ": "a",
+    "आ": "aa",
+    "इ": "i",
+    "ई": "ee",
+    "उ": "u",
+    "ऊ": "oo",
+    "ऋ": "ri",
+    "ए": "e",
+    "ऐ": "ai",
+    "ओ": "o",
+    "औ": "au",
+    "अं": "an",
+    "अः": "ah",
+    "ऑ": "o",
+    "ऍ": "e",
 }
 
 DEV_MATRAS = {
-    'ा': 'aa', 'ि': 'i', 'ी': 'ee', 'ु': 'u', 'ू': 'oo',
-    'ृ': 'ri', 'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au',
-    'ॉ': 'o', 'ॅ': 'e',
-    'ं': 'n', 'ँ': 'n', 'ः': 'h',
+    "ा": "aa",
+    "ि": "i",
+    "ी": "ee",
+    "ु": "u",
+    "ू": "oo",
+    "ृ": "ri",
+    "े": "e",
+    "ै": "ai",
+    "ो": "o",
+    "ौ": "au",
+    "ॉ": "o",
+    "ॅ": "e",
+    "ं": "n",
+    "ँ": "n",
+    "ः": "h",
 }
 
 DEV_CONSONANTS = {
-    'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'ङ': 'ng',
-    'च': 'ch', 'छ': 'chh', 'ज': 'j', 'झ': 'jh', 'ञ': 'ny',
-    'ट': 't', 'ठ': 'th', 'ड': 'd', 'ढ': 'dh', 'ण': 'n',
-    'त': 't', 'थ': 'th', 'द': 'd', 'ध': 'dh', 'न': 'n',
-    'प': 'p', 'फ': 'ph', 'ब': 'b', 'भ': 'bh', 'म': 'm',
-    'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v',
-    'श': 'sh', 'ष': 'sh', 'स': 's', 'ह': 'h',
+    "क": "k",
+    "ख": "kh",
+    "ग": "g",
+    "घ": "gh",
+    "ङ": "ng",
+    "च": "ch",
+    "छ": "chh",
+    "ज": "j",
+    "झ": "jh",
+    "ञ": "ny",
+    "ट": "t",
+    "ठ": "th",
+    "ड": "d",
+    "ढ": "dh",
+    "ण": "n",
+    "त": "t",
+    "थ": "th",
+    "द": "d",
+    "ध": "dh",
+    "न": "n",
+    "प": "p",
+    "फ": "ph",
+    "ब": "b",
+    "भ": "bh",
+    "म": "m",
+    "य": "y",
+    "र": "r",
+    "ल": "l",
+    "व": "v",
+    "श": "sh",
+    "ष": "sh",
+    "स": "s",
+    "ह": "h",
     # Nukta consonants (Urdu/Persian/Arabic loan sounds)
-    '\u0958': 'q', '\u0959': 'kh', '\u095a': 'gh', '\u095b': 'z',
-    '\u095c': 'r', '\u095d': 'rh', '\u095e': 'f',  '\u095f': 'y',
+    "\u0958": "q",
+    "\u0959": "kh",
+    "\u095a": "gh",
+    "\u095b": "z",
+    "\u095c": "r",
+    "\u095d": "rh",
+    "\u095e": "f",
+    "\u095f": "y",
 }
 
 DEV_DIGITS = {
-    '०': '0', '१': '1', '२': '2', '३': '3', '४': '4',
-    '५': '5', '६': '6', '७': '7', '८': '8', '९': '9',
+    "०": "0",
+    "१": "1",
+    "२": "2",
+    "३": "3",
+    "४": "4",
+    "५": "5",
+    "६": "6",
+    "७": "7",
+    "८": "8",
+    "९": "9",
 }
 
 DEV_PUNCTUATION = {
-    '।': '.',
-    '॥': '.',
-    'ॐ': 'Om',
+    "।": ".",
+    "॥": ".",
+    "ॐ": "Om",
 }
 
-HALANT = '्'
+HALANT = "्"
 
 # ── 3. Phonetic Cleanups & Common Word Corrections ────────────────────
 WORD_REPLACEMENTS = [
     # Common corrupted syllables from mixed scripts
-    (r'\bph\s+r\b', 'phir'),
-    (r'\bphr\b', 'phir'),
-    (r'\bbkhrna\b', 'bikharna'),
-    (r'\bzrori\b', 'zaroori'),
-    (r'\bm\s+ro\b', 'magar'),
-    (r'\bmro\b', 'magar'),
-    (r'\baarzohn\b', 'aarzoon'),
-    (r'\baarzon\b', 'aarzoon'),
-    (r'\bkyoon\b', 'kyun'),
-    (r'\bkyon\b', 'kyun'),
-    (r'\btumhi\b', 'tum hi'),
-    (r'\bmujhako\b', 'mujhko'),
-    (r'\btujhako\b', 'tujhko'),
-    (r'\busako\b', 'usko'),
-    (r'\bisako\b', 'isko'),
-    (r'\bnahin\b', 'nahi'),
-    (r'\bnaheen\b', 'nahi'),
-    (r'\bnahee\b', 'nahi'),
-    (r'\bkabhee\b', 'kabhi'),
-    (r'\bbhee\b', 'bhi'),
-    (r'\bkee\b', 'ki'),
-    (r'\bmeree\b', 'meri'),
-    (r'\bteree\b', 'teri'),
-    (r'\bzindagee\b', 'zindagi'),
-    (r'\bkhushee\b', 'khushi'),
-    (r'\bkisee\b', 'kisi'),
-    (r'\bkoyee\b', 'koi'),
-    (r'\bkoee\b', 'koi'),
-    (r'\bhain\b', 'hai'),
-    (r'\bhoon\b', 'hoon'),
-    (r'\bmeen\b', 'mein'),
-    (r'\bmen\b', 'mein'),
-    (r'\braha\b', 'raha'),
-    (r'\brahe\b', 'rahe'),
-    (r'\brahi\b', 'rahi'),
-    (r'\bjnya', 'gya'),
+    (r"\bph\s+r\b", "phir"),
+    (r"\bphr\b", "phir"),
+    (r"\bbkhrna\b", "bikharna"),
+    (r"\bzrori\b", "zaroori"),
+    (r"\bm\s+ro\b", "magar"),
+    (r"\bmro\b", "magar"),
+    (r"\baarzohn\b", "aarzoon"),
+    (r"\baarzon\b", "aarzoon"),
+    (r"\bkyoon\b", "kyun"),
+    (r"\bkyon\b", "kyun"),
+    (r"\btumhi\b", "tum hi"),
+    (r"\bmujhako\b", "mujhko"),
+    (r"\btujhako\b", "tujhko"),
+    (r"\busako\b", "usko"),
+    (r"\bisako\b", "isko"),
+    (r"\bnahin\b", "nahi"),
+    (r"\bnaheen\b", "nahi"),
+    (r"\bnahee\b", "nahi"),
+    (r"\bkabhee\b", "kabhi"),
+    (r"\bbhee\b", "bhi"),
+    (r"\bkee\b", "ki"),
+    (r"\bmeree\b", "meri"),
+    (r"\bteree\b", "teri"),
+    (r"\bzindagee\b", "zindagi"),
+    (r"\bkhushee\b", "khushi"),
+    (r"\bkisee\b", "kisi"),
+    (r"\bkoyee\b", "koi"),
+    (r"\bkoee\b", "koi"),
+    (r"\bhain\b", "hai"),
+    (r"\bhoon\b", "hoon"),
+    (r"\bmeen\b", "mein"),
+    (r"\bmen\b", "mein"),
+    (r"\braha\b", "raha"),
+    (r"\brahe\b", "rahe"),
+    (r"\brahi\b", "rahi"),
+    (r"\bjnya", "gya"),
 ]
 
 
@@ -209,10 +286,10 @@ def transliterate_devanagari_word(word: str) -> str:
                 res.append(cons + DEV_MATRAS[word[i]])
                 i += 1
             else:
-                if i >= n or word[i] in ' ,.?!()-\'"\n\r':
+                if i >= n or word[i] in " ,.?!()-'\"\n\r":
                     res.append(cons)
                 else:
-                    res.append(cons + 'a')
+                    res.append(cons + "a")
         elif char in DEV_MATRAS:
             res.append(DEV_MATRAS[char])
             i += 1
@@ -222,13 +299,13 @@ def transliterate_devanagari_word(word: str) -> str:
         elif char in DEV_PUNCTUATION:
             res.append(DEV_PUNCTUATION[char])
             i += 1
-        elif char == HALANT or char == '\u093c':
+        elif char == HALANT or char == "\u093c":
             i += 1
         else:
             res.append(char)
             i += 1
 
-    return ''.join(res)
+    return "".join(res)
 
 
 def transliterate_urdu_text(text: str) -> str:
@@ -240,11 +317,16 @@ def transliterate_urdu_text(text: str) -> str:
         else:
             # Check if within Arabic block and not in map -> strip or drop
             code = ord(ch)
-            if (0x0600 <= code <= 0x06FF) or (0x0750 <= code <= 0x077F) or (0xFB50 <= code <= 0xFDFF) or (0xFE70 <= code <= 0xFEFF):
+            if (
+                (0x0600 <= code <= 0x06FF)
+                or (0x0750 <= code <= 0x077F)
+                or (0xFB50 <= code <= 0xFDFF)
+                or (0xFE70 <= code <= 0xFEFF)
+            ):
                 pass  # Safely strip unsupported Arabic diacritics
             else:
                 res.append(ch)
-    return ''.join(res)
+    return "".join(res)
 
 
 def _universal_safety_sanitize(text: str) -> str:
@@ -270,23 +352,28 @@ def _universal_safety_sanitize(text: str) -> str:
             else:
                 pass  # drop
         # Check Arabic / Urdu / Persian
-        elif (0x0600 <= code <= 0x06FF) or (0x0750 <= code <= 0x077F) or (0xFB50 <= code <= 0xFDFF) or (0xFE70 <= code <= 0xFEFF):
+        elif (
+            (0x0600 <= code <= 0x06FF)
+            or (0x0750 <= code <= 0x077F)
+            or (0xFB50 <= code <= 0xFDFF)
+            or (0xFE70 <= code <= 0xFEFF)
+        ):
             if ch in URDU_MAP:
                 clean.append(URDU_MAP[ch])
             else:
                 pass  # drop
         # Smart quotes / punctuation normalisation
-        elif ch in ('\u2018', '\u2019', '`'):
+        elif ch in ("\u2018", "\u2019", "`"):
             clean.append("'")
-        elif ch in ('\u201C', '\u201D'):
+        elif ch in ("\u201c", "\u201d"):
             clean.append('"')
-        elif ch in ('\u2013', '\u2014'):
-            clean.append('-')
-        elif ch == '\u2026':
-            clean.append('...')
+        elif ch in ("\u2013", "\u2014"):
+            clean.append("-")
+        elif ch == "\u2026":
+            clean.append("...")
         else:
             clean.append(ch)
-    return ''.join(clean)
+    return "".join(clean)
 
 
 def to_hinglish(text: str) -> str:
@@ -302,10 +389,10 @@ def to_hinglish(text: str) -> str:
 
     # 2. Check for Arabic / Urdu
     has_urdu = any(
-        (0x0600 <= ord(ch) <= 0x06FF) or
-        (0x0750 <= ord(ch) <= 0x077F) or
-        (0xFB50 <= ord(ch) <= 0xFDFF) or
-        (0xFE70 <= ord(ch) <= 0xFEFF)
+        (0x0600 <= ord(ch) <= 0x06FF)
+        or (0x0750 <= ord(ch) <= 0x077F)
+        or (0xFB50 <= ord(ch) <= 0xFDFF)
+        or (0xFE70 <= ord(ch) <= 0xFEFF)
         for ch in text
     )
     if has_urdu:
@@ -314,12 +401,12 @@ def to_hinglish(text: str) -> str:
     # 3. Check for Devanagari
     has_devanagari = any(0x0900 <= ord(ch) <= 0x097F for ch in text)
     if has_devanagari:
-        tokens = re.split(r'(\s+)', text)
+        tokens = re.split(r"(\s+)", text)
         converted = [
             transliterate_devanagari_word(tok) if not tok.isspace() else tok
             for tok in tokens
         ]
-        text = ''.join(converted)
+        text = "".join(converted)
 
     # 4. Universal safety sanitization (zero leaks guarantee)
     text = _universal_safety_sanitize(text)
@@ -329,7 +416,7 @@ def to_hinglish(text: str) -> str:
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
 
     # 6. Normalize whitespace
-    text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r"\s+", " ", text).strip()
 
     if not text:
         return ""

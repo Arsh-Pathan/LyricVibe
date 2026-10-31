@@ -92,11 +92,11 @@ Run `disable_autostart.bat` to remove the shortcut from your Startup folder.
    ```
 
 ### Text position is too high or too low
-- Press `Ctrl + S` or double-click the lyrics text to open the settings window.
+- Press `Ctrl + Alt + S` or double-click the lyrics text to open the settings window.
 - In the **Display** tab, adjust the **Vertical Offset** slider to place lyrics at your preferred position.
 - You can also click and drag the text anywhere on your screen.
 
 ### Lyrics timing is slightly ahead or behind
 - Press `[` to shift lyrics 0.5 seconds earlier.
 - Press `]` to shift lyrics 0.5 seconds later.
-- Or open Settings (`Ctrl + S`) -> **Sync** tab to set a permanent millisecond audio offset.
+- Or open Settings (`Ctrl + Alt + S`) -> **Sync** tab to set a permanent millisecond audio offset.

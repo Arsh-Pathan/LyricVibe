@@ -33,10 +33,10 @@ def test_default_settings_keys():
 
 def test_validate_settings_bounds_clamping():
     raw = {
-        "target_fps": 9999,      # clamped to 360
-        "font_size": 2,          # clamped to 18
-        "overlay_y": -500,       # clamped to 0
-        "sync_offset_sec": 99.0, # clamped to 5.0
+        "target_fps": 9999,  # clamped to 360
+        "font_size": 2,  # clamped to 18
+        "overlay_y": -500,  # clamped to 0
+        "sync_offset_sec": 99.0,  # clamped to 5.0
         "motion_blur_intensity": -1.0,  # clamped to 0.0
     }
     validated = _validate_settings(raw)
@@ -102,11 +102,13 @@ def test_get_settings_file_path_fallback():
     assert unfrozen_path.endswith("settings.json")
 
     # Frozen mode with non-writable exe directory should fallback to APPDATA
-    with patch("sys.frozen", True, create=True), \
-         patch("sys.executable", "C:\\Program Files\\LyricVibe\\LyricVibe.exe"), \
-         patch("os.path.exists", return_value=False), \
-         patch("os.access", return_value=False), \
-         patch.dict("os.environ", {"APPDATA": "C:\\Users\\Test\\AppData\\Roaming"}):
+    with (
+        patch("sys.frozen", True, create=True),
+        patch("sys.executable", "C:\\Program Files\\LyricVibe\\LyricVibe.exe"),
+        patch("os.path.exists", return_value=False),
+        patch("os.access", return_value=False),
+        patch.dict("os.environ", {"APPDATA": "C:\\Users\\Test\\AppData\\Roaming"}),
+    ):
         fallback_path = get_settings_file_path()
         assert "AppData\\Roaming\\LyricVibe\\settings.json" in fallback_path
 
@@ -130,7 +132,9 @@ def test_ensure_bright_hex_never_dark():
         h = bright.lstrip("#")
         r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
         lum = 0.299 * r + 0.587 * g + 0.114 * b
-        assert lum >= 175.0, f"Expected {d} to be lifted >= 175.0 lum, got {lum} ({bright})"
+        assert lum >= 175.0, (
+            f"Expected {d} to be lifted >= 175.0 lum, got {lum} ({bright})"
+        )
 
     # 2. Already bright colors preserve high luminance
     for bright_in in ["#00FFFF", "#FFE600", "#26FF7C"]:
@@ -142,7 +146,9 @@ def test_ensure_bright_hex_never_dark():
         h = item["hex"].lstrip("#")
         r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
         lum = 0.299 * r + 0.587 * g + 0.114 * b
-        assert lum >= 175.0, f"Palette color {item['name']} ({item['hex']}) is below 175.0 lum: {lum}"
+        assert lum >= 175.0, (
+            f"Palette color {item['name']} ({item['hex']}) is below 175.0 lum: {lum}"
+        )
 
     # 4. Invalid or malformed inputs return bright fallback
     assert ensure_bright_hex(None).startswith("#")
@@ -172,8 +178,10 @@ def test_settings_save_fallback_on_restricted_path():
         fallback_dir = os.path.join(tmp_dir, "LyricVibe")
         fallback_file = os.path.join(fallback_dir, "settings.json")
 
-        with patch("lyricvibe.utils.settings.SETTINGS_FILE", restricted_file), \
-             patch.dict("os.environ", {"APPDATA": tmp_dir}):
+        with (
+            patch("lyricvibe.utils.settings.SETTINGS_FILE", restricted_file),
+            patch.dict("os.environ", {"APPDATA": tmp_dir}),
+        ):
             custom = DEFAULT_SETTINGS.copy()
             custom["font_size"] = 50
 
@@ -194,7 +202,6 @@ def test_get_asset_path_frozen_exe_dir_override():
 
         fake_exe = os.path.join(tmp_dir, "LyricVibe.exe")
 
-        with patch("sys.frozen", True, create=True), \
-             patch("sys.executable", fake_exe):
+        with patch("sys.frozen", True, create=True), patch("sys.executable", fake_exe):
             resolved = get_asset_path("CustomFont.ttf")
             assert resolved == fake_font

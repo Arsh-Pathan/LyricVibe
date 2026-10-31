@@ -88,34 +88,35 @@ except ImportError:
         is_autostart_enabled,
         set_autostart_enabled,
     )
+
     get_asset_path = lambda p: p
 
 
 # ─── Material Design 3 Dark Theme Palette ─────────────────────────────
 class MD3:
-    SURFACE               = "#101318"  # Deep canvas
-    SURFACE_DIM           = "#0B0E12"
+    SURFACE = "#101318"  # Deep canvas
+    SURFACE_DIM = "#0B0E12"
     SURFACE_CONTAINER_LOW = "#181C22"
-    SURFACE_CONTAINER     = "#1E2228"  # Card surface
-    SURFACE_CONTAINER_HIGH= "#262B33"  # Elevated card
+    SURFACE_CONTAINER = "#1E2228"  # Card surface
+    SURFACE_CONTAINER_HIGH = "#262B33"  # Elevated card
     SURFACE_CONTAINER_MAX = "#313640"
 
-    PRIMARY               = "#A8C7FA"  # Material Sky Blue
-    ON_PRIMARY            = "#062E6F"
-    PRIMARY_CONTAINER     = "#0842A0"
-    ON_PRIMARY_CONTAINER  = "#D3E3FD"
+    PRIMARY = "#A8C7FA"  # Material Sky Blue
+    ON_PRIMARY = "#062E6F"
+    PRIMARY_CONTAINER = "#0842A0"
+    ON_PRIMARY_CONTAINER = "#D3E3FD"
 
-    ACCENT_GREEN          = "#1DB954"
-    ACCENT_GREEN_BG       = "#0A3E1D"
+    ACCENT_GREEN = "#1DB954"
+    ACCENT_GREEN_BG = "#0A3E1D"
 
-    ERROR                 = "#FFB4AB"
-    ERROR_CONTAINER       = "#690005"
-    ON_ERROR_CONTAINER    = "#FFDAD6"
+    ERROR = "#FFB4AB"
+    ERROR_CONTAINER = "#690005"
+    ON_ERROR_CONTAINER = "#FFDAD6"
 
-    ON_SURFACE            = "#E2E2E9"
-    ON_SURFACE_VARIANT    = "#C4C6D0"
-    OUTLINE               = "#8E9099"
-    OUTLINE_VARIANT       = "#363B44"
+    ON_SURFACE = "#E2E2E9"
+    ON_SURFACE_VARIANT = "#C4C6D0"
+    OUTLINE = "#8E9099"
+    OUTLINE_VARIANT = "#363B44"
 
     RADIUS_SM = 8
     RADIUS_MD = 12
@@ -206,19 +207,25 @@ class SettingRow(QWidget):
         text_col.setSpacing(3)
 
         self.title_label = QLabel(title)
-        self.title_label.setStyleSheet(f"color: {MD3.ON_SURFACE}; font-size: 14px; font-weight: 500; background: transparent; border: none;")
+        self.title_label.setStyleSheet(
+            f"color: {MD3.ON_SURFACE}; font-size: 14px; font-weight: 500; background: transparent; border: none;"
+        )
         text_col.addWidget(self.title_label)
 
         if subtitle:
             self.subtitle_label = QLabel(subtitle)
-            self.subtitle_label.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 12px; background: transparent; border: none;")
+            self.subtitle_label.setStyleSheet(
+                f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 12px; background: transparent; border: none;"
+            )
             self.subtitle_label.setWordWrap(True)
             text_col.addWidget(self.subtitle_label)
 
         layout.addLayout(text_col, 1)
 
         self._control_layout = QHBoxLayout()
-        self._control_layout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._control_layout.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
         layout.addLayout(self._control_layout)
 
     def add_control(self, widget: QWidget):
@@ -229,8 +236,16 @@ class SettingRow(QWidget):
 class SliderRow(QWidget):
     value_changed = pyqtSignal(int)
 
-    def __init__(self, title: str, subtitle: str, min_val: int, max_val: int,
-                 value: int, suffix: str = "", parent=None):
+    def __init__(
+        self,
+        title: str,
+        subtitle: str,
+        min_val: int,
+        max_val: int,
+        value: int,
+        suffix: str = "",
+        parent=None,
+    ):
         super().__init__(parent)
         self.suffix = suffix
         self.setMinimumHeight(82)
@@ -241,7 +256,9 @@ class SliderRow(QWidget):
 
         header = QHBoxLayout()
         title_label = QLabel(title)
-        title_label.setStyleSheet(f"color: {MD3.ON_SURFACE}; font-size: 14px; font-weight: 500; background: transparent; border: none;")
+        title_label.setStyleSheet(
+            f"color: {MD3.ON_SURFACE}; font-size: 14px; font-weight: 500; background: transparent; border: none;"
+        )
         header.addWidget(title_label)
 
         self.value_badge = QLabel(f"{value}{suffix}")
@@ -259,7 +276,9 @@ class SliderRow(QWidget):
 
         if subtitle:
             sub = QLabel(subtitle)
-            sub.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 12px; background: transparent; border: none;")
+            sub.setStyleSheet(
+                f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 12px; background: transparent; border: none;"
+            )
             layout.addWidget(sub)
 
         self.slider = QSlider(Qt.Orientation.Horizontal)
@@ -316,7 +335,9 @@ class SectionCard(QFrame):
     def add_separator(self):
         sep = QFrame()
         sep.setFixedHeight(1)
-        sep.setStyleSheet(f"background-color: {MD3.OUTLINE_VARIANT}; margin-left: 20px; margin-right: 20px;")
+        sep.setStyleSheet(
+            f"background-color: {MD3.OUTLINE_VARIANT}; margin-left: 20px; margin-right: 20px;"
+        )
         self._layout.addWidget(sep)
 
 
@@ -476,7 +497,9 @@ class LivePreview(QWidget):
             hl_hex = ensure_bright_hex(BRIGHT_HIGHLIGHT_HEX_LIST[self._color_idx])
             hl_color = QColor(hl_hex)
         else:
-            hl_hex = ensure_bright_hex(self.settings.get("highlight_color", BRIGHT_HIGHLIGHT_HEX_LIST[0]))
+            hl_hex = ensure_bright_hex(
+                self.settings.get("highlight_color", BRIGHT_HIGHLIGHT_HEX_LIST[0])
+            )
             hl_color = QColor(hl_hex)
         hl_idx = data.get("highlight_word_idx", -1)
 
@@ -488,7 +511,10 @@ class LivePreview(QWidget):
             p_baseline = (metrics.ascent() - metrics.descent()) / 2.0
 
             # Outgoing motion blur streak (subtle upward optical softening)
-            if self.settings.get("motion_blur_enabled", True) and prev_data.get("blur_dy", 0.0) != 0.0:
+            if (
+                self.settings.get("motion_blur_enabled", True)
+                and prev_data.get("blur_dy", 0.0) != 0.0
+            ):
                 p_blur_dy = max(-4.0, min(0.0, prev_data["blur_dy"]))
                 blur_int = float(self.settings.get("motion_blur_intensity", 1.4))
                 for step in range(1, 3):
@@ -496,7 +522,9 @@ class LivePreview(QWidget):
                     out_blur_a = int(p_alpha * 0.18 * (1.0 - frac * 0.5))
                     if out_blur_a > 2:
                         p.save()
-                        p.translate(cx, cy + prev_data["offset_y"] - p_blur_dy * frac * blur_int)
+                        p.translate(
+                            cx, cy + prev_data["offset_y"] - p_blur_dy * frac * blur_int
+                        )
                         p.setPen(QColor(255, 255, 255, out_blur_a))
                         p.drawText(QPointF(-p_w / 2.0, p_baseline), p_text)
                         p.restore()
@@ -532,12 +560,14 @@ class LivePreview(QWidget):
                     frac = step / 2.0
                     trail_x = -clamped_dx * frac * blur_intensity
                     trail_y = -clamped_dy * frac * blur_intensity
-                    step_a = int(in_alpha * data.get("blur_alpha", 0.25) * (1.0 - frac * 0.5))
+                    step_a = int(
+                        in_alpha * data.get("blur_alpha", 0.25) * (1.0 - frac * 0.5)
+                    )
                     if step_a > 2:
                         p.save()
                         p.translate(
                             cx + data.get("curr_offset_x", 0.0) + trail_x,
-                            cy + data["curr_offset_y"] + trail_y
+                            cy + data["curr_offset_y"] + trail_y,
                         )
                         if data.get("rotation", 0.0) != 0.0:
                             p.rotate(data["rotation"])
@@ -566,15 +596,18 @@ class LivePreview(QWidget):
                 w_str, w_start, _ = words[hl_idx]
                 w_x = start_x + metrics.horizontalAdvance(curr_text[:w_start])
                 # Draw active word in vibrant ultra-bright color
-                p.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), in_alpha))
+                p.setPen(
+                    QColor(hl_color.red(), hl_color.green(), hl_color.blue(), in_alpha)
+                )
                 p.drawText(QPointF(w_x, baseline_y), w_str)
 
             # Focal underline
-            if (self.settings.get("hand_drawn_underline_enabled", True) and
-                    data.get("underline_active") and
-                    data.get("underline_progress", 0.0) > 0.02 and
-                    data.get("focal_word_idx", -1) >= 0):
-
+            if (
+                self.settings.get("hand_drawn_underline_enabled", True)
+                and data.get("underline_active")
+                and data.get("underline_progress", 0.0) > 0.02
+                and data.get("focal_word_idx", -1) >= 0
+            ):
                 focal_idx = data["focal_word_idx"]
                 if 0 <= focal_idx < len(words):
                     w_str, w_start, _ = words[focal_idx]
@@ -584,16 +617,40 @@ class LivePreview(QWidget):
 
                     if draw_w > 6:
                         y_line = baseline_y + 8.0
-                        p.setPen(QPen(QColor(255, 255, 255, int(data["curr_alpha"] * 75)), 1.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                        p.setPen(
+                            QPen(
+                                QColor(255, 255, 255, int(data["curr_alpha"] * 75)),
+                                1.2,
+                                Qt.PenStyle.SolidLine,
+                                Qt.PenCapStyle.RoundCap,
+                            )
+                        )
                         path1 = QPainterPath()
                         path1.moveTo(w_start_x - 2, y_line)
-                        path1.quadTo(w_start_x + draw_w * 0.5, y_line + 3, w_start_x + draw_w + 2, y_line + 1)
+                        path1.quadTo(
+                            w_start_x + draw_w * 0.5,
+                            y_line + 3,
+                            w_start_x + draw_w + 2,
+                            y_line + 1,
+                        )
                         p.drawPath(path1)
 
-                        p.setPen(QPen(QColor(255, 255, 255, int(data["curr_alpha"] * 225)), 2.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                        p.setPen(
+                            QPen(
+                                QColor(255, 255, 255, int(data["curr_alpha"] * 225)),
+                                2.6,
+                                Qt.PenStyle.SolidLine,
+                                Qt.PenCapStyle.RoundCap,
+                            )
+                        )
                         path2 = QPainterPath()
                         path2.moveTo(w_start_x, y_line)
-                        path2.quadTo(w_start_x + draw_w * 0.5, y_line + 3.5, w_start_x + draw_w, y_line + 0.5)
+                        path2.quadTo(
+                            w_start_x + draw_w * 0.5,
+                            y_line + 3.5,
+                            w_start_x + draw_w,
+                            y_line + 0.5,
+                        )
                         p.drawPath(path2)
 
             p.restore()
@@ -601,7 +658,9 @@ class LivePreview(QWidget):
         # Header badge
         p.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
         p.setPen(QColor(MD3.PRIMARY))
-        p.drawText(QRectF(0, 10, w - 16, 20), Qt.AlignmentFlag.AlignRight, "● LIVE PREVIEW")
+        p.drawText(
+            QRectF(0, 10, w - 16, 20), Qt.AlignmentFlag.AlignRight, "● LIVE PREVIEW"
+        )
 
         p.end()
 
@@ -631,7 +690,9 @@ class ColorSwatch(QPushButton):
             if item["hex"].upper() == self._color.upper():
                 color_name = item["name"]
                 break
-        self.setToolTip(f"{color_name} ({self._color})\nClick to cycle through bright colors")
+        self.setToolTip(
+            f"{color_name} ({self._color})\nClick to cycle through bright colors"
+        )
         self.setStyleSheet(f"""
             QPushButton {{
                 background: {self._color};
@@ -680,7 +741,12 @@ class SettingsDialog(QDialog):
         self._build_ui()
 
     def _load_fonts(self):
-        for f in ("EdoSZ.ttf", "Montserrat-Black.ttf", "Montserrat.ttf", "Poppins-Bold.ttf"):
+        for f in (
+            "EdoSZ.ttf",
+            "Montserrat-Black.ttf",
+            "Montserrat.ttf",
+            "Poppins-Bold.ttf",
+        ):
             fp = get_asset_path(os.path.join("fonts", f))
             if os.path.exists(fp):
                 QFontDatabase.addApplicationFont(fp)
@@ -799,17 +865,26 @@ class SettingsDialog(QDialog):
         icon_label = QLabel()
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.png")
         if os.path.exists(icon_path):
-            pix = QPixmap(icon_path).scaled(32, 32, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            pix = QPixmap(icon_path).scaled(
+                32,
+                32,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
             icon_label.setPixmap(pix)
         h_lay.addWidget(icon_label)
 
         title_col = QVBoxLayout()
         title_col.setSpacing(0)
         title = QLabel("LyricVibe")
-        title.setStyleSheet(f"color: {MD3.ON_SURFACE}; font-size: 18px; font-weight: 600; background: transparent;")
+        title.setStyleSheet(
+            f"color: {MD3.ON_SURFACE}; font-size: 18px; font-weight: 600; background: transparent;"
+        )
         title_col.addWidget(title)
         subtitle = QLabel("165Hz Desktop Lyrics Customizer")
-        subtitle.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 11px; background: transparent;")
+        subtitle.setStyleSheet(
+            f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 11px; background: transparent;"
+        )
         title_col.addWidget(subtitle)
         h_lay.addLayout(title_col)
 
@@ -940,7 +1015,9 @@ class SettingsDialog(QDialog):
             clean_name = name.replace("_", " ").title()
             self.combo_test_anim.addItem(f"Test: {clean_name}", name)
         self.combo_test_anim.currentIndexChanged.connect(
-            lambda: self.preview_widget.trigger_animation(self.combo_test_anim.currentData())
+            lambda: self.preview_widget.trigger_animation(
+                self.combo_test_anim.currentData()
+            )
         )
         p_c_lay.addWidget(self.combo_test_anim, 1)
 
@@ -960,7 +1037,11 @@ class SettingsDialog(QDialog):
             }}
         """)
         btn_test.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_test.clicked.connect(lambda: self.preview_widget.trigger_animation(self.combo_test_anim.currentData()))
+        btn_test.clicked.connect(
+            lambda: self.preview_widget.trigger_animation(
+                self.combo_test_anim.currentData()
+            )
+        )
         p_c_lay.addWidget(btn_test)
 
         btn_next = QPushButton("Next Line →")
@@ -987,15 +1068,19 @@ class SettingsDialog(QDialog):
         # 2. Typography Card
         typo_card = SectionCard("Typography & 7clouds Style")
 
-        row_font = SettingRow("Font Style", "Choose between 7clouds signature brush and clean bold")
+        row_font = SettingRow(
+            "Font Style", "Choose between 7clouds signature brush and clean bold"
+        )
         self.combo_font = QComboBox()
         self.combo_font.wheelEvent = lambda event: event.ignore()
-        self.combo_font.addItems([
-            "7clouds Signature (Edo SZ)",
-            "7clouds Modern (Montserrat Black)",
-            "Clean Bold (Poppins)",
-            "System Clean (Segoe UI)",
-        ])
+        self.combo_font.addItems(
+            [
+                "7clouds Signature (Edo SZ)",
+                "7clouds Modern (Montserrat Black)",
+                "Clean Bold (Poppins)",
+                "System Clean (Segoe UI)",
+            ]
+        )
         cur_font = self.settings.get("font_family", "7clouds Signature (Edo SZ)")
         idx = 0
         if "Montserrat" in cur_font or "Modern" in cur_font:
@@ -1011,16 +1096,24 @@ class SettingsDialog(QDialog):
         typo_card.add_separator()
 
         self.slider_size = SliderRow(
-            "Font Size", "Automatically scales down on long lines to prevent clipping",
-            28, 64, int(self.settings.get("font_size", 42)), "px"
+            "Font Size",
+            "Automatically scales down on long lines to prevent clipping",
+            28,
+            64,
+            int(self.settings.get("font_size", 42)),
+            "px",
         )
         self.slider_size.value_changed.connect(self._on_slider_size_changed)
         typo_card.add_row(self.slider_size)
         typo_card.add_separator()
 
         self.slider_y = SliderRow(
-            "Top Screen Margin", "Distance from the top edge of your monitor",
-            10, 350, int(self.settings.get("overlay_y", 55)), "px"
+            "Top Screen Margin",
+            "Distance from the top edge of your monitor",
+            10,
+            350,
+            int(self.settings.get("overlay_y", 55)),
+            "px",
         )
         self.slider_y.value_changed.connect(self._on_slider_y_changed)
         typo_card.add_row(self.slider_y)
@@ -1030,10 +1123,15 @@ class SettingsDialog(QDialog):
         # 3. Performance Card
         perf_card = SectionCard("Performance & Refresh Rate")
 
-        row_fps = SettingRow("Target Refresh Rate", "Hardware-accelerated timer for high-refresh monitors")
+        row_fps = SettingRow(
+            "Target Refresh Rate",
+            "Hardware-accelerated timer for high-refresh monitors",
+        )
         self.combo_fps = QComboBox()
         self.combo_fps.wheelEvent = lambda event: event.ignore()
-        self.combo_fps.addItems(["60 Hz", "120 Hz", "144 Hz", "165 Hz (Recommended)", "240 Hz"])
+        self.combo_fps.addItems(
+            ["60 Hz", "120 Hz", "144 Hz", "165 Hz (Recommended)", "240 Hz"]
+        )
         cur_fps = int(self.settings.get("target_fps", 165))
         fps_map = {60: 0, 120: 1, 144: 2, 165: 3, 240: 4}
         self.combo_fps.setCurrentIndex(fps_map.get(cur_fps, 3))
@@ -1063,10 +1161,12 @@ class SettingsDialog(QDialog):
         # 1. Active Word Highlight Enabled
         row_hl = SettingRow(
             "Word Timing Highlight",
-            "Illuminates the active spoken word with high-contrast bright color"
+            "Illuminates the active spoken word with high-contrast bright color",
         )
         self.toggle_highlight = PillToggle(self.settings.get("highlight_enabled", True))
-        self.toggle_highlight.toggled.connect(lambda v: self._update_and_sync("highlight_enabled", v))
+        self.toggle_highlight.toggled.connect(
+            lambda v: self._update_and_sync("highlight_enabled", v)
+        )
         row_hl.add_control(self.toggle_highlight)
         fx_card.add_row(row_hl)
         fx_card.add_separator()
@@ -1074,7 +1174,7 @@ class SettingsDialog(QDialog):
         # 2. Highlight Color Mode & Swatch (Ultra-bright vibrant palette)
         row_color = SettingRow(
             "Bright Highlight Palette",
-            "Rotates an ultra-bright neon color each song, or pin your favorite"
+            "Rotates an ultra-bright neon color each song, or pin your favorite",
         )
         self.combo_hl_mode = QComboBox()
         self.combo_hl_mode.wheelEvent = lambda event: event.ignore()
@@ -1128,18 +1228,26 @@ class SettingsDialog(QDialog):
         # 3. Cinematic Motion Blur Toggle & Slider
         row_blur = SettingRow(
             "Cinematic Motion Blur",
-            "Hardware-accelerated sub-frame shutter streaks on fast entrances and exits"
+            "Hardware-accelerated sub-frame shutter streaks on fast entrances and exits",
         )
-        self.toggle_motion_blur = PillToggle(self.settings.get("motion_blur_enabled", True))
-        self.toggle_motion_blur.toggled.connect(lambda v: self._update_and_sync("motion_blur_enabled", v))
+        self.toggle_motion_blur = PillToggle(
+            self.settings.get("motion_blur_enabled", True)
+        )
+        self.toggle_motion_blur.toggled.connect(
+            lambda v: self._update_and_sync("motion_blur_enabled", v)
+        )
         row_blur.add_control(self.toggle_motion_blur)
         fx_card.add_row(row_blur)
         fx_card.add_separator()
 
         cur_blur = float(self.settings.get("motion_blur_intensity", 1.4))
         self.slider_blur = SliderRow(
-            "Motion Blur Streak Length", "Controls the intensity of camera shutter motion trails",
-            5, 25, int(cur_blur * 10), "×0.1"
+            "Motion Blur Streak Length",
+            "Controls the intensity of camera shutter motion trails",
+            5,
+            25,
+            int(cur_blur * 10),
+            "×0.1",
         )
         self.slider_blur.value_changed.connect(self._on_slider_blur_changed)
         fx_card.add_row(self.slider_blur)
@@ -1148,10 +1256,14 @@ class SettingsDialog(QDialog):
         # Hand-Drawn Underline
         row_line = SettingRow(
             "Hand-Drawn Focal Underlines",
-            "Sketched marker stroke under 1 or 2 key focal words (not the whole sentence)"
+            "Sketched marker stroke under 1 or 2 key focal words (not the whole sentence)",
         )
-        self.toggle_underline = PillToggle(self.settings.get("hand_drawn_underline_enabled", True))
-        self.toggle_underline.toggled.connect(lambda v: self._update_and_sync("hand_drawn_underline_enabled", v))
+        self.toggle_underline = PillToggle(
+            self.settings.get("hand_drawn_underline_enabled", True)
+        )
+        self.toggle_underline.toggled.connect(
+            lambda v: self._update_and_sync("hand_drawn_underline_enabled", v)
+        )
         row_line.add_control(self.toggle_underline)
         fx_card.add_row(row_line)
         fx_card.add_separator()
@@ -1159,10 +1271,12 @@ class SettingsDialog(QDialog):
         # Auto-Hide When Idle
         row_hide = SettingRow(
             "Auto-Hide When Idle",
-            "Instantly vanish when music is paused or Spotify closes"
+            "Instantly vanish when music is paused or Spotify closes",
         )
         self.toggle_hide = PillToggle(self.settings.get("auto_hide_idle", True))
-        self.toggle_hide.toggled.connect(lambda v: self._update_and_sync("auto_hide_idle", v))
+        self.toggle_hide.toggled.connect(
+            lambda v: self._update_and_sync("auto_hide_idle", v)
+        )
         row_hide.add_control(self.toggle_hide)
         fx_card.add_row(row_hide)
         fx_card.add_separator()
@@ -1170,7 +1284,7 @@ class SettingsDialog(QDialog):
         # Auto-Start with Windows & Spotify
         row_autostart = SettingRow(
             "Start with Windows (Auto-Start)",
-            "Launch silently in background so lyrics show whenever Spotify starts"
+            "Launch silently in background so lyrics show whenever Spotify starts",
         )
         self.toggle_autostart = PillToggle(is_autostart_enabled())
         self.toggle_autostart.toggled.connect(self._on_autostart_toggled)
@@ -1193,7 +1307,9 @@ class SettingsDialog(QDialog):
             "Outgoing lyrics lift cleanly away, guaranteeing zero clashing or text collision with incoming lines."
         )
         anim_info.setWordWrap(True)
-        anim_info.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 13px; line-height: 1.6; padding: 16px 20px; background: transparent; border: none;")
+        anim_info.setStyleSheet(
+            f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 13px; line-height: 1.6; padding: 16px 20px; background: transparent; border: none;"
+        )
         anim_card.add_row(anim_info)
         layout.addWidget(anim_card)
 
@@ -1216,8 +1332,12 @@ class SettingsDialog(QDialog):
 
         cur_offset = float(self.settings.get("sync_offset_sec", 0.20))
         self.slider_sync = SliderRow(
-            "Sync Calibration", "Shift lyrics earlier (−) or later (+) relative to the audio",
-            -20, 20, int(cur_offset * 10), "×0.1s"
+            "Sync Calibration",
+            "Shift lyrics earlier (−) or later (+) relative to the audio",
+            -20,
+            20,
+            int(cur_offset * 10),
+            "×0.1s",
         )
         self.slider_sync.value_changed.connect(self._on_slider_sync_changed)
         sync_card.add_row(self.slider_sync)
@@ -1227,7 +1347,12 @@ class SettingsDialog(QDialog):
         q_lay.setContentsMargins(20, 4, 20, 14)
         q_lay.setSpacing(8)
 
-        for label, val in [("−0.5s", -5), ("Exact 0.0s", 0), ("+0.2s (Vocal Lead)", 2), ("+0.5s", 5)]:
+        for label, val in [
+            ("−0.5s", -5),
+            ("Exact 0.0s", 0),
+            ("+0.2s (Vocal Lead)", 2),
+            ("+0.5s", 5),
+        ]:
             btn = QPushButton(label)
             btn.setStyleSheet(f"""
                 QPushButton {{
@@ -1258,7 +1383,9 @@ class SettingsDialog(QDialog):
             "• Press Ctrl+Alt+L to lock overlay so clicks pass straight through"
         )
         tip_lbl.setWordWrap(True)
-        tip_lbl.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 13px; line-height: 1.6; padding: 16px 20px; background: transparent; border: none;")
+        tip_lbl.setStyleSheet(
+            f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 13px; line-height: 1.6; padding: 16px 20px; background: transparent; border: none;"
+        )
         tip_card.add_row(tip_lbl)
         layout.addWidget(tip_card)
 
@@ -1280,29 +1407,64 @@ class SettingsDialog(QDialog):
         card = SectionCard("One-Click Presets")
 
         presets = [
-            ("7clouds Signature", "Iconic brush style (Edo SZ) with dynamic smooth soft highlights and anti-overlap physics", {
-                "font_family": "7clouds Signature (Edo SZ)", "font_size": 42,
-                "hand_drawn_underline_enabled": True, "highlight_enabled": True,
-                "highlight_block_enabled": True, "highlight_mode": "per_song",
-                "highlight_color": "#2EE59D", "target_fps": 165, "sync_offset_sec": 0.20
-            }),
-            ("Aesthetic Dream", "Lush cinematic crossfades with soft lavender and rose highlights and subtle underlines", {
-                "font_family": "7clouds Signature (Edo SZ)", "font_size": 40,
-                "hand_drawn_underline_enabled": True, "highlight_enabled": True,
-                "highlight_block_enabled": True, "highlight_mode": "per_song",
-                "highlight_color": "#C084FC", "target_fps": 165, "sync_offset_sec": 0.20
-            }),
-            ("7clouds Modern", "Ultra-bold sans-serif (Montserrat Black) with smooth whisper dissolve and electric cyan", {
-                "font_family": "7clouds Modern (Montserrat Black)", "font_size": 42,
-                "hand_drawn_underline_enabled": True, "highlight_enabled": True,
-                "highlight_block_enabled": True, "highlight_mode": "per_song",
-                "highlight_color": "#00E5FF", "target_fps": 165, "sync_offset_sec": 0.20
-            }),
-            ("Minimalist Pure", "Distraction-free pure white typography without highlights", {
-                "font_family": "7clouds Signature (Edo SZ)", "font_size": 38,
-                "hand_drawn_underline_enabled": False, "highlight_enabled": False,
-                "highlight_block_enabled": False, "target_fps": 120, "sync_offset_sec": 0.20
-            }),
+            (
+                "7clouds Signature",
+                "Iconic brush style (Edo SZ) with dynamic smooth soft highlights and anti-overlap physics",
+                {
+                    "font_family": "7clouds Signature (Edo SZ)",
+                    "font_size": 42,
+                    "hand_drawn_underline_enabled": True,
+                    "highlight_enabled": True,
+                    "highlight_block_enabled": True,
+                    "highlight_mode": "per_song",
+                    "highlight_color": "#2EE59D",
+                    "target_fps": 165,
+                    "sync_offset_sec": 0.20,
+                },
+            ),
+            (
+                "Aesthetic Dream",
+                "Lush cinematic crossfades with soft lavender and rose highlights and subtle underlines",
+                {
+                    "font_family": "7clouds Signature (Edo SZ)",
+                    "font_size": 40,
+                    "hand_drawn_underline_enabled": True,
+                    "highlight_enabled": True,
+                    "highlight_block_enabled": True,
+                    "highlight_mode": "per_song",
+                    "highlight_color": "#C084FC",
+                    "target_fps": 165,
+                    "sync_offset_sec": 0.20,
+                },
+            ),
+            (
+                "7clouds Modern",
+                "Ultra-bold sans-serif (Montserrat Black) with smooth whisper dissolve and electric cyan",
+                {
+                    "font_family": "7clouds Modern (Montserrat Black)",
+                    "font_size": 42,
+                    "hand_drawn_underline_enabled": True,
+                    "highlight_enabled": True,
+                    "highlight_block_enabled": True,
+                    "highlight_mode": "per_song",
+                    "highlight_color": "#00E5FF",
+                    "target_fps": 165,
+                    "sync_offset_sec": 0.20,
+                },
+            ),
+            (
+                "Minimalist Pure",
+                "Distraction-free pure white typography without highlights",
+                {
+                    "font_family": "7clouds Signature (Edo SZ)",
+                    "font_size": 38,
+                    "hand_drawn_underline_enabled": False,
+                    "highlight_enabled": False,
+                    "highlight_block_enabled": False,
+                    "target_fps": 120,
+                    "sync_offset_sec": 0.20,
+                },
+            ),
         ]
 
         for title, desc, preset_dict in presets:
@@ -1314,11 +1476,15 @@ class SettingsDialog(QDialog):
             text_box = QVBoxLayout()
             text_box.setSpacing(2)
             p_title = QLabel(title)
-            p_title.setStyleSheet(f"color: {MD3.ON_SURFACE}; font-size: 14px; font-weight: 600; background: transparent; border: none;")
+            p_title.setStyleSheet(
+                f"color: {MD3.ON_SURFACE}; font-size: 14px; font-weight: 600; background: transparent; border: none;"
+            )
             text_box.addWidget(p_title)
 
             p_desc = QLabel(desc)
-            p_desc.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 12px; background: transparent; border: none;")
+            p_desc.setStyleSheet(
+                f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 12px; background: transparent; border: none;"
+            )
             p_desc.setWordWrap(True)
             text_box.addWidget(p_desc)
             r_lay.addLayout(text_box, 1)
@@ -1371,18 +1537,27 @@ class SettingsDialog(QDialog):
         icon_label = QLabel()
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.png")
         if os.path.exists(icon_path):
-            pix = QPixmap(icon_path).scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            pix = QPixmap(icon_path).scaled(
+                64,
+                64,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
             icon_label.setPixmap(pix)
         ab_lay.addWidget(icon_label)
 
         info_col = QVBoxLayout()
         info_col.setSpacing(4)
         app_name = QLabel("LyricVibe")
-        app_name.setStyleSheet(f"color: {MD3.ON_SURFACE}; font-size: 22px; font-weight: 600; background: transparent; border: none;")
+        app_name.setStyleSheet(
+            f"color: {MD3.ON_SURFACE}; font-size: 22px; font-weight: 600; background: transparent; border: none;"
+        )
         info_col.addWidget(app_name)
 
         app_ver = QLabel("Cinematic 165Hz Desktop Overlay")
-        app_ver.setStyleSheet(f"color: {MD3.PRIMARY}; font-size: 13px; font-weight: 500; background: transparent; border: none;")
+        app_ver.setStyleSheet(
+            f"color: {MD3.PRIMARY}; font-size: 13px; font-weight: 500; background: transparent; border: none;"
+        )
         info_col.addWidget(app_ver)
 
         app_desc = QLabel(
@@ -1391,7 +1566,9 @@ class SettingsDialog(QDialog):
             "anti-overlap typography, and universal Hinglish transliteration."
         )
         app_desc.setWordWrap(True)
-        app_desc.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 12px; line-height: 1.5; background: transparent; border: none;")
+        app_desc.setStyleSheet(
+            f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 12px; line-height: 1.5; background: transparent; border: none;"
+        )
         info_col.addWidget(app_desc)
 
         ab_lay.addLayout(info_col, 1)
@@ -1416,12 +1593,16 @@ class SettingsDialog(QDialog):
             rl.setContentsMargins(20, 8, 20, 8)
 
             lbl_k = QLabel(key)
-            lbl_k.setStyleSheet(f"color: {MD3.ON_SURFACE}; font-size: 13px; background: transparent; border: none;")
+            lbl_k.setStyleSheet(
+                f"color: {MD3.ON_SURFACE}; font-size: 13px; background: transparent; border: none;"
+            )
             rl.addWidget(lbl_k)
             rl.addStretch()
 
             lbl_v = QLabel(val)
-            lbl_v.setStyleSheet(f"color: {MD3.PRIMARY}; font-size: 12px; font-weight: 500; background: transparent; border: none;")
+            lbl_v.setStyleSheet(
+                f"color: {MD3.PRIMARY}; font-size: 12px; font-weight: 500; background: transparent; border: none;"
+            )
             rl.addWidget(lbl_v)
 
             diag_card.add_row(row)
@@ -1449,10 +1630,14 @@ class SettingsDialog(QDialog):
             text_col = QVBoxLayout()
             text_col.setSpacing(1)
             t_act = QLabel(act)
-            t_act.setStyleSheet(f"color: {MD3.ON_SURFACE}; font-size: 13px; font-weight: 500; background: transparent; border: none;")
+            t_act.setStyleSheet(
+                f"color: {MD3.ON_SURFACE}; font-size: 13px; font-weight: 500; background: transparent; border: none;"
+            )
             text_col.addWidget(t_act)
             t_desc = QLabel(desc)
-            t_desc.setStyleSheet(f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 11px; background: transparent; border: none;")
+            t_desc.setStyleSheet(
+                f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 11px; background: transparent; border: none;"
+            )
             text_col.addWidget(t_desc)
             rl.addLayout(text_col, 1)
 
@@ -1482,7 +1667,7 @@ class SettingsDialog(QDialog):
         try:
             self.settings[key] = val
             settings_manager.save_settings(self.settings)
-            if hasattr(self, 'preview_widget'):
+            if hasattr(self, "preview_widget"):
                 self.preview_widget.update_settings(self.settings)
             self.settings_changed.emit(self.settings)
         except (KeyError, ValueError, TypeError, AttributeError, OSError) as e:
@@ -1541,7 +1726,9 @@ class SettingsDialog(QDialog):
             if "motion_blur_enabled" in preset and hasattr(self, "toggle_motion_blur"):
                 self.toggle_motion_blur.setChecked(preset["motion_blur_enabled"])
             if "motion_blur_intensity" in preset and hasattr(self, "slider_blur"):
-                self.slider_blur.setValue(int(float(preset["motion_blur_intensity"]) * 10))
+                self.slider_blur.setValue(
+                    int(float(preset["motion_blur_intensity"]) * 10)
+                )
             if "highlight_color" in preset:
                 self.color_swatch.setColor(preset["highlight_color"])
             if "highlight_mode" in preset and hasattr(self, "combo_hl_mode"):
@@ -1549,18 +1736,21 @@ class SettingsDialog(QDialog):
                     self.combo_hl_mode.setCurrentIndex(0)
                 elif "highlight_color" in preset:
                     for i in range(1, self.combo_hl_mode.count()):
-                        if self.combo_hl_mode.itemData(i).upper() == preset["highlight_color"].upper():
+                        if (
+                            self.combo_hl_mode.itemData(i).upper()
+                            == preset["highlight_color"].upper()
+                        ):
                             self.combo_hl_mode.setCurrentIndex(i)
                             break
             if "target_fps" in preset:
                 fps_map = {60: 0, 120: 1, 144: 2, 165: 3, 240: 4}
                 self.combo_fps.setCurrentIndex(fps_map.get(preset["target_fps"], 3))
 
-            if hasattr(self, 'preview_widget'):
+            if hasattr(self, "preview_widget"):
                 self.preview_widget.update_settings(self.settings)
             self.settings_changed.emit(self.settings)
         except (KeyError, ValueError, TypeError, AttributeError, OSError) as e:
-            logger.debug("[settings] _update_and_sync error: %s", e)
+            logger.debug("[settings] _apply_preset error: %s", e)
 
     def _reset_to_defaults(self):
         defaults = settings_manager.DEFAULT_SETTINGS.copy()

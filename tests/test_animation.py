@@ -1,6 +1,7 @@
 """Tests for the 165Hz cinematic animation engine and easing physics."""
 
 import math
+import time
 
 from lyricvibe.core.animation import (
     ANIMATION_CATALOG,
@@ -63,10 +64,15 @@ def test_sync_to_audio_drift_correction():
     engine.trigger_line("Drifting line", duration=5.0)
     initial_start = engine.curr_start_perf
 
-    # Simulate 200ms audio drift
-    engine.sync_to_audio(audio_elapsed_sec=1.5)
-    # Start time should be adjusted smoothly towards expected audio position
+    # 1. Micro-drift (0.2s drift) should adjust smoothly via low-pass filter
+    engine.sync_to_audio(audio_elapsed_sec=0.2)
     assert engine.curr_start_perf != initial_start
+    first_adjust = engine.curr_start_perf
+
+    # 2. Large seek/scrub (> 0.75s drift) should snap immediately
+    engine.sync_to_audio(audio_elapsed_sec=3.0)
+    assert abs((time.perf_counter() - 3.0) - engine.curr_start_perf) < 0.05
+    assert engine.curr_start_perf != first_adjust
 
 
 def test_hand_drawn_stroke_generation():
@@ -80,7 +86,9 @@ def test_hand_drawn_stroke_generation():
 def test_pick_animation():
     assert len(ANIMATION_CATALOG) >= 50
     # Long line should pick a valid animation from catalog
-    anim = pick_animation("Long sentence that has more than four words in it", duration=4.5)
+    anim = pick_animation(
+        "Long sentence that has more than four words in it", duration=4.5
+    )
     assert isinstance(anim, str)
     assert len(anim) > 0
 
@@ -93,7 +101,11 @@ def test_pick_animation():
 def test_all_catalog_animations_execute_cleanly():
     engine = AnimationEngine()
     for anim_name, _ in ANIMATION_CATALOG:
-        engine.trigger_line("Testing animation integrity: " + anim_name, duration=3.0, anim_type=anim_name)
+        engine.trigger_line(
+            "Testing animation integrity: " + anim_name,
+            duration=3.0,
+            anim_type=anim_name,
+        )
         assert engine.curr_anim_type == anim_name
         for _ in range(5):
             state = engine.update()

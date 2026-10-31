@@ -66,6 +66,7 @@ except ImportError:
     from settings_manager import BRIGHT_HIGHLIGHT_HEX_LIST, ensure_bright_hex
     from settings_window import SettingsDialog
     from spotify_client import PlaybackState, SpotifyClient
+
     get_asset_path = lambda p: p
 
 IPC_SERVER_NAME = "LyricVibeIPC_v1"
@@ -73,6 +74,7 @@ IPC_SERVER_NAME = "LyricVibeIPC_v1"
 
 class AppSignals(QObject):
     """Thread-safe signal bridge between background threads and PyQt6 GUI."""
+
     lyrics_fetched = pyqtSignal(int, str, object)
     hotkey_lock = pyqtSignal()
     hotkey_hide = pyqtSignal()
@@ -144,10 +146,10 @@ class FloatingLyricsWidget(QWidget):
 
         # Configure Frameless Transparent Layered Window
         self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.SubWindow |
-            Qt.WindowType.Tool
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.SubWindow
+            | Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
@@ -232,7 +234,11 @@ class FloatingLyricsWidget(QWidget):
         if not palette_len:
             return
         # Calculate pseudo-random seed from track identifier
-        seed = sum(ord(c) * (i + 1) for i, c in enumerate(track_identifier)) if track_identifier else int(time.time())
+        seed = (
+            sum(ord(c) * (i + 1) for i, c in enumerate(track_identifier))
+            if track_identifier
+            else int(time.time())
+        )
         chosen_idx = seed % palette_len
         # Ensure adjacent songs NEVER share the same color!
         if chosen_idx == getattr(self, "_last_color_idx", -1):
@@ -248,7 +254,9 @@ class FloatingLyricsWidget(QWidget):
         """
         mode = self.settings.get("highlight_mode", "per_song")
         if mode == "per_song":
-            return getattr(self, "current_song_color", QColor(BRIGHT_HIGHLIGHT_HEX_LIST[0]))
+            return getattr(
+                self, "current_song_color", QColor(BRIGHT_HIGHLIGHT_HEX_LIST[0])
+            )
         hex_color = self.settings.get("highlight_color", BRIGHT_HIGHLIGHT_HEX_LIST[0])
         return QColor(ensure_bright_hex(hex_color))
 
@@ -323,7 +331,10 @@ class FloatingLyricsWidget(QWidget):
             p_baseline_y = (p_metrics.ascent() - p_metrics.descent()) / 2.0
 
             # Outgoing motion blur streak (subtle upward optical softening)
-            if self.settings.get("motion_blur_enabled", True) and prev_data.get("blur_dy", 0.0) != 0.0:
+            if (
+                self.settings.get("motion_blur_enabled", True)
+                and prev_data.get("blur_dy", 0.0) != 0.0
+            ):
                 p_blur_dy = max(-4.0, min(0.0, prev_data["blur_dy"]))
                 blur_int = float(self.settings.get("motion_blur_intensity", 1.4))
                 for step in range(1, 3):
@@ -342,7 +353,9 @@ class FloatingLyricsWidget(QWidget):
         # ── 2. Incoming Line ──
         if curr_text and data["curr_alpha"] > 0.02:
             in_alpha = int(data["curr_alpha"] * 255)
-            in_font, in_metrics = self._fit_font(curr_text, avail_w, base_size, font_family)
+            in_font, in_metrics = self._fit_font(
+                curr_text, avail_w, base_size, font_family
+            )
             painter.setFont(in_font)
 
             # ── Directional Motion Blur Shutter (Subtle optical softness on physical motion) ──
@@ -363,23 +376,30 @@ class FloatingLyricsWidget(QWidget):
                     frac = step / 2.0
                     trail_x = -clamped_dx * frac * blur_intensity
                     trail_y = -clamped_dy * frac * blur_intensity
-                    step_a = int(in_alpha * data.get("blur_alpha", 0.25) * (1.0 - frac * 0.5))
+                    step_a = int(
+                        in_alpha * data.get("blur_alpha", 0.25) * (1.0 - frac * 0.5)
+                    )
                     if step_a > 2:
                         painter.save()
                         painter.translate(
                             screen_cx + data.get("curr_offset_x", 0.0) + trail_x,
-                            screen_cy + data["curr_offset_y"] + trail_y
+                            screen_cy + data["curr_offset_y"] + trail_y,
                         )
                         if data.get("rotation", 0.0) != 0.0:
                             painter.rotate(data["rotation"])
                         if data["curr_scale"] != 1.0:
                             painter.scale(data["curr_scale"], data["curr_scale"])
                         painter.setPen(QColor(255, 255, 255, step_a))
-                        painter.drawText(QPointF(-total_in_w / 2.0, in_base_y), curr_text)
+                        painter.drawText(
+                            QPointF(-total_in_w / 2.0, in_base_y), curr_text
+                        )
                         painter.restore()
 
             painter.save()
-            painter.translate(screen_cx + data.get("curr_offset_x", 0.0), screen_cy + data["curr_offset_y"])
+            painter.translate(
+                screen_cx + data.get("curr_offset_x", 0.0),
+                screen_cy + data["curr_offset_y"],
+            )
 
             # Rotational / Skew / Scale transforms
             if data.get("rotation", 0.0) != 0.0:
@@ -392,37 +412,58 @@ class FloatingLyricsWidget(QWidget):
             anim_type = data.get("anim_type", "")
 
             # ── Per-Character Rendering (Only when per-char active) ──
-            if (anim_type in PER_CHAR_ANIMS and data.get("char_alphas")
-                    and any(oy != 0.0 for oy in data.get("char_offsets_y", []))):
+            if (
+                anim_type in PER_CHAR_ANIMS
+                and data.get("char_alphas")
+                and any(oy != 0.0 for oy in data.get("char_offsets_y", []))
+            ):
                 self._draw_per_char(
-                    painter, in_metrics, curr_text,
-                    data["char_offsets_x"], data["char_offsets_y"],
-                    data["char_alphas"], data["char_scales"],
-                    in_alpha, highlight_enabled, highlight_color, highlight_idx
+                    painter,
+                    in_metrics,
+                    curr_text,
+                    data["char_offsets_x"],
+                    data["char_offsets_y"],
+                    data["char_alphas"],
+                    data["char_scales"],
+                    in_alpha,
+                    highlight_enabled,
+                    highlight_color,
+                    highlight_idx,
                 )
             else:
                 # Glitch-free sharp rendering with high-contrast active word highlight block
                 self._draw_sharp_line_with_highlight(
-                    painter, in_metrics, curr_text, in_alpha,
-                    highlight_enabled, highlight_color, highlight_idx
+                    painter,
+                    in_metrics,
+                    curr_text,
+                    in_alpha,
+                    highlight_enabled,
+                    highlight_color,
+                    highlight_idx,
                 )
 
             # ── 3. Focal Hand-Drawn Underline (Underlines ONLY 1-2 words) ──
-            if (self.settings.get("hand_drawn_underline_enabled", True) and
-                    data.get("underline_active") and
-                    data.get("underline_progress", 0.0) > 0.02 and
-                    data.get("focal_word_idx", -1) >= 0):
+            if (
+                self.settings.get("hand_drawn_underline_enabled", True)
+                and data.get("underline_active")
+                and data.get("underline_progress", 0.0) > 0.02
+                and data.get("focal_word_idx", -1) >= 0
+            ):
                 self._draw_focal_underline(
-                    painter, in_metrics, curr_text,
+                    painter,
+                    in_metrics,
+                    curr_text,
                     data["focal_word_idx"],
                     data["underline_stroke"],
                     data["underline_progress"],
-                    data["curr_alpha"]
+                    data["curr_alpha"],
                 )
 
             painter.restore()
 
-    def _fit_font(self, text: str, max_w: float, base_size: int, family: str) -> tuple[QFont, QFontMetrics]:
+    def _fit_font(
+        self, text: str, max_w: float, base_size: int, family: str
+    ) -> tuple[QFont, QFontMetrics]:
         """Dynamically scales font size down so long lyric lines NEVER get cut off. Uses caching for 165Hz performance."""
         key = (text, int(max_w), base_size, family)
         cached = self._font_cache.get(key)
@@ -485,9 +526,16 @@ class FloatingLyricsWidget(QWidget):
         self._word_span_cache[text] = words
         return words
 
-    def _draw_sharp_line_with_highlight(self, painter: QPainter, metrics: QFontMetrics,
-                                        text: str, master_alpha: int,
-                                        hl_enabled: bool, hl_color: QColor, hl_word_idx: int):
+    def _draw_sharp_line_with_highlight(
+        self,
+        painter: QPainter,
+        metrics: QFontMetrics,
+        text: str,
+        master_alpha: int,
+        hl_enabled: bool,
+        hl_color: QColor,
+        hl_word_idx: int,
+    ):
         """
         Renders razor-sharp lyrics with 100% kerning accuracy and high-contrast
         active word highlight with rounded glowing background block.
@@ -510,14 +558,25 @@ class FloatingLyricsWidget(QWidget):
         if 0 <= hl_word_idx < len(words):
             word_str, w_start, _ = words[hl_word_idx]
             word_x = start_x + metrics.horizontalAdvance(text[:w_start])
-            painter.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), master_alpha))
+            painter.setPen(
+                QColor(hl_color.red(), hl_color.green(), hl_color.blue(), master_alpha)
+            )
             painter.drawText(QPointF(word_x, baseline_y), word_str)
 
-    def _draw_per_char(self, painter: QPainter, metrics: QFontMetrics,
-                       text: str, offsets_x: list, offsets_y: list,
-                       char_alphas: list, char_scales: list,
-                       master_alpha: int,
-                       hl_enabled: bool, hl_color: QColor, hl_word_idx: int):
+    def _draw_per_char(
+        self,
+        painter: QPainter,
+        metrics: QFontMetrics,
+        text: str,
+        offsets_x: list,
+        offsets_y: list,
+        char_alphas: list,
+        char_scales: list,
+        master_alpha: int,
+        hl_enabled: bool,
+        hl_color: QColor,
+        hl_word_idx: int,
+    ):
         """Renders individual characters with exact kerning preservation."""
         total_w = metrics.horizontalAdvance(text)
         start_x = -total_w / 2.0
@@ -540,7 +599,9 @@ class FloatingLyricsWidget(QWidget):
             final_a = max(0, min(255, int(master_alpha * ca)))
 
             if hl_start <= i < hl_end:
-                painter.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), final_a))
+                painter.setPen(
+                    QColor(hl_color.red(), hl_color.green(), hl_color.blue(), final_a)
+                )
             else:
                 painter.setPen(QColor(255, 255, 255, final_a))
 
@@ -553,8 +614,16 @@ class FloatingLyricsWidget(QWidget):
             else:
                 painter.drawText(QPointF(ch_x + ox, baseline_y + oy), ch)
 
-    def _draw_focal_underline(self, painter: QPainter, metrics: QFontMetrics,
-                               text: str, focal_idx: int, stroke, progress: float, alpha: float):
+    def _draw_focal_underline(
+        self,
+        painter: QPainter,
+        metrics: QFontMetrics,
+        text: str,
+        focal_idx: int,
+        stroke,
+        progress: float,
+        alpha: float,
+    ):
         """Draws realistic sketched pencil and fluid marker lines ONLY under 1-2 key focal words."""
         if not stroke or progress <= 0.03 or focal_idx < 0:
             return
@@ -578,15 +647,30 @@ class FloatingLyricsWidget(QWidget):
         y_base = baseline_y + 10.0
 
         # Pass 1: Light sketched pencil under-stroke
-        p_sketch = QPen(QColor(255, 255, 255, int(alpha * 75)), 1.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+        p_sketch = QPen(
+            QColor(255, 255, 255, int(alpha * 75)),
+            1.2,
+            Qt.PenStyle.SolidLine,
+            Qt.PenCapStyle.RoundCap,
+        )
         painter.setPen(p_sketch)
         path1 = QPainterPath()
         path1.moveTo(word_start_x - 2, y_base)
-        path1.quadTo(word_start_x + draw_w * 0.5, y_base + 3, word_start_x + draw_w + 3, y_base + 1)
+        path1.quadTo(
+            word_start_x + draw_w * 0.5,
+            y_base + 3,
+            word_start_x + draw_w + 3,
+            y_base + 1,
+        )
         painter.drawPath(path1)
 
         # Pass 2: Main hand-drawn ink line with natural tremors
-        p_ink = QPen(QColor(255, 255, 255, int(alpha * 225)), 2.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+        p_ink = QPen(
+            QColor(255, 255, 255, int(alpha * 225)),
+            2.6,
+            Qt.PenStyle.SolidLine,
+            Qt.PenCapStyle.RoundCap,
+        )
         painter.setPen(p_ink)
 
         path2 = QPainterPath()
@@ -660,11 +744,17 @@ class FloatingLyricsWidget(QWidget):
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and not self.is_locked:
             self.is_dragging = True
-            self.drag_position = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self.drag_position = (
+                event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            )
             event.accept()
 
     def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.MouseButton.LeftButton and self.is_dragging and not self.is_locked:
+        if (
+            event.buttons() == Qt.MouseButton.LeftButton
+            and self.is_dragging
+            and not self.is_locked
+        ):
             new_pos = event.globalPosition().toPoint() - self.drag_position
             self.move(self.window_x, new_pos.y())
             self.settings["overlay_y"] = new_pos.y()
@@ -695,13 +785,22 @@ class FloatingLyricsWidget(QWidget):
         elif event.key() == Qt.Key.Key_BracketRight:
             self._adjust_sync_offset(0.5)
             event.accept()
-        elif event.key() == Qt.Key.Key_L and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+        elif (
+            event.key() == Qt.Key.Key_L
+            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
             self.toggle_lock()
             event.accept()
-        elif event.key() == Qt.Key.Key_H and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+        elif (
+            event.key() == Qt.Key.Key_H
+            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
             self.toggle_visibility()
             event.accept()
-        elif event.key() == Qt.Key.Key_Q and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+        elif (
+            event.key() == Qt.Key.Key_Q
+            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
             self._quit_app()
             event.accept()
         else:
@@ -732,12 +831,18 @@ class FloatingLyricsWidget(QWidget):
             VK_OEM_4 = 0xDB  # '[' key
             VK_OEM_6 = 0xDD  # ']' key
 
-            user32.RegisterHotKey(None, HOTKEY_LOCK, MOD_CONTROL | MOD_ALT, ord('L'))
-            user32.RegisterHotKey(None, HOTKEY_HIDE, MOD_CONTROL | MOD_ALT, ord('H'))
-            user32.RegisterHotKey(None, HOTKEY_QUIT, MOD_CONTROL | MOD_ALT, ord('Q'))
-            user32.RegisterHotKey(None, HOTKEY_SETTINGS, MOD_CONTROL | MOD_ALT, ord('S'))
-            user32.RegisterHotKey(None, HOTKEY_SYNC_PREV, MOD_CONTROL | MOD_ALT, VK_OEM_4)
-            user32.RegisterHotKey(None, HOTKEY_SYNC_NEXT, MOD_CONTROL | MOD_ALT, VK_OEM_6)
+            user32.RegisterHotKey(None, HOTKEY_LOCK, MOD_CONTROL | MOD_ALT, ord("L"))
+            user32.RegisterHotKey(None, HOTKEY_HIDE, MOD_CONTROL | MOD_ALT, ord("H"))
+            user32.RegisterHotKey(None, HOTKEY_QUIT, MOD_CONTROL | MOD_ALT, ord("Q"))
+            user32.RegisterHotKey(
+                None, HOTKEY_SETTINGS, MOD_CONTROL | MOD_ALT, ord("S")
+            )
+            user32.RegisterHotKey(
+                None, HOTKEY_SYNC_PREV, MOD_CONTROL | MOD_ALT, VK_OEM_4
+            )
+            user32.RegisterHotKey(
+                None, HOTKEY_SYNC_NEXT, MOD_CONTROL | MOD_ALT, VK_OEM_6
+            )
 
             msg = wintypes.MSG()
             while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
@@ -758,6 +863,7 @@ class FloatingLyricsWidget(QWidget):
                 user32.DispatchMessageW(ctypes.byref(msg))
 
         import threading
+
         threading.Thread(target=_hotkey_worker, daemon=True).start()
 
     def toggle_lock(self):
@@ -774,7 +880,9 @@ class FloatingLyricsWidget(QWidget):
             GWL_EXSTYLE = -20
             WS_EX_LAYERED = 0x00080000
             WS_EX_TRANSPARENT = 0x00000020
-            SWP_FLAGS = 0x0027  # SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
+            SWP_FLAGS = (
+                0x0027  # SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED
+            )
 
             get_long = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
             set_long = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
@@ -824,6 +932,12 @@ class FloatingLyricsWidget(QWidget):
             self.smooth_timer.stop()
             if hasattr(self, "tray_icon") and self.tray_icon:
                 self.tray_icon.hide()
+            if hasattr(self, "_ipc_server") and self._ipc_server:
+                try:
+                    self._ipc_server.close()
+                    QLocalServer.removeServer(IPC_SERVER_NAME)
+                except (OSError, RuntimeError):
+                    pass
             user32 = getattr(ctypes.windll, "user32", None)
             if user32:
                 for hid in getattr(self, "_registered_hotkeys", []):
@@ -842,7 +956,10 @@ class FloatingLyricsWidget(QWidget):
             state = self.spotify.get_playback()
 
             if state is None or not state.track_name or not state.is_playing:
-                if self.settings.get("auto_hide_idle", True) and not self.is_hidden_by_idle:
+                if (
+                    self.settings.get("auto_hide_idle", True)
+                    and not self.is_hidden_by_idle
+                ):
                     self.hide()
                     self.is_hidden_by_idle = True
                 self.playback = None
@@ -869,17 +986,30 @@ class FloatingLyricsWidget(QWidget):
                 req_track = state.track_id
 
                 import threading
+
                 threading.Thread(
                     target=self._fetch_lyrics_thread,
-                    args=(state.track_name, state.artist_name,
-                          state.album_name, state.duration_sec,
-                          fetch_id, req_track),
+                    args=(
+                        state.track_name,
+                        state.artist_name,
+                        state.album_name,
+                        state.duration_sec,
+                        fetch_id,
+                        req_track,
+                    ),
                     daemon=True,
                 ).start()
                 return
 
             self._check_line_update(state)
-        except (KeyError, ValueError, TypeError, AttributeError, OSError, RuntimeError) as e:
+        except (
+            KeyError,
+            ValueError,
+            TypeError,
+            AttributeError,
+            OSError,
+            RuntimeError,
+        ) as e:
             logger.debug("[overlay] poll_spotify error: %s", e)
 
     def _smooth_position_check(self):
@@ -907,12 +1037,20 @@ class FloatingLyricsWidget(QWidget):
             self.current_line_index = line_idx
             if 0 <= line_idx < len(self.lyrics):
                 raw_text = self.lyrics[line_idx].text.strip()
-                next_time = self.lyrics[line_idx + 1].time_sec if (line_idx + 1 < len(self.lyrics)) else state.duration_sec
-                dur = max(next_time - self.lyrics[line_idx].time_sec, 1.4)
-                lead = max(0.0, adjusted - self.lyrics[line_idx].time_sec)
+                if not raw_text:
+                    self.current_line_text = ""
+                    self.engine.clear_line()
+                else:
+                    next_time = (
+                        self.lyrics[line_idx + 1].time_sec
+                        if (line_idx + 1 < len(self.lyrics))
+                        else state.duration_sec
+                    )
+                    dur = max(next_time - self.lyrics[line_idx].time_sec, 1.4)
+                    lead = max(0.0, adjusted - self.lyrics[line_idx].time_sec)
 
-                self.current_line_text = raw_text
-                self.engine.trigger_line(raw_text, dur, lead_sec=lead)
+                    self.current_line_text = raw_text
+                    self.engine.trigger_line(raw_text, dur, lead_sec=lead)
             else:
                 self.current_line_text = ""
                 self.engine.clear_line()
@@ -921,7 +1059,11 @@ class FloatingLyricsWidget(QWidget):
         elif 0 <= line_idx < len(self.lyrics):
             # Check for instrumental break / guitar solo where vocal has already ended
             current_line = self.lyrics[line_idx]
-            next_time = self.lyrics[line_idx + 1].time_sec if (line_idx + 1 < len(self.lyrics)) else state.duration_sec
+            next_time = (
+                self.lyrics[line_idx + 1].time_sec
+                if (line_idx + 1 < len(self.lyrics))
+                else state.duration_sec
+            )
             gap = next_time - current_line.time_sec
             line_elapsed = adjusted - current_line.time_sec
 
@@ -938,16 +1080,39 @@ class FloatingLyricsWidget(QWidget):
                     self.update()
                 return
 
+            if not self.engine.curr_text and line_elapsed <= vocal_dur:
+                # Revive active line if user scrubbed backwards into vocal window
+                raw_text = current_line.text.strip()
+                if raw_text:
+                    dur = max(gap, 1.4)
+                    lead = max(0.0, line_elapsed)
+                    self.current_line_text = raw_text
+                    self.engine.trigger_line(raw_text, dur, lead_sec=lead)
+                    self.update()
+                    return
+
             self.engine.sync_to_audio(line_elapsed)
 
-    def _fetch_lyrics_thread(self, track: str, artist: str, album: str, duration: float,
-                             fetch_id: int, req_track_id: str):
+    def _fetch_lyrics_thread(
+        self,
+        track: str,
+        artist: str,
+        album: str,
+        duration: float,
+        fetch_id: int,
+        req_track_id: str,
+    ):
         lyrics = get_lyrics(track, artist, album, duration)
         self.signals.lyrics_fetched.emit(fetch_id, req_track_id, lyrics)
 
-    def _on_lyrics_fetched(self, fetch_id: int, req_track_id: str, lyrics: list[LyricLine] | None):
+    def _on_lyrics_fetched(
+        self, fetch_id: int, req_track_id: str, lyrics: list[LyricLine] | None
+    ):
         # Strict validation: Only accept if this matches the currently playing song!
-        if fetch_id != getattr(self, "_current_fetch_id", 0) or req_track_id != self.current_track_id:
+        if (
+            fetch_id != getattr(self, "_current_fetch_id", 0)
+            or req_track_id != self.current_track_id
+        ):
             return
 
         self.lyrics = lyrics
@@ -987,15 +1152,20 @@ def main():
 
     settings = settings_manager.load_settings()
     widget = FloatingLyricsWidget(settings)
+    widget._ipc_server = server
 
     def handle_client_connection():
         client = server.nextPendingConnection()
         if client:
+
             def on_ready_read():
                 msg = bytes(client.readAll()).decode("utf-8", errors="ignore").strip()
                 if "OPEN_SETTINGS" in msg:
                     widget.open_settings_window()
+
             client.readyRead.connect(on_ready_read)
+            if client.bytesAvailable() > 0:
+                on_ready_read()
 
     server.newConnection.connect(handle_client_connection)
 

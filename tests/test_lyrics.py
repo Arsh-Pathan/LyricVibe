@@ -19,7 +19,7 @@ from lyricvibe.lyrics.fetcher import (
 
 def test_clean_track_title_removes_noise():
     cases = [
-        ("Tere Vaaste (From \"Zara Hatke Zara Bachke\")", "Tere Vaaste"),
+        ('Tere Vaaste (From "Zara Hatke Zara Bachke")', "Tere Vaaste"),
         ("Blinding Lights [Official Music Video]", "Blinding Lights"),
         ("Starboy (feat. Daft Punk)", "Starboy"),
         ("Stay (with Justin Bieber)", "Stay"),
@@ -32,7 +32,9 @@ def test_clean_track_title_removes_noise():
     ]
     for raw, expected in cases:
         cleaned = clean_track_title(raw)
-        assert cleaned == expected, f"Expected '{expected}', got '{cleaned}' for input '{raw}'"
+        assert cleaned == expected, (
+            f"Expected '{expected}', got '{cleaned}' for input '{raw}'"
+        )
 
 
 def test_clean_track_title_edge_cases():
@@ -147,7 +149,9 @@ def test_clean_lyric_line_structural_headers():
 
 def test_clean_lyric_line_chords_and_symbols():
     assert clean_lyric_line("♪ I see trees of green ♪") == "I see trees of green"
-    assert clean_lyric_line("Hello [C] world [G#m7] from here") == "Hello world from here"
+    assert (
+        clean_lyric_line("Hello [C] world [G#m7] from here") == "Hello world from here"
+    )
     assert clean_lyric_line("♫ Lalala ~ ♫") == "Lalala"
 
 
@@ -203,7 +207,9 @@ def test_clean_track_title_expanded_mix_tags():
     ]
     for raw, expected in cases:
         cleaned = clean_track_title(raw)
-        assert cleaned == expected, f"Expected '{expected}', got '{cleaned}' for input '{raw}'"
+        assert cleaned == expected, (
+            f"Expected '{expected}', got '{cleaned}' for input '{raw}'"
+        )
 
 
 def test_parse_lrc_fractional_and_hour_timestamps():
@@ -225,6 +231,38 @@ def test_parse_lrc_fractional_and_hour_timestamps():
     assert lines[3].text == "One hour five minutes thirty seconds"
 
 
+def test_parse_lrc_integer_seconds_without_fraction():
+    # Integer timestamps without fractions: [mm:ss]
+    lrc = """
+    [00:15]First integer line
+    [01:05]Second integer line at 65 seconds
+    """
+    lines = parse_lrc(lrc)
+    assert len(lines) == 2
+    assert lines[0].time_sec == 15.0
+    assert lines[0].text == "First integer line"
+    assert lines[1].time_sec == 65.0
+    assert lines[1].text == "Second integer line at 65 seconds"
+
+
+def test_clean_lyric_line_section_headers_with_artists():
+    assert clean_lyric_line("[Chorus: The Weeknd]") == ""
+    assert clean_lyric_line("[Verse 2 - Drake]") == ""
+    assert clean_lyric_line("[Pre-Chorus: Taylor Swift]") == ""
+    assert clean_lyric_line("(Outro by Post Malone)") == ""
+    assert clean_lyric_line("[Guitar Solo]") == ""
+    assert clean_lyric_line("[Instrumental]") == ""
+    # Should not strip actual lyrics containing words like chorus or verse
+    assert (
+        clean_lyric_line("Chorus of the angels singing high")
+        == "Chorus of the angels singing high"
+    )
+    assert (
+        clean_lyric_line("In every verse you write for me")
+        == "In every verse you write for me"
+    )
+
+
 def test_lyrics_cache_thread_safety():
     import threading
 
@@ -238,6 +276,7 @@ def test_lyrics_cache_thread_safety():
                 artist = f"Artist_{worker_id}"
                 sample_lines = [LyricLine(float(i), f"Line {i}")]
                 from lyricvibe.lyrics.fetcher import _cache_put
+
                 _cache_put(f"{track}||{artist}", sample_lines)
                 # Read from cache concurrently
                 fetch_lyrics_smart(track, artist, duration_sec=180)
@@ -259,7 +298,9 @@ def test_lyrics_cache_thread_safety():
 
 
 def test_clean_track_title_square_bracketed_suffix():
-    assert clean_track_title("Bohemian Rhapsody [Live at Wembley]") == "Bohemian Rhapsody"
+    assert (
+        clean_track_title("Bohemian Rhapsody [Live at Wembley]") == "Bohemian Rhapsody"
+    )
     assert clean_track_title("Hotel California [Acoustic 1994]") == "Hotel California"
     assert clean_track_title("Song Name [Bonus Track]") == "Song Name"
 
@@ -313,7 +354,10 @@ def test_negative_cache_expiration():
         mock_get.assert_not_called()
 
     # 2. Simulate expired cache entry by modifying timestamp
-    _LYRICS_CACHE["unknown_track||unknown_artist"] = (None, time.time() - (_NEGATIVE_CACHE_TTL + 5.0))
+    _LYRICS_CACHE["unknown_track||unknown_artist"] = (
+        None,
+        time.time() - (_NEGATIVE_CACHE_TTL + 5.0),
+    )
 
     # After TTL, it must attempt fresh network lookup
     with patch("lyricvibe.lyrics.fetcher._HTTP_SESSION.get") as mock_get:
@@ -325,7 +369,9 @@ def test_negative_cache_expiration():
         }
         mock_get.return_value = mock_resp
 
-        fresh = fetch_lyrics_smart("unknown_track", "unknown_artist", duration_sec=180.0)
+        fresh = fetch_lyrics_smart(
+            "unknown_track", "unknown_artist", duration_sec=180.0
+        )
         assert fresh is not None
         assert fresh[0].text == "Freshly found lyrics"
         mock_get.assert_called()

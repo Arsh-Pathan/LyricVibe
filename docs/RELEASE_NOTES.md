@@ -47,7 +47,8 @@
 3. Play music on Spotify — the lyrics will appear automatically!
 
 #### Global Hotkeys
-- **Ctrl + S** or double-click text: Open Settings Customizer
+- **Ctrl + Alt + S** or double-click text: Open Settings Customizer
 - **Ctrl + Alt + L**: Lock overlay / click-through mode
 - **Ctrl + Alt + H**: Hide / Show overlay
+- **Ctrl + Alt + [ / ]**: Adjust audio sync offset (-0.5s / +0.5s)
 - **Ctrl + Alt + Q**: Quit overlay

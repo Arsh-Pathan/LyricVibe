@@ -1,4 +1,5 @@
 """Settings management, JSON persistence, and highlight palette utilities."""
+
 from .settings import (
     BRIGHT_HIGHLIGHT_HEX_LIST,
     BRIGHT_HIGHLIGHT_PALETTE,

@@ -36,7 +36,9 @@ class LyricLine:
 
 # Bounded in-memory cache to prevent unbounded growth during long playback sessions (max 250 songs)
 _MAX_CACHE_SIZE = 250
-_NEGATIVE_CACHE_TTL = 120.0  # Expire 404/not-found after 2 minutes so recovery/retry works
+_NEGATIVE_CACHE_TTL = (
+    120.0  # Expire 404/not-found after 2 minutes so recovery/retry works
+)
 _LYRICS_CACHE: collections.OrderedDict[str, object] = collections.OrderedDict()
 _CACHE_LOCK = threading.Lock()
 
@@ -71,40 +73,47 @@ def clean_track_title(title: str) -> str:
     t = title
 
     # Strip (From "...") or [From "..."] or (Soundtrack ...)
-    t = re.sub(r'[\(\[]\s*(from|soundtrack)\s+[^)\]]+[\)\]]', '', t, flags=re.IGNORECASE)
+    t = re.sub(
+        r"[\(\[]\s*(from|soundtrack)\s+[^)\]]+[\)\]]", "", t, flags=re.IGNORECASE
+    )
 
     # Strip (feat. ...) or [feat. ...] or (ft. ...)
-    t = re.sub(r'[\(\[]\s*(feat|ft|featuring|with)\.?\s+[^)\]]+[\)\]]', '', t, flags=re.IGNORECASE)
+    t = re.sub(
+        r"[\(\[]\s*(feat|ft|featuring|with)\.?\s+[^)\]]+[\)\]]",
+        "",
+        t,
+        flags=re.IGNORECASE,
+    )
 
     # Strip video and audio markers: (Official Music Video), (Lyric Video), [Visualizer], etc.
     t = re.sub(
-        r'[\(\[]\s*(official\s*(music\s*)?(video|audio|lyric\s*video)?|lyric\s*video|audio|visualizer)[^)\]]*[\)\]]',
-        '',
+        r"[\(\[]\s*(official\s*(music\s*)?(video|audio|lyric\s*video)?|lyric\s*video|audio|visualizer)[^)\]]*[\)\]]",
+        "",
         t,
         flags=re.IGNORECASE,
     )
 
     # Strip remaster / live / deluxe / version / edition / radio edit / acoustic / mixes / audio tags
     t = re.sub(
-        r'[\(\[]\s*(remastered|remaster|live|bonus|deluxe|version|edition|original|ost|lofi|slowed|reverb|radio\s*edit|acoustic|instrumental|clean|explicit|stereo|mono|mix|single\s*version|album\s*version)[^)\]]*[\)\]]',
-        '',
+        r"[\(\[]\s*(remastered|remaster|live|bonus|deluxe|version|edition|original|ost|lofi|slowed|reverb|radio\s*edit|acoustic|instrumental|clean|explicit|stereo|mono|mix|single\s*version|album\s*version)[^)\]]*[\)\]]",
+        "",
         t,
         flags=re.IGNORECASE,
     )
 
     # Strip trailing " - From ..." or " - Original Motion Picture Soundtrack" or " - 2013 Remaster" or " - Club Mix"
     t = re.sub(
-        r'\s*-\s*(?:\d{4}\s+)?(from\s+|original|soundtrack|remaster(?:ed)?|bonus|live|radio\s*edit|anniversary|club\s*mix|extended\s*mix|single\s*version|album\s*version|mono|stereo).*$',
-        '',
+        r"\s*-\s*(?:\d{4}\s+)?(from\s+|original|soundtrack|remaster(?:ed)?|bonus|live|radio\s*edit|anniversary|club\s*mix|extended\s*mix|single\s*version|album\s*version|mono|stereo).*$",
+        "",
         t,
         flags=re.IGNORECASE,
     )
 
     # Strip remaining trailing empty brackets
-    t = re.sub(r'[\(\[]\s*[\)\]]', '', t)
+    t = re.sub(r"[\(\[]\s*[\)\]]", "", t)
 
     # Strip any trailing parenthetical or bracketed suffix if preceded by a clean title
-    t = re.sub(r'\s*(\([^)]*\)|\[[^\]]*\])\s*$', '', t).strip()
+    t = re.sub(r"\s*(\([^)]*\)|\[[^\]]*\])\s*$", "", t).strip()
 
     return t.strip() if t.strip() else title.strip()
 
@@ -114,12 +123,12 @@ def get_primary_artist(artist: str) -> str:
     if not artist:
         return ""
     # Split by comma, ampersand, slash, 'x', or 'feat'
-    parts = re.split(r'[,&/]|\bfeat\.?\b|\bft\.?\b|\bx\b', artist, flags=re.IGNORECASE)
+    parts = re.split(r"[,&/]|\bfeat\.?\b|\bft\.?\b|\bx\b", artist, flags=re.IGNORECASE)
     return parts[0].strip() if parts else artist.strip()
 
 
 SECTION_HEADER_PATTERN = re.compile(
-    r"^[\(\[]\s*(?:intro|outro|verse(?:\s*\d+)?|chorus(?:\s*\d+)?|pre-chorus|bridge|hook|solo|guitar\s*solo|instrumental|interlude|drop|breakdown|refrain)\s*[\)\]]$",
+    r"^[\(\[]\s*(?:intro|outro|verse(?:\s*\d+)?|chorus(?:\s*\d+)?|pre-chorus|bridge|hook|solo|guitar\s*solo|instrumental|interlude|drop|breakdown|refrain)(?:\s*[:\-–]\s*[^)\]]+|\s+by\s+[^)\]]+)?\s*[\)\]]$",
     re.IGNORECASE,
 )
 
@@ -166,9 +175,12 @@ def parse_lrc(lrc_text: str) -> list[LyricLine]:
         return []
 
     lines: list[LyricLine] = []
-    # Pattern to find all timestamp tags on a line: [hh:mm:ss.xx] or [mm:ss.xx] or [mm:ss:xx]
+    # Pattern to find all timestamp tags on a line:
+    # 1) [hh:mm:ss.xx] (hours:minutes:seconds.fraction)
+    # 2) [mm:ss.xx] or [mm:ss:xx] (minutes:seconds.fraction or colon hundredths)
+    # 3) [mm:ss] (minutes:seconds integer)
     tag_pattern = re.compile(
-        r"\[(?:(\d{1,2}):(\d{2}):(\d{2})[\.:](\d{1,3})|(\d{1,3}):(\d{2})[\.:](\d{1,3}))\]"
+        r"\[(?:(\d{1,2}):(\d{2}):(\d{2})\.(\d{1,3})|(\d{1,3}):(\d{2})[\.:](\d{1,3})|(\d{1,3}):(\d{2}))\]"
     )
 
     for raw_line in lrc_text.strip().splitlines():
@@ -194,11 +206,16 @@ def parse_lrc(lrc_text: str) -> list[LyricLine]:
                 minutes = int(match.group(2))
                 seconds = int(match.group(3))
                 frac_str = match.group(4)
-            else:
+            elif match.group(5) is not None:
                 hours = 0
                 minutes = int(match.group(5))
                 seconds = int(match.group(6))
                 frac_str = match.group(7)
+            else:
+                hours = 0
+                minutes = int(match.group(8))
+                seconds = int(match.group(9))
+                frac_str = None
 
             frac = int(frac_str) / (10.0 ** len(frac_str)) if frac_str else 0.0
             total_sec = round(hours * 3600 + minutes * 60 + seconds + frac, 3)
@@ -212,7 +229,9 @@ def is_romanized(text: str) -> bool:
     """Checks whether the text is already Romanized (Latin characters)."""
     if not text:
         return True
-    return not any(('\u0900' <= ch <= '\u097f') or ('\u0600' <= ch <= '\u06ff') for ch in text)
+    return not any(
+        ("\u0900" <= ch <= "\u097f") or ("\u0600" <= ch <= "\u06ff") for ch in text
+    )
 
 
 def _cache_put(key: str, lyrics: list[LyricLine] | None):
@@ -235,7 +254,11 @@ def _parse_plain_lyrics(plain_text: str, duration_sec: float = 0) -> list[LyricL
     if not valid_lines:
         return []
 
-    step = (duration_sec * 0.90 / len(valid_lines)) if (duration_sec > 30 and len(valid_lines) > 0) else 4.0
+    step = (
+        (duration_sec * 0.90 / len(valid_lines))
+        if (duration_sec > 30 and len(valid_lines) > 0)
+        else 4.0
+    )
     return [
         LyricLine(time_sec=round(float(i * step), 2), text=to_hinglish(lt))
         for i, lt in enumerate(valid_lines)
@@ -366,7 +389,9 @@ def get_lyrics(
                 cached_data, cached_at = cached_val
             else:
                 cached_data, cached_at = cached_val, time.time()
-            if cached_data is not None or (time.time() - cached_at < _NEGATIVE_CACHE_TTL):
+            if cached_data is not None or (
+                time.time() - cached_at < _NEGATIVE_CACHE_TTL
+            ):
                 _LYRICS_CACHE.move_to_end(cache_key)
                 return cached_data
 

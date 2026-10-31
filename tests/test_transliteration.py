@@ -21,23 +21,25 @@ def test_devanagari_basic():
     for dev, expected in cases:
         out = to_hinglish(dev)
         assert is_pure_ascii(out), f"Output contains non-ASCII characters: {out}"
-        assert out.lower().startswith(expected.lower()[:3]), f"Expected {expected}, got {out}"
+        assert out.lower().startswith(expected.lower()[:3]), (
+            f"Expected {expected}, got {out}"
+        )
 
 
 def test_nukta_consonants():
     # Test both composed and decomposed Devanagari nuktas
     decomposed_qareeb = "\u0915\u093c\u0930\u0940\u092c"  # क़रीब
-    composed_qareeb = "\u0958\u0930\u0940\u092c"          # क़रीब
+    composed_qareeb = "\u0958\u0930\u0940\u092c"  # क़रीब
     assert to_hinglish(decomposed_qareeb) == "Qareeb"
     assert to_hinglish(composed_qareeb) == "Qareeb"
 
-    decomposed_zara = "\u091c\u093c\u0930\u093e"          # ज़रा
-    composed_zara = "\u095b\u0930\u093e"                  # ज़रा
+    decomposed_zara = "\u091c\u093c\u0930\u093e"  # ज़रा
+    composed_zara = "\u095b\u0930\u093e"  # ज़रा
     assert to_hinglish(decomposed_zara) == "Zaraa"
     assert to_hinglish(composed_zara) == "Zaraa"
 
     decomposed_faasle = "\u092b\u093c\u093e\u0938\u0932\u0947"  # फ़ासले
-    composed_faasle = "\u095e\u093e\u0938\u0932\u0947"          # फ़ासले
+    composed_faasle = "\u095e\u093e\u0938\u0932\u0947"  # फ़ासले
     assert to_hinglish(decomposed_faasle).startswith("F")
     assert to_hinglish(composed_faasle).startswith("F")
 
@@ -53,7 +55,9 @@ def test_urdu_script():
     for sample in urdu_samples:
         out = to_hinglish(sample)
         assert len(out) > 0
-        assert is_pure_ascii(out), f"Urdu transliteration leaked foreign characters: {out}"
+        assert is_pure_ascii(out), (
+            f"Urdu transliteration leaked foreign characters: {out}"
+        )
 
 
 def test_zero_leak_guarantee():
