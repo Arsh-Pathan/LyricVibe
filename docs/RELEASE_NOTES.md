@@ -32,10 +32,10 @@
 - **Zero API Keys & Zero Configuration**: Instant startup without needing Spotify developer tokens or Spotify login credentials.
 - **165Hz Fluid Rendering**: Hardware-accelerated PyQt6 rendering at your display's native refresh rate (60Hz–240Hz).
 - **Continuous Fade Physics**: 100% glitch-free smooth baseline transitions with zero sudden text snapping or jumps.
-- **Vibrant Highlight Palette**: 16 ultra-bright neon colors that rotate automatically per song, or can be pinned in settings.
-- **Universal Hinglish Engine**: Automatically converts Devanagari and Urdu lyrics into clean Roman Hinglish.
+- **Versatile Highlight Palette**: Rich darker tones (Spotify Green, Deep Emerald, Crimson, Royal Purple, Midnight Indigo, Deep Teal) and ultra-bright neon colors that rotate automatically per song, or can be chosen via the custom color picker.
+- **Universal Multi-Script Transliteration**: Automatically converts Devanagari (Hindi), Perso-Arabic (Urdu), Gurmukhi (Punjabi), Bengali, and Gujarati lyrics into clean Latin Roman text with zero missing glyph boxes.
 - **55+ Dynamic Animations**: Scale fades, kinetic snaps, word-by-word reveals, soft glows, and directional motion blur.
-- **Smart LRCLIB Matching**: Automatically strips movie suffixes, artist tags, and remaster tags for high-accuracy lyrics lookup.
+- **Smart LRCLIB Matching**: Automatically strips movie suffixes, artist tags, remaster notes, producer credits, and viral modifiers for high-accuracy lyrics lookup.
 
 ---
 

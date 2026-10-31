@@ -37,16 +37,17 @@ flowchart TD
 - **Metadata Sanitization**: Cleans Spotify track metadata using aggressive regex pipelines to strip noise that breaks exact-match lookups:
   - Strips movie tags: `From "Movie"`, `Soundtrack Version`, `Original Motion Picture`
   - Strips remaster tags: `Remastered 2011`, `2024 Remaster`, `Deluxe Edition`
-  - Strips featured artists: `feat.`, `ft.`, `with ...`
+  - Strips featured artists and producer tags: `feat.`, `ft.`, `with ...`, `(Prod. ...)`, `[Produced by ...]`
+  - Strips viral modifiers: `(Sped Up)`, `(Slowed + Reverb)`, `(Nightcore)`, `(TikTok Version)`, `(Clean/Explicit Version)`
 - **Race Condition Prevention**: Employs monotonically incrementing request tags (`_current_fetch_id`) to discard stale responses when tracks are skipped rapidly.
 
 ### 3. Core Physics & Transliteration (`src/lyricvibe/core/`)
-- **`transliteration.py`**: Converts Devanagari (Hindi), Perso-Arabic (Urdu), and Gurmukhi (Punjabi) scripts into clean phonetic Roman Hinglish/Punjabi with schwa deletion, nukta handling, and zero-width/bidi filtering.
+- **`transliteration.py`**: Converts Devanagari (Hindi), Perso-Arabic (Urdu), Gurmukhi (Punjabi), Bengali, and Gujarati scripts into clean phonetic Roman Latin with schwa deletion, nukta handling, and zero-width/bidi filtering.
 - **`animation.py`**: 165Hz physics engine, sub-millisecond continuous lift-out easing, and clamped motion blur vectors.
 - **`paths.py`**: Centralized asset and directory resolution supporting both source and PyInstaller environments.
 - **`config.py`**: Static defaults for overlay dimensions and chroma keying.
 
 ### 4. User Interface & Settings (`src/lyricvibe/ui/` & `src/lyricvibe/utils/`)
-- **`ui/overlay.py`**: Frameless, transparent 165Hz PyQt6 overlay with Direct2D hardware acceleration and single-instance IPC server.
-- **`ui/settings.py`**: Material Design 3 dark-themed settings customizer with live interactive animation preview.
-- **`utils/settings.py`**: Persistent JSON settings management and 20-color highlight palette definitions supporting darker and vivid tones.
+- **`ui/overlay.py`**: Frameless, transparent 165Hz PyQt6 overlay with Direct2D hardware acceleration, single-instance IPC server, and screen coordinate clamping to maintain visibility during resolution changes.
+- **`ui/settings.py`**: Material Design 3 dark-themed settings customizer with live interactive animation preview, right-click custom color dialog, and instantaneous hot-reloading.
+- **`utils/settings.py`**: Persistent JSON settings management, 3/6/8-digit hex parsing, and 23-color highlight palette definitions supporting darker and vivid tones.
