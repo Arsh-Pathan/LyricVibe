@@ -1110,8 +1110,16 @@ class FloatingLyricsWidget(QWidget):
                     dur = max(next_time - self.lyrics[line_idx].time_sec, 1.4)
                     lead = max(0.0, adjusted - self.lyrics[line_idx].time_sec)
 
+                    current_line = self.lyrics[line_idx]
                     self.current_line_text = raw_text
-                    self.engine.trigger_line(raw_text, dur, lead_sec=lead)
+                    self.engine.trigger_line(
+                        raw_text,
+                        dur,
+                        lead_sec=lead,
+                        anim_style=self.settings.get("animation_style", "all"),
+                        word_times=getattr(current_line, "word_times", None),
+                        word_durations=getattr(current_line, "word_durations", None),
+                    )
             else:
                 self.current_line_text = ""
                 self.engine.clear_line()
@@ -1147,8 +1155,16 @@ class FloatingLyricsWidget(QWidget):
                 if raw_text:
                     dur = max(gap, 1.4)
                     lead = max(0.0, line_elapsed)
+                    current_line = self.lyrics[line_idx]
                     self.current_line_text = raw_text
-                    self.engine.trigger_line(raw_text, dur, lead_sec=lead)
+                    self.engine.trigger_line(
+                        raw_text,
+                        dur,
+                        lead_sec=lead,
+                        anim_style=self.settings.get("animation_style", "all"),
+                        word_times=getattr(current_line, "word_times", None),
+                        word_durations=getattr(current_line, "word_durations", None),
+                    )
                     self.update()
                     return
 

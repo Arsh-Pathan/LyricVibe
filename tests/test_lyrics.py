@@ -443,3 +443,54 @@ def test_get_primary_artist_extended_delimiters():
         get_primary_artist("Swedish House Mafia vs. Tinie Tempah")
         == "Swedish House Mafia"
     )
+
+
+def test_clean_lyric_line_removes_inner_word_tags():
+    raw = "<00:15.82> The <00:16.10> club <00:16.45> isn't [Am] [Chorus]"
+    cleaned = clean_lyric_line(raw)
+    assert cleaned == "The club isn't"
+    assert "<" not in cleaned and ">" not in cleaned
+
+
+def test_parse_lrc_enhanced_word_level_timestamps():
+    elrc = """
+    [00:15.82] <00:15.82> The <00:16.10> club <00:16.45> isn't <00:16.90> the <00:17.15> best <00:17.50> place <00:18.10>
+    [00:20.00] Simple line without word tags
+    """
+    lines = parse_lrc(elrc)
+    assert len(lines) == 2
+
+    # Enhanced line
+    el = lines[0]
+    assert el.time_sec == 15.82
+    assert el.text == "The club isn't the best place"
+    assert len(el.word_times) == 6
+    assert el.word_times == [15.82, 16.10, 16.45, 16.90, 17.15, 17.50]
+    assert len(el.word_durations) == 6
+    assert el.word_durations[0] == 0.28
+    assert el.word_durations[-1] == 0.60
+
+    # Standard line
+    sl = lines[1]
+    assert sl.time_sec == 20.00
+    assert sl.text == "Simple line without word tags"
+    assert sl.word_times == []
+    assert sl.word_durations == []
+
+
+def test_parse_lrc_enhanced_multi_tag_chorus():
+    elrc = """
+    [00:10.00][00:40.00] <00:10.00> Golden <00:10.50> hour <00:11.20>
+    """
+    lines = parse_lrc(elrc)
+    assert len(lines) == 2
+
+    # First occurrence at 10.00s
+    assert lines[0].time_sec == 10.00
+    assert lines[0].text == "Golden hour"
+    assert lines[0].word_times == [10.00, 10.50]
+
+    # Second occurrence at 40.00s (word times shifted by +30.00s)
+    assert lines[1].time_sec == 40.00
+    assert lines[1].text == "Golden hour"
+    assert lines[1].word_times == [40.00, 40.50]

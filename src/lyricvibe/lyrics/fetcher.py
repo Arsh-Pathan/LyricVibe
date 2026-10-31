@@ -12,7 +12,7 @@ import logging
 import re
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -28,10 +28,12 @@ except ImportError:
 
 @dataclass
 class LyricLine:
-    """A single line of lyrics with its timestamp in seconds."""
+    """A single line of lyrics with its timestamp in seconds and optional word timestamps."""
 
     time_sec: float
     text: str
+    word_times: list[float] = field(default_factory=list)
+    word_durations: list[float] = field(default_factory=list)
 
 
 # Bounded in-memory cache to prevent unbounded growth during long playback sessions (max 250 songs)
@@ -149,7 +151,7 @@ CHORD_TAG_PATTERN = re.compile(r"\[[A-G][b#]?(?:m|maj|min|dim|aug|sus\d?)?\d*\]"
 
 
 def clean_lyric_line(text: str) -> str:
-    """Cleans a single lyric line by stripping section markers, chords, and musical glyphs."""
+    """Cleans a single lyric line by stripping section markers, chords, musical glyphs, and word tags."""
     if not text:
         return ""
 
@@ -158,6 +160,18 @@ def clean_lyric_line(text: str) -> str:
     # Omit structural section headers completely (e.g. [Chorus], (Verse 1))
     if SECTION_HEADER_PATTERN.match(t):
         return ""
+
+    # Strip inline section markers (e.g. trailing [Chorus], (Verse 2))
+    t = SECTION_HEADER_PATTERN.sub("", t) if not t.startswith(("[", "(")) else t
+    t = re.sub(
+        r"[\(\[]\s*(?:intro|outro|verse(?:\s*\d+)?|chorus(?:\s*\d+)?|pre-chorus|bridge|hook|solo|guitar\s*solo|instrumental|interlude|drop|breakdown|refrain)(?:\s*[:\-–]\s*[^)\]]+|\s+by\s+[^)\]]+)?\s*[\)\]]",
+        "",
+        t,
+        flags=re.IGNORECASE,
+    )
+
+    # Strip inner angle-bracket word/syllable tags like <00:15.82>
+    t = re.sub(r"<[^>]+>", "", t)
 
     # Strip chord notations like [Am] or [G#m7]
     t = CHORD_TAG_PATTERN.sub("", t)
@@ -172,9 +186,87 @@ def clean_lyric_line(text: str) -> str:
     return re.sub(r"\s+", " ", t).strip()
 
 
+INNER_WORD_TAG_PATTERN = re.compile(
+    r"<(?P<h>\d{1,2}):(?P<m1>\d{2}):(?P<s1>\d{2})\.(?P<f1>\d{1,3})>|"
+    r"<(?P<m2>\d{1,3}):(?P<s2>\d{2})[\.:](?P<f2>\d{1,3})>|"
+    r"<(?P<m3>\d{1,3}):(?P<s3>\d{2})>"
+)
+
+
+def _parse_inner_tag_sec(match: re.Match, offset_sec: float = 0.0) -> float:
+    """Extracts seconds timestamp from an inner word tag match."""
+    gd = match.groupdict()
+    if gd.get("h") is not None:
+        h, m, s, f = int(gd["h"]), int(gd["m1"]), int(gd["s1"]), gd["f1"]
+    elif gd.get("m2") is not None:
+        h, m, s, f = 0, int(gd["m2"]), int(gd["s2"]), gd["f2"]
+    else:
+        h, m, s, f = 0, int(gd["m3"]), int(gd["s3"]), None
+    frac = int(f) / (10.0 ** len(f)) if f else 0.0
+    return max(0.0, round(h * 3600 + m * 60 + s + frac + offset_sec, 3))
+
+
+def _extract_enhanced_word_timings(
+    raw_content: str, line_start_sec: float, offset_sec: float
+) -> tuple[list[float], list[float]]:
+    """
+    Parses word-level and syllable-level timestamps from enhanced LRC lines.
+    Reconstructs whitespace-separated words, word start times, and durations.
+    """
+    parts = re.split(r"(<[^>]+>)", raw_content)
+    cur_time = line_start_sec
+    tokens: list[tuple[str, float]] = []
+    trailing_tag_time: float | None = None
+
+    for p in parts:
+        if not p:
+            continue
+        m = INNER_WORD_TAG_PATTERN.match(p)
+        if m:
+            cur_time = _parse_inner_tag_sec(m, offset_sec)
+            trailing_tag_time = cur_time
+        else:
+            tokens.append((p, cur_time))
+            trailing_tag_time = None
+
+    word_times: list[float] = []
+    cur_word = ""
+    cur_start: float | None = None
+
+    for chunk, t in tokens:
+        for ch in chunk:
+            if ch.isspace():
+                if cur_word:
+                    word_times.append(
+                        cur_start if cur_start is not None else line_start_sec
+                    )
+                    cur_word = ""
+                    cur_start = None
+            else:
+                if not cur_word:
+                    cur_start = t
+                cur_word += ch
+
+    if cur_word:
+        word_times.append(cur_start if cur_start is not None else line_start_sec)
+
+    word_durations: list[float] = []
+    for i in range(len(word_times)):
+        if i + 1 < len(word_times):
+            d = max(0.08, round(word_times[i + 1] - word_times[i], 3))
+        elif trailing_tag_time and trailing_tag_time > word_times[i]:
+            d = max(0.08, round(trailing_tag_time - word_times[i], 3))
+        else:
+            d = 0.45
+        word_durations.append(d)
+
+    return word_times, word_durations
+
+
 def parse_lrc(lrc_text: str) -> list[LyricLine]:
     """
-    Parse standard, multi-tag, and hour-timestamp LRC format lyrics into a sorted list of LyricLine objects.
+    Parse standard, multi-tag, hour-timestamp, and Enhanced LRC format lyrics
+    into a sorted list of LyricLine objects with word-level timestamps when available.
     Supports formats like:
       [01:23.45] Single line
       [01:23.4] Single-digit fraction line
@@ -182,6 +274,7 @@ def parse_lrc(lrc_text: str) -> list[LyricLine]:
       [01:23:45] Colon fractional separator
       [01:05:23.45] Hours timestamp
       [00:10.00][00:25.00] Repeated chorus line
+      [00:15.82] <00:15.82> The <00:16.10> club <00:16.45> isn't (Enhanced LRC word sync)
       [offset:+500] Global millisecond synchronization offset
     """
     if not lrc_text or not lrc_text.strip():
@@ -197,10 +290,6 @@ def parse_lrc(lrc_text: str) -> list[LyricLine]:
             offset_sec = 0.0
 
     lines: list[LyricLine] = []
-    # Pattern to find all timestamp tags on a line:
-    # 1) [hh:mm:ss.xx] (hours:minutes:seconds.fraction)
-    # 2) [mm:ss.xx] or [mm:ss:xx] (minutes:seconds.fraction or colon hundredths)
-    # 3) [mm:ss] (minutes:seconds integer)
     tag_pattern = re.compile(
         r"\[(?:(\d{1,2}):(\d{2}):(\d{2})\.(\d{1,3})|(\d{1,3}):(\d{2})[\.:](\d{1,3})|(\d{1,3}):(\d{2}))\]"
     )
@@ -214,14 +303,16 @@ def parse_lrc(lrc_text: str) -> list[LyricLine]:
         if not matches:
             continue
 
-        # Extract lyric text by removing all timestamp tags
-        raw_text = tag_pattern.sub("", trimmed).strip()
-        cleaned_text = clean_lyric_line(raw_text)
+        # Extract line content by removing all bracket timestamp tags
+        raw_content = tag_pattern.sub("", trimmed).strip()
+        cleaned_text = clean_lyric_line(raw_content)
         if not cleaned_text:
             continue
 
         roman_lyric = to_hinglish(cleaned_text)
 
+        # Parse timestamps for all line tags
+        line_timestamps: list[float] = []
         for match in matches:
             if match.group(1) is not None:
                 hours = int(match.group(1))
@@ -244,7 +335,29 @@ def parse_lrc(lrc_text: str) -> list[LyricLine]:
                 0.0,
                 round(hours * 3600 + minutes * 60 + seconds + frac + offset_sec, 3),
             )
-            lines.append(LyricLine(time_sec=total_sec, text=roman_lyric))
+            line_timestamps.append(total_sec)
+
+        has_inner_tags = bool(INNER_WORD_TAG_PATTERN.search(raw_content))
+        base_line_sec = line_timestamps[0] if line_timestamps else 0.0
+
+        if has_inner_tags:
+            w_times, w_durs = _extract_enhanced_word_timings(
+                raw_content, base_line_sec, offset_sec
+            )
+            for total_sec in line_timestamps:
+                shift = total_sec - base_line_sec
+                shifted_times = [round(t + shift, 3) for t in w_times]
+                lines.append(
+                    LyricLine(
+                        time_sec=total_sec,
+                        text=roman_lyric,
+                        word_times=shifted_times,
+                        word_durations=list(w_durs),
+                    )
+                )
+        else:
+            for total_sec in line_timestamps:
+                lines.append(LyricLine(time_sec=total_sec, text=roman_lyric))
 
     lines.sort(key=lambda item: item.time_sec)
     return lines

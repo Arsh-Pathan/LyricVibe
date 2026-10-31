@@ -13,6 +13,7 @@ Comprehensive 165Hz Physics & Animation Engine for Spotify Lyrics.
 
 import math
 import random
+import re
 import time
 
 
@@ -262,6 +263,170 @@ def pick_animation(line_text: str, duration: float, category: str = "all") -> st
     return random.choices(types, weights=weights, k=1)[0]
 
 
+# ─── Syllable & Phonetic Duration Modeling ────────────────────────────
+FUNCTION_WORDS: set[str] = {
+    "a", "an", "the", "in", "on", "at", "to", "for", "of", "with", "by", "from",
+    "up", "about", "into", "over", "after", "and", "but", "or", "so", "if", "as",
+    "than", "nor", "i", "you", "he", "she", "it", "we", "they", "me", "him", "her",
+    "us", "them", "my", "your", "his", "its", "our", "their", "is", "am", "are",
+    "was", "were", "be", "been", "do", "does", "did", "have", "has", "had", "can",
+    "will", "would", "could", "should", "main", "tu", "ye", "wo", "ka", "ki", "ke",
+    "ko", "se", "pe", "hai", "ho", "tha", "thi", "na", "ne", "jo", "hum",
+    "unka", "meri", "tera", "mera", "tere", "mere",
+}
+
+
+def compute_syllable_count(word: str) -> int:
+    """
+    Computes accurate syllable count for a word across English, Indic, and European lyrics.
+    Respects vocal morphology, silent e exceptions, and diphthongs.
+    """
+    clean_w = re.sub(r"[^a-zA-Z]", "", word).lower()
+    if not clean_w:
+        return 1
+    if len(clean_w) <= 2:
+        return 1
+
+    silent_e_exceptions = {"be", "me", "we", "he", "she", "the", "ye"}
+    if clean_w in silent_e_exceptions:
+        return 1
+
+    vowels = "aeiouy"
+    vowel_runs = re.findall(r"[aeiouy]+", clean_w)
+    count = len(vowel_runs)
+    if count == 0:
+        return 1
+
+    # Check for silent trailing 'e'
+    is_indic_e = (
+        len(clean_w) >= 4
+        and clean_w[-2] in "rmntkd"
+        and count >= 2
+        and any(
+            sub in clean_w
+            for sub in ["ter", "mer", "vaas", "kar", "tumh", "aan", "jaan"]
+        )
+    )
+    is_consonant_le = (
+        clean_w.endswith("le") and len(clean_w) > 2 and clean_w[-3] not in vowels
+    )
+    if (
+        clean_w.endswith("e")
+        and not clean_w.endswith(("ee", "oe", "ye"))
+        and not is_consonant_le
+        and count > 1
+        and not is_indic_e
+    ):
+        count -= 1
+
+    # Words ending in -ed (e.g. walked -> 1, waited -> 2)
+    if clean_w.endswith("ed") and not clean_w.endswith(("ted", "ded")) and count > 1:
+        count -= 1
+
+    # Words ending in -es (e.g. makes -> 1, wishes -> 2)
+    if (
+        clean_w.endswith("es")
+        and not clean_w.endswith(("ses", "xes", "zes", "ches", "shes"))
+        and count > 1
+    ):
+        count -= 1
+
+    # Dual vowel clusters pronounced as two distinct syllables (e.g. dia-mond, ra-dio)
+    if re.search(r"[^aeiouy][iu]a", clean_w) or re.search(r"[^aeiouy]io", clean_w):
+        count += 1
+
+    return max(1, count)
+
+
+def compute_word_phonetic_weights(words: list[str]) -> list[float]:
+    """
+    Computes acoustic phonetic weights for each word in a lyric phrase.
+    Applies short function word discounts, punctuation breath cues, and terminal cadential hold.
+    """
+    if not words:
+        return []
+
+    weights: list[float] = []
+    n = len(words)
+
+    for i, w in enumerate(words):
+        clean_w = re.sub(r"[^a-zA-Z0-9]", "", w).lower()
+        syl = compute_syllable_count(clean_w)
+
+        if syl == 1:
+            base = 1.0
+        elif syl == 2:
+            base = 1.85
+        elif syl == 3:
+            base = 2.65
+        else:
+            base = 2.65 + (syl - 3) * 0.75
+
+        # Function words are passed over swiftly in singing
+        if clean_w in FUNCTION_WORDS:
+            if syl == 1:
+                base *= 0.65
+            elif syl == 2:
+                base *= 0.80
+
+        # Punctuation indicates vocal phrasing and breath gap
+        if w.endswith((",", ";", ":", "-", "—", "...")):
+            base *= 1.15
+
+        # Terminal cadence: singers sustain the final word of a lyric line
+        if i == n - 1:
+            base *= 1.35
+
+        weights.append(base)
+
+    return weights
+
+
+def compute_word_timeline(
+    words: list[str], total_duration: float
+) -> tuple[list[float], list[float]]:
+    """
+    Calculates precise start and end timestamps for every word in a lyric line
+    based on phonetic syllable weight and vocal acoustic phrasing.
+    """
+    if not words:
+        return [], []
+
+    weights = compute_word_phonetic_weights(words)
+    total_w = sum(weights)
+    if total_w <= 0.0:
+        total_w = 1.0
+
+    n = len(words)
+    total_syl = sum(
+        compute_syllable_count(re.sub(r"[^a-zA-Z0-9]", "", w).lower()) for w in words
+    )
+    min_vocal_dur = max(0.9, total_syl * 0.22 + n * 0.08)
+
+    if total_duration <= 2.5:
+        vocal_dur = max(min_vocal_dur, total_duration * 0.90)
+    elif total_duration <= 5.0:
+        vocal_dur = min(total_duration - 0.35, max(min_vocal_dur, total_duration * 0.85))
+    else:
+        # Long instrumental pause / guitar bridge
+        ideal_dur = max(min_vocal_dur, total_syl * 0.38 + n * 0.15 + 0.6)
+        vocal_dur = min(total_duration - 0.5, ideal_dur)
+
+    vocal_dur = min(vocal_dur, max(total_duration, 1.2))
+
+    starts: list[float] = []
+    ends: list[float] = []
+    curr = 0.0
+
+    for i in range(n):
+        dur = (weights[i] / total_w) * vocal_dur
+        starts.append(round(curr, 3))
+        curr += dur
+        ends.append(round(curr, 3))
+
+    return starts, ends
+
+
 class AnimationEngine:
     """Manages 165Hz physics, anti-overlap transitions, color highlight, and focal underlines."""
 
@@ -292,7 +457,10 @@ class AnimationEngine:
         self._char_burst_dy = []
 
         # Glitch-free color highlight tracking
+        self.word_starts: list[float] = []
+        self.word_ends: list[float] = []
         self.highlight_word_idx = -1
+        self.highlight_word_progress = 0.0
 
         # Focal 1-2 word underline
         self.focal_word_idx = -1
@@ -308,6 +476,8 @@ class AnimationEngine:
         anim_type: str = "",
         lead_sec: float = 0.0,
         anim_style: str = "",
+        word_times: list[float] | None = None,
+        word_durations: list[float] | None = None,
     ):
         now_perf = time.perf_counter()
 
@@ -333,7 +503,28 @@ class AnimationEngine:
 
         # Word reveal tracking
         self.words = new_text.strip().split()
-        self.word_alphas = [0.40] * len(self.words)
+        num_w = len(self.words)
+        self.word_alphas = [0.40] * num_w
+
+        # Build word timeline: use ELRC timestamps if available, otherwise phonetic model
+        if word_times and len(word_times) == num_w:
+            base_t = word_times[0]
+            self.word_starts = [max(0.0, round(t - base_t, 3)) for t in word_times]
+            self.word_ends = []
+            for i in range(num_w):
+                wd = (
+                    word_durations[i]
+                    if (word_durations and i < len(word_durations))
+                    else 0.40
+                )
+                self.word_ends.append(round(self.word_starts[i] + wd, 3))
+        else:
+            self.word_starts, self.word_ends = compute_word_timeline(
+                self.words, self.curr_duration
+            )
+
+        self.highlight_word_idx = -1
+        self.highlight_word_progress = 0.0
 
         # Per-character tracking
         self.chars = list(new_text)
@@ -373,24 +564,27 @@ class AnimationEngine:
             self.prev_text = self.curr_text
             self.prev_exit_perf = time.perf_counter()
             self.curr_text = ""
+            self.word_starts = []
+            self.word_ends = []
             self.highlight_word_idx = -1
+            self.highlight_word_progress = 0.0
             self._prev_blur_ox = None
             self._prev_blur_oy = None
             self._prev_blur_perf = None
 
     def sync_to_audio(self, audio_elapsed_sec: float):
         """
-        Gently corrects audio sync drift with a smooth low-pass filter
-        WITHOUT interrupting the continuous 165Hz render clock.
-        If a large seek or scrubbing jump is detected (> 0.75s), snaps immediately.
+        Tightly locks animation timing to audio playback position.
+        Eliminates drift and phase lag while maintaining butter-smooth 165 FPS interpolation.
+        If a large seek or scrubbing jump is detected (> 0.25s), snaps immediately.
         """
         now_perf = time.perf_counter()
         expected_start = now_perf - audio_elapsed_sec
         drift = expected_start - self.curr_start_perf
-        if abs(drift) > 0.75:
+        if abs(drift) > 0.25:
             self.curr_start_perf = expected_start
-        elif abs(drift) > 0.06:
-            self.curr_start_perf += drift * 0.15
+        elif abs(drift) > 0.02:
+            self.curr_start_perf += drift * 0.50
 
     def update(self) -> dict:
         now_perf = time.perf_counter()
@@ -796,25 +990,51 @@ class AnimationEngine:
         # ── Glitch-Free Active Word Highlight Timing ──
         num_words = len(self.words)
         self.highlight_word_idx = -1
-        if num_words > 0:
-            active_window = min(self.curr_duration * 0.85, max(num_words * 0.38, 2.0))
-            step_dur = active_window / num_words
-            for i in range(num_words):
-                w_start = i * step_dur
-                w_end = (i + 1) * step_dur
-                if w_start <= elapsed_in < w_end:
-                    self.highlight_word_idx = i
-                    break
-            # Hold highlight on the last word when active window ends (never jump back to 0)
-            if self.highlight_word_idx == -1 and elapsed_in >= active_window:
+        self.highlight_word_progress = 0.0
+        if num_words > 0 and len(self.word_starts) == num_words:
+            if elapsed_in < self.word_starts[0]:
+                if self.word_starts[0] <= 0.12 or elapsed_in >= max(
+                    0.0, self.word_starts[0] - 0.08
+                ):
+                    self.highlight_word_idx = 0
+                    denom = max(0.04, self.word_ends[0] - self.word_starts[0])
+                    self.highlight_word_progress = min(
+                        1.0, max(0.0, elapsed_in / denom)
+                    )
+                else:
+                    self.highlight_word_idx = -1
+                    self.highlight_word_progress = 0.0
+            elif elapsed_in >= self.word_ends[-1]:
                 self.highlight_word_idx = num_words - 1
+                self.highlight_word_progress = 1.0
+            else:
+                found = False
+                for i in range(num_words):
+                    w_start = self.word_starts[i]
+                    w_end = self.word_ends[i]
+                    next_start = (
+                        self.word_starts[i + 1] if (i + 1 < num_words) else w_end
+                    )
+                    if w_start <= elapsed_in < next_start:
+                        self.highlight_word_idx = i
+                        denom = max(0.04, w_end - w_start)
+                        self.highlight_word_progress = min(
+                            1.0, max(0.0, (elapsed_in - w_start) / denom)
+                        )
+                        found = True
+                        break
+                if not found:
+                    self.highlight_word_idx = num_words - 1
+                    self.highlight_word_progress = 1.0
 
             for i in range(num_words):
-                w_elapsed = elapsed_in - (i * step_dur)
-                if w_elapsed < 0:
+                w_start = self.word_starts[i]
+                w_end = self.word_ends[i]
+                if elapsed_in < w_start:
                     self.word_alphas[i] = 0.40
                 else:
-                    progress = min(w_elapsed / max(step_dur * 0.7, 0.12), 1.0)
+                    dur = max(0.08, w_end - w_start)
+                    progress = min(1.0, (elapsed_in - w_start) / max(dur * 0.7, 0.08))
                     self.word_alphas[i] = 0.40 + 0.60 * (
                         1.0 - math.pow(1.0 - progress, 2)
                     )
@@ -914,6 +1134,7 @@ class AnimationEngine:
             "prev": prev_data,
             "word_alphas": self.word_alphas,
             "highlight_word_idx": self.highlight_word_idx,
+            "highlight_word_progress": self.highlight_word_progress,
             "char_offsets_x": self.char_offsets_x,
             "char_offsets_y": self.char_offsets_y,
             "char_alphas": self.char_alphas,

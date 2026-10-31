@@ -9,6 +9,9 @@ from lyricvibe.core.animation import (
     FADE_ANIMS,
     AnimationEngine,
     HandDrawnStroke,
+    compute_syllable_count,
+    compute_word_phonetic_weights,
+    compute_word_timeline,
     pick_animation,
 )
 
@@ -182,3 +185,72 @@ def test_animation_engine_style_selection():
 
     engine.trigger_line("Cinematic line", duration=3.0, anim_style="cinematic")
     assert engine.curr_anim_type in ANIMATION_CATEGORIES["cinematic"]
+
+
+def test_syllable_counting():
+    assert compute_syllable_count("I") == 1
+    assert compute_syllable_count("love") == 1
+    assert compute_syllable_count("baby") == 2
+    assert compute_syllable_count("beautiful") == 3
+    assert compute_syllable_count("forever") == 3
+    assert compute_syllable_count("little") == 2
+    assert compute_syllable_count("waited") == 2
+    assert compute_syllable_count("walked") == 1
+    assert compute_syllable_count("zindagi") == 3
+    assert compute_syllable_count("tere") == 2
+    assert compute_syllable_count("vaaste") == 2
+
+
+def test_phonetic_weights_function_word_and_terminal_hold():
+    words = ["I", "love", "you", "forever"]
+    weights = compute_word_phonetic_weights(words)
+    assert len(weights) == 4
+    # "I" is a function word (discounted), "love" is content word
+    assert weights[0] < weights[1]
+    # "forever" is 3 syllables and terminal word (sustained)
+    assert weights[3] > weights[1]
+
+
+def test_compute_word_timeline():
+    words = ["I", "love", "you"]
+    starts, ends = compute_word_timeline(words, total_duration=3.0)
+    assert len(starts) == 3
+    assert len(ends) == 3
+    assert starts[0] == 0.0
+    for i in range(2):
+        assert starts[i] < ends[i]
+        assert ends[i] <= starts[i + 1]
+    assert ends[-1] <= 3.0
+
+
+def test_animation_engine_word_by_word_enhanced_lrc_sync():
+    engine = AnimationEngine()
+    # 3 words: "The club isn't" with timestamps at 10.0, 10.4, 11.0 and durations 0.4, 0.6, 0.5
+    engine.trigger_line(
+        "The club isn't",
+        duration=3.0,
+        word_times=[10.0, 10.4, 11.0],
+        word_durations=[0.4, 0.6, 0.5],
+    )
+    assert engine.word_starts == [0.0, 0.4, 1.0]
+    assert engine.word_ends == [0.4, 1.0, 1.5]
+
+    # At elapsed 0.1s: word 0 ("The")
+    engine.curr_start_perf = time.perf_counter() - 0.1
+    state = engine.update()
+    assert state["highlight_word_idx"] == 0
+
+    # At elapsed 0.6s: word 1 ("club")
+    engine.curr_start_perf = time.perf_counter() - 0.6
+    state = engine.update()
+    assert state["highlight_word_idx"] == 1
+
+    # At elapsed 1.2s: word 2 ("isn't")
+    engine.curr_start_perf = time.perf_counter() - 1.2
+    state = engine.update()
+    assert state["highlight_word_idx"] == 2
+
+    # At elapsed 2.5s: vocal phrase finished, holds highlight on last word (idx 2)
+    engine.curr_start_perf = time.perf_counter() - 2.5
+    state = engine.update()
+    assert state["highlight_word_idx"] == 2
