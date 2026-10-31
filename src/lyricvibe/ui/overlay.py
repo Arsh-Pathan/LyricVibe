@@ -1191,7 +1191,6 @@ class FloatingLyricsWidget(QWidget):
 
             self.update()
         elif 0 <= line_idx < len(self.lyrics):
-            # Check for instrumental break / guitar solo where vocal has already ended
             current_line = self.lyrics[line_idx]
             next_time = (
                 self.lyrics[line_idx + 1].time_sec
@@ -1201,26 +1200,29 @@ class FloatingLyricsWidget(QWidget):
             gap = next_time - current_line.time_sec
             line_elapsed = adjusted - current_line.time_sec
 
-            # Words take ~0.40s each to sing
+            # Compute true vocal end: use exact word timestamps if present, otherwise generous acoustic model
             words = current_line.text.strip().split()
-            vocal_dur = max(2.2, min(gap - 0.4, len(words) * 0.42 + 1.2))
+            if self.engine.word_ends:
+                vocal_end = self.engine.word_ends[-1]
+            else:
+                vocal_end = max(3.5, len(words) * 0.55 + 2.0)
+            hold_dur = min(gap * 0.75, vocal_end + 3.0)
 
-            # If gap before next line is large (> 4.0s) and vocal has finished:
-            if gap > 4.0 and line_elapsed > vocal_dur:
-                # Fade out cleanly so old text does NOT linger during musical breaks
+            # Only clear during an extended instrumental interlude (gap >= 8.0s)
+            # For standard lyrical phrasing (gap < 8.0s), the line MUST remain visible until the next line starts
+            if gap >= 8.0 and line_elapsed > hold_dur:
                 if self.engine.curr_text:
                     self.engine.clear_line()
                     self.current_line_text = ""
                     self.update()
                 return
 
-            if not self.engine.curr_text and line_elapsed <= vocal_dur:
-                # Revive active line if user scrubbed backwards into vocal window
+            # Revive active line if currently cleared but still within its display window
+            if not self.engine.curr_text and (gap < 8.0 or line_elapsed <= hold_dur):
                 raw_text = current_line.text.strip()
                 if raw_text:
                     dur = max(gap, 1.4)
                     lead = max(0.0, line_elapsed)
-                    current_line = self.lyrics[line_idx]
                     self.current_line_text = raw_text
                     self.engine.trigger_line(
                         raw_text,

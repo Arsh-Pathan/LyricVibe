@@ -39,7 +39,7 @@ class LyricLine:
 # Bounded in-memory cache to prevent unbounded growth during long playback sessions (max 250 songs)
 _MAX_CACHE_SIZE = 250
 _NEGATIVE_CACHE_TTL = (
-    120.0  # Expire 404/not-found after 2 minutes so recovery/retry works
+    30.0  # Expire 404/not-found after 30 seconds so fast recovery/retry works
 )
 _LYRICS_CACHE: collections.OrderedDict[str, object] = collections.OrderedDict()
 _CACHE_LOCK = threading.Lock()
@@ -63,7 +63,7 @@ def _get_http_session() -> requests.Session:
 _HTTP_SESSION = _get_http_session()
 
 
-def clean_track_title(title: str) -> str:
+def clean_track_title(title: str, artist: str = "") -> str:
     """
     Cleans Spotify track titles by stripping movie tags like (From "Dabangg"),
     featured artists, remaster notes, audio/video markers, and visualizer tags
@@ -72,11 +72,23 @@ def clean_track_title(title: str) -> str:
     if not title:
         return ""
 
-    t = title
+    # Normalize unicode quotes and dashes before stripping
+    t = (
+        title.replace("’", "'")
+        .replace("‘", "'")
+        .replace("“", '"')
+        .replace("”", '"')
+        .replace("–", "-")
+        .replace("—", "-")
+        .replace("…", "...")
+    )
 
     # Strip (From "...") or [From "..."] or (Soundtrack ...)
     t = re.sub(
-        r"[\(\[]\s*(from|soundtrack)\s+[^)\]]+[\)\]]", "", t, flags=re.IGNORECASE
+        r"[\(\[]\s*(from|soundtrack|theme\s*from)\s+[^)\]]+[\)\]]",
+        "",
+        t,
+        flags=re.IGNORECASE,
     )
 
     # Strip (feat. ...) or [feat. ...] or (ft. ...)
@@ -105,19 +117,24 @@ def clean_track_title(title: str) -> str:
 
     # Strip remaster / live / deluxe / version / edition / radio edit / acoustic / mixes / audio tags
     t = re.sub(
-        r"[\(\[]\s*(remastered|remaster|live|bonus|deluxe|version|edition|original|ost|lofi|slowed|reverb|radio\s*edit|acoustic|instrumental|clean|explicit|stereo|mono|mix|single\s*version|album\s*version|sped\s*up|speed\s*up|nightcore|tiktok\s*version|extended|short\s*version)[^)\]]*[\)\]]",
+        r"[\(\[]\s*(remastered|remaster|live|bonus|deluxe|version|edition|original|ost|lofi|lo-fi|slowed|reverb|radio\s*edit|acoustic|instrumental|clean|explicit|stereo|mono|mix|single\s*version|album\s*version|sped\s*up|speed\s*up|nightcore|tiktok\s*version|extended|short\s*version)[^)\]]*[\)\]]",
         "",
         t,
         flags=re.IGNORECASE,
     )
 
-    # Strip trailing " - From ..." or " - Original Motion Picture Soundtrack" or " - 2013 Remaster" or " - Club Mix"
+    # Strip trailing " - From ..." or " - Original Motion Picture Soundtrack" or " - 2013 Remaster" etc.
     t = re.sub(
-        r"\s*-\s*(?:\d{4}\s+)?(from\s+|original|soundtrack|remaster(?:ed)?|bonus|live|radio\s*edit|anniversary|club\s*mix|extended\s*mix|single\s*version|album\s*version|mono|stereo|sped\s*up|speed\s*up|nightcore|slowed).*$",
+        r"\s*-\s*(?:\d{4}\s+)?(from\s+|original|soundtrack|theme|remaster(?:ed)?|bonus|live|radio\s*(?:edit|version)?|anniversary|club\s*mix|extended(?:\s*mix)?|single\s*version|album\s*version|mono|stereo|sped\s*up|speed\s*up|nightcore|slowed|acoustic|explicit|clean|instrumental|deluxe|re-recorded|recorded\s+at|session|lo-?fi|remix(?:ed)?).*$",
         "",
         t,
         flags=re.IGNORECASE,
     )
+
+    # If title ends with "- <artist>" (common in some SMTC streams), strip it
+    if artist:
+        cleaned_art = re.escape(artist.strip())
+        t = re.sub(rf"\s*-\s*{cleaned_art}$", "", t, flags=re.IGNORECASE)
 
     # Strip remaining trailing empty brackets
     t = re.sub(r"[\(\[]\s*[\)\]]", "", t)
@@ -128,17 +145,28 @@ def clean_track_title(title: str) -> str:
     return t.strip() if t.strip() else title.strip()
 
 
-def get_primary_artist(artist: str) -> str:
-    """Extracts first artist if multiple are comma-separated or joined by & / x / feat / with / vs."""
+def get_all_artists(artist: str) -> list[str]:
+    """Extracts all individual artist names from a multi-artist credit string."""
     if not artist:
-        return ""
-    # Split by comma, ampersand, slash, 'x', 'feat', 'with', or 'vs'
+        return []
+    a = artist.replace("–", "-").replace("—", "-")
     parts = re.split(
-        r"[,&/]|\bfeat\.?\b|\bft\.?\b|\bx\b|\bwith\b|\bvs\.?\b",
-        artist,
+        r"[,;/|&]|\b(?:feat|ft|vs)\.?(?=\s|$|\b)|\b(?:with|x)\b",
+        a,
         flags=re.IGNORECASE,
     )
-    return parts[0].strip() if parts else artist.strip()
+    artists: list[str] = []
+    for p in parts:
+        cleaned = p.strip()
+        if cleaned and cleaned not in artists:
+            artists.append(cleaned)
+    return artists
+
+
+def get_primary_artist(artist: str) -> str:
+    """Extracts first artist if multiple are comma-separated or joined by & / x / feat / with / vs."""
+    artists = get_all_artists(artist)
+    return artists[0] if artists else (artist.strip() if artist else "")
 
 
 SECTION_HEADER_PATTERN = re.compile(
@@ -428,7 +456,8 @@ def _try_get(params: dict) -> list[LyricLine] | None:
                     return parse_lrc(synced)
                 plain = data.get("plainLyrics")
                 if plain:
-                    dur = float(params.get("duration", 0))
+                    raw_dur = params.get("duration", 0)
+                    dur = float(raw_dur) if raw_dur is not None else 0.0
                     return _parse_plain_lyrics(plain, dur)
     except requests.RequestException as e:
         logger.debug("[fetcher] Exact GET failed for %s: %s", params, e)
@@ -436,15 +465,20 @@ def _try_get(params: dict) -> list[LyricLine] | None:
 
 
 def _try_search(
-    query: str,
+    query_or_params: str | dict,
     duration_sec: float = 0,
     target_title: str = "",
     target_artist: str = "",
 ) -> list[LyricLine] | None:
     try:
+        params = (
+            {"q": query_or_params}
+            if isinstance(query_or_params, str)
+            else query_or_params
+        )
         resp = _HTTP_SESSION.get(
             "https://lrclib.net/api/search",
-            params={"q": query},
+            params=params,
             headers={"User-Agent": "LyricVibe/1.0 (Windows; 165Hz Floating Lyrics)"},
             timeout=5.0,
         )
@@ -459,8 +493,8 @@ def _try_search(
                         return -1000
                     score += 100
                     # Metadata title and artist matching
-                    item_title = item.get("trackName", "").lower()
-                    item_artist = item.get("artistName", "").lower()
+                    item_title = (item.get("trackName") or "").lower()
+                    item_artist = (item.get("artistName") or "").lower()
                     if target_title:
                         t_clean = target_title.lower()
                         if t_clean == item_title or t_clean in item_title:
@@ -474,7 +508,11 @@ def _try_search(
                         elif item_artist in a_clean:
                             score += 25
                     # Duration match (+/- 3 seconds is ideal)
-                    item_dur = float(item.get("duration", 0))
+                    raw_dur = item.get("duration")
+                    try:
+                        item_dur = float(raw_dur) if raw_dur is not None else 0.0
+                    except (ValueError, TypeError):
+                        item_dur = 0.0
                     if duration_sec > 0 and item_dur > 0:
                         diff = abs(item_dur - duration_sec)
                         if diff <= 1.5:
@@ -490,8 +528,16 @@ def _try_search(
                         score += 30
                     return score
 
-                scored = [(score_item(it), it) for it in results]
-                scored.sort(key=lambda x: x[0], reverse=True)
+                try:
+                    scored = [
+                        (score_item(it), it)
+                        for it in results
+                        if isinstance(it, dict)
+                    ]
+                    scored.sort(key=lambda x: x[0], reverse=True)
+                except (TypeError, ValueError, KeyError, AttributeError) as e:
+                    logger.debug("[fetcher] Result scoring failed: %s", e)
+                    scored = []
 
                 for sc, best_item in scored:
                     if sc > 0:
@@ -501,17 +547,19 @@ def _try_search(
 
                 # Fallback to any synced
                 for it in results:
-                    synced = it.get("syncedLyrics")
-                    if synced:
-                        return parse_lrc(synced)
+                    if isinstance(it, dict):
+                        synced = it.get("syncedLyrics")
+                        if synced:
+                            return parse_lrc(synced)
 
                 # Fallback to plain lyrics with duration-aware line pacing
                 for it in results:
-                    plain = it.get("plainLyrics")
-                    if plain:
-                        return _parse_plain_lyrics(plain, duration_sec)
+                    if isinstance(it, dict):
+                        plain = it.get("plainLyrics")
+                        if plain:
+                            return _parse_plain_lyrics(plain, duration_sec)
     except requests.RequestException as e:
-        logger.debug("[fetcher] Search failed for query %r: %s", query, e)
+        logger.debug("[fetcher] Search failed for %r: %s", query_or_params, e)
     return None
 
 
@@ -523,7 +571,7 @@ def get_lyrics(
 ) -> list[LyricLine] | None:
     """
     Fetches synchronized lyrics for the given track using exact LRCLIB lookup,
-    falling back to intelligent query search with duration scoring.
+    falling back to multi-artist resolution and intelligent query search with duration scoring.
     """
     if not track_name or not track_name.strip():
         return None
@@ -542,29 +590,58 @@ def get_lyrics(
                 _LYRICS_CACHE.move_to_end(cache_key)
                 return cached_data
 
-    clean_title = clean_track_title(track_name)
-    primary_artist = get_primary_artist(artist_name)
+    clean_title = clean_track_title(track_name, artist_name)
+    all_artists = get_all_artists(artist_name)
+    primary_artist = (
+        all_artists[0] if all_artists else (artist_name.strip() if artist_name else "")
+    )
 
-    # 1. First try exact GET by title, artist and duration (highest accuracy)
-    exact_params = [
-        {"track_name": clean_title, "artist_name": primary_artist},
-        {"track_name": clean_title, "artist_name": artist_name},
-        {"track_name": track_name, "artist_name": artist_name},
-    ]
-    for p in exact_params:
+    # 1. Exact GET candidates across primary & secondary artists (highest accuracy)
+    exact_candidates: list[dict[str, str]] = []
+    for a in all_artists[:2]:
+        exact_candidates.append({"track_name": clean_title, "artist_name": a})
+    if artist_name and not any(c["artist_name"] == artist_name for c in exact_candidates):
+        exact_candidates.append({"track_name": clean_title, "artist_name": artist_name})
+    if track_name != clean_title:
+        exact_candidates.append({"track_name": track_name, "artist_name": primary_artist})
+
+    # 1a. Try exact GET with duration
+    for p in exact_candidates:
         if duration_sec > 0:
-            p["duration"] = int(duration_sec)
+            p_dur = dict(p)
+            p_dur["duration"] = str(int(duration_sec))
+            lyrics = _try_get(p_dur)
+            if lyrics:
+                _cache_put(cache_key, lyrics)
+                return lyrics
+
+    # 1b. Try exact GET without duration (handles minor duration mismatches)
+    for p in exact_candidates:
         lyrics = _try_get(p)
         if lyrics:
             _cache_put(cache_key, lyrics)
             return lyrics
 
-    # 2. Try duration-aware search
+    # 2. Field-specific search (track_name + artist_name) — fast indexed DB queries
+    for a in all_artists[:2]:
+        lyrics = _try_search(
+            {"track_name": clean_title, "artist_name": a},
+            duration_sec,
+            target_title=clean_title,
+            target_artist=a,
+        )
+        if lyrics:
+            _cache_put(cache_key, lyrics)
+            return lyrics
+
+    # 3. Duration-aware query search
     queries = [
         f"{primary_artist} {clean_title}".strip(),
-        f"{artist_name} {clean_title}".strip(),
         clean_title,
     ]
+    if len(all_artists) > 1:
+        queries.insert(1, f"{all_artists[1]} {clean_title}".strip())
+
     for q in queries:
         lyrics = _try_search(
             q,
@@ -572,14 +649,6 @@ def get_lyrics(
             target_title=clean_title,
             target_artist=primary_artist,
         )
-        if lyrics:
-            _cache_put(cache_key, lyrics)
-            return lyrics
-
-    # 3. Fallback GET without duration constraint
-    for p in exact_params:
-        p_no_dur = {k: v for k, v in p.items() if k != "duration"}
-        lyrics = _try_get(p_no_dur)
         if lyrics:
             _cache_put(cache_key, lyrics)
             return lyrics

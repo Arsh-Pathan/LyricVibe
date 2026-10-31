@@ -99,29 +99,31 @@ except ImportError:
 
 # ─── Material Design 3 Dark Theme Palette ─────────────────────────────
 class MD3:
-    SURFACE = "#101318"  # Deep canvas
-    SURFACE_DIM = "#0B0E12"
-    SURFACE_CONTAINER_LOW = "#181C22"
-    SURFACE_CONTAINER = "#1E2228"  # Card surface
-    SURFACE_CONTAINER_HIGH = "#262B33"  # Elevated card
-    SURFACE_CONTAINER_MAX = "#313640"
+    # ── Luxury Monochrome Canvas & Surfaces ──
+    SURFACE = "#0A0A0C"                 # Deepest obsidian black canvas
+    SURFACE_DIM = "#050507"             # Pure pitch black
+    SURFACE_CONTAINER_LOW = "#101013"   # Low-elevation surface
+    SURFACE_CONTAINER = "#141417"       # Clean monochrome card surface
+    SURFACE_CONTAINER_HIGH = "#1E1E22"  # Elevated monochrome card
+    SURFACE_CONTAINER_MAX = "#28282E"   # Highest card / slider groove
 
-    PRIMARY = "#A8C7FA"  # Material Sky Blue
-    ON_PRIMARY = "#062E6F"
-    PRIMARY_CONTAINER = "#0842A0"
-    ON_PRIMARY_CONTAINER = "#D3E3FD"
+    # ── High-Contrast Black & White Accents ──
+    PRIMARY = "#FFFFFF"                 # Pure crisp white
+    ON_PRIMARY = "#000000"              # Pure black on primary
+    PRIMARY_CONTAINER = "#222226"       # Dark graphite container
+    ON_PRIMARY_CONTAINER = "#FFFFFF"    # Crisp white text
 
-    ACCENT_GREEN = "#1DB954"
-    ACCENT_GREEN_BG = "#0A3E1D"
+    ACCENT_GREEN = "#FFFFFF"            # Clean monochrome
+    ACCENT_GREEN_BG = "#1A1A1E"
 
-    ERROR = "#FFB4AB"
-    ERROR_CONTAINER = "#690005"
-    ON_ERROR_CONTAINER = "#FFDAD6"
+    ERROR = "#EF4444"
+    ERROR_CONTAINER = "#1F1214"
+    ON_ERROR_CONTAINER = "#FCA5A5"
 
-    ON_SURFACE = "#E2E2E9"
-    ON_SURFACE_VARIANT = "#C4C6D0"
-    OUTLINE = "#8E9099"
-    OUTLINE_VARIANT = "#363B44"
+    ON_SURFACE = "#FFFFFF"              # Crisp primary white
+    ON_SURFACE_VARIANT = "#A1A1AA"      # Muted silver secondary text
+    OUTLINE = "#52525B"                 # Medium zinc border
+    OUTLINE_VARIANT = "#222226"         # Subtle 1px zinc divider
 
     RADIUS_SM = 8
     RADIUS_MD = 12
@@ -456,9 +458,9 @@ class LivePreview(QWidget):
 
         # Canvas gradient background
         bg_grad = QLinearGradient(0, 0, 0, h)
-        bg_grad.setColorAt(0.0, QColor(MD3.SURFACE_DIM))
-        bg_grad.setColorAt(0.5, QColor("#12161E"))
-        bg_grad.setColorAt(1.0, QColor(MD3.SURFACE_DIM))
+        bg_grad.setColorAt(0.0, QColor("#08080A"))
+        bg_grad.setColorAt(0.5, QColor("#0D0D10"))
+        bg_grad.setColorAt(1.0, QColor("#08080A"))
         p.fillRect(0, 0, w, h, bg_grad)
 
         # Dot matrix grid
@@ -888,19 +890,19 @@ class SettingsDialog(QDialog):
                 color: {MD3.ON_SURFACE_VARIANT};
                 font-size: 13px;
                 font-weight: 600;
-                padding: 10px 18px;
+                padding: 12px 20px;
                 border: none;
-                border-bottom: 3px solid transparent;
-                min-width: 70px;
+                border-bottom: 2px solid transparent;
+                min-width: 72px;
             }}
             QTabBar::tab:selected {{
-                color: {MD3.PRIMARY};
-                border-bottom: 3px solid {MD3.PRIMARY};
+                color: #FFFFFF;
+                border-bottom: 2px solid #FFFFFF;
             }}
             QTabBar::tab:hover:!selected {{
-                color: {MD3.ON_SURFACE};
+                color: #FFFFFF;
                 background: {MD3.SURFACE_CONTAINER_LOW};
-                border-radius: 8px 8px 0 0;
+                border-radius: 6px 6px 0 0;
             }}
             QSlider::groove:horizontal {{
                 height: 6px;
@@ -921,7 +923,7 @@ class SettingsDialog(QDialog):
                 border-radius: 9px;
             }}
             QSlider::handle:horizontal:hover {{
-                background: #D3E3FD;
+                background: #E4E4E7;
             }}
             QComboBox {{
                 background: {MD3.SURFACE_CONTAINER_HIGH};
@@ -968,37 +970,65 @@ class SettingsDialog(QDialog):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # Header bar
+        # Header bar (High-Contrast Black & White Branding)
         header = QWidget()
-        header.setFixedHeight(68)
-        header.setStyleSheet(f"background: {MD3.SURFACE};")
+        header.setFixedHeight(74)
+        header.setStyleSheet(f"""
+            QWidget {{
+                background: {MD3.SURFACE};
+                border-bottom: 1px solid {MD3.OUTLINE_VARIANT};
+            }}
+        """)
         h_lay = QHBoxLayout(header)
-        h_lay.setContentsMargins(24, 0, 20, 0)
+        h_lay.setContentsMargins(24, 0, 24, 0)
         h_lay.setSpacing(14)
 
-        icon_label = QLabel()
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.png")
         if os.path.exists(icon_path):
+            icon_box = QFrame()
+            icon_box.setFixedSize(40, 40)
+            icon_box.setStyleSheet(f"""
+                QFrame {{
+                    background: {MD3.SURFACE_CONTAINER};
+                    border: 1px solid {MD3.OUTLINE_VARIANT};
+                    border-radius: 10px;
+                }}
+            """)
+            box_lay = QVBoxLayout(icon_box)
+            box_lay.setContentsMargins(0, 0, 0, 0)
+            box_lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            icon_label = QLabel()
             pix = QPixmap(icon_path).scaled(
-                32,
-                32,
+                26,
+                26,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
             icon_label.setPixmap(pix)
-        h_lay.addWidget(icon_label)
+            box_lay.addWidget(icon_label)
+            h_lay.addWidget(icon_box)
 
         title_col = QVBoxLayout()
-        title_col.setSpacing(0)
+        title_col.setSpacing(2)
         title = QLabel("LyricVibe")
-        title.setStyleSheet(
-            f"color: {MD3.ON_SURFACE}; font-size: 18px; font-weight: 600; background: transparent;"
-        )
+        title.setStyleSheet("""
+            color: #FFFFFF;
+            font-size: 19px;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            background: transparent;
+            border: none;
+        """)
         title_col.addWidget(title)
         subtitle = QLabel("165Hz Desktop Lyrics Customizer")
-        subtitle.setStyleSheet(
-            f"color: {MD3.ON_SURFACE_VARIANT}; font-size: 11px; background: transparent;"
-        )
+        subtitle.setStyleSheet(f"""
+            color: {MD3.ON_SURFACE_VARIANT};
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.2px;
+            background: transparent;
+            border: none;
+        """)
         title_col.addWidget(subtitle)
         h_lay.addLayout(title_col)
 
@@ -1006,13 +1036,14 @@ class SettingsDialog(QDialog):
 
         ver_pill = QLabel("v1.1.0")
         ver_pill.setStyleSheet(f"""
-            color: {MD3.ON_SURFACE_VARIANT};
+            color: #FFFFFF;
             background-color: {MD3.SURFACE_CONTAINER_HIGH};
             font-size: 11px;
             font-weight: 600;
-            padding: 4px 10px;
-            border-radius: 8px;
-            border: 1px solid {MD3.OUTLINE_VARIANT};
+            letter-spacing: 0.5px;
+            padding: 5px 12px;
+            border-radius: 12px;
+            border: 1px solid {MD3.OUTLINE};
         """)
         h_lay.addWidget(ver_pill)
 
@@ -1053,7 +1084,7 @@ class SettingsDialog(QDialog):
                 padding: 10px 22px;
             }}
             QPushButton:hover {{
-                background: #8C0009;
+                background: #241417;
             }}
         """)
         btn_quit.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1093,7 +1124,7 @@ class SettingsDialog(QDialog):
                 padding: 10px 28px;
             }}
             QPushButton:hover {{
-                background: #D3E3FD;
+                background: #E4E4E7;
             }}
         """)
         btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1148,7 +1179,7 @@ class SettingsDialog(QDialog):
                 border: none;
             }}
             QPushButton:hover {{
-                background: #255BB3;
+                background: #2E2E34;
             }}
         """)
         btn_test.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -1322,7 +1353,7 @@ class SettingsDialog(QDialog):
                 border: none;
             }}
             QPushButton:hover {{
-                background: #255BB3;
+                background: #2E2E34;
             }}
         """)
         btn_replay.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -2000,7 +2031,7 @@ class SettingsDialog(QDialog):
                     border: none;
                 }}
                 QPushButton:hover {{
-                    background: #255BB3;
+                    background: #2E2E34;
                 }}
             """)
             btn_apply.setCursor(Qt.CursorShape.PointingHandCursor)

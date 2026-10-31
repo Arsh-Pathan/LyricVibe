@@ -632,3 +632,67 @@ def test_overlay_per_character_rotation_rendering():
         if widget.tray_icon:
             widget.tray_icon.hide()
         widget.close()
+
+
+def test_line_does_not_disappear_early_during_standard_gaps():
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    with patch("lyricvibe.ui.overlay.SpotifyClient"):
+        widget = FloatingLyricsWidget(DEFAULT_SETTINGS)
+        widget.current_track_id = "Artist - Song"
+        widget.lyrics = [
+            LyricLine(10.0, "Short line"),
+            LyricLine(15.0, "Next line after 5s gap"),
+        ]
+
+        from lyricvibe.media.client import PlaybackState
+
+        state = PlaybackState(
+            is_playing=True,
+            track_name="Song",
+            artist_name="Artist",
+            album_name="Album",
+            album_art_url="",
+            progress_sec=10.5,
+            duration_sec=200.0,
+            track_id="Artist - Song",
+            updated_at=0.0,
+            local_received_at=0.0,
+        )
+
+        # 1. At 10.5s: Line is active
+        with patch.object(widget.spotify, "estimate_progress", return_value=10.5):
+            widget._check_line_update(state)
+            assert widget.current_line_text == "Short line"
+            assert widget.engine.curr_text == "Short line"
+
+        # 2. At 13.5s (gap = 5.0s, elapsed = 3.7s): Line MUST NOT disappear early!
+        with patch.object(widget.spotify, "estimate_progress", return_value=13.5):
+            widget._check_line_update(state)
+            assert widget.current_line_text == "Short line"
+            assert widget.engine.curr_text == "Short line"
+
+        widget.render_timer.stop()
+        widget.poll_timer.stop()
+        widget.smooth_timer.stop()
+        if widget.tray_icon:
+            widget.tray_icon.hide()
+        widget.close()
+
+
+def test_settings_dialog_black_and_white_theme():
+    from lyricvibe.ui.settings import MD3
+
+    assert MD3.PRIMARY == "#FFFFFF"
+    assert MD3.ON_PRIMARY == "#000000"
+    assert MD3.SURFACE == "#0A0A0C"
+
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    dlg = SettingsDialog(DEFAULT_SETTINGS)
+    assert dlg.windowTitle() == "LyricVibe — Settings"
+    dlg.close()

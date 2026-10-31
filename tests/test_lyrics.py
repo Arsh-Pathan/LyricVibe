@@ -9,9 +9,12 @@ from lyricvibe.lyrics.fetcher import (
     LyricLine,
     _cache_put,
     _parse_plain_lyrics,
+    _try_search,
     clean_lyric_line,
     clean_track_title,
     fetch_lyrics_smart,
+    get_all_artists,
+    get_lyrics,
     get_primary_artist,
     is_romanized,
     parse_lrc,
@@ -514,3 +517,116 @@ def test_parse_lrc_enhanced_multi_syllable_and_devanagari():
     assert lines[1].text == "Tere vaaste"
     assert lines[1].word_times == [20.00, 20.50]
     assert lines[1].word_durations == [0.50, 0.70]
+
+
+def test_get_all_artists_multi_delimiters():
+    assert get_all_artists("Pritam, Arijit Singh, Amitabh Bhattacharya") == [
+        "Pritam",
+        "Arijit Singh",
+        "Amitabh Bhattacharya",
+    ]
+    assert get_all_artists("Lady Gaga & Bruno Mars") == ["Lady Gaga", "Bruno Mars"]
+    assert get_all_artists("Justin Bieber feat. Ludacris") == [
+        "Justin Bieber",
+        "Ludacris",
+    ]
+    assert get_all_artists("The Kid LAROI with Justin Bieber") == [
+        "The Kid LAROI",
+        "Justin Bieber",
+    ]
+    assert get_all_artists("Marshmello x Khalid") == ["Marshmello", "Khalid"]
+    assert get_all_artists("David Guetta vs. Benny Benassi") == [
+        "David Guetta",
+        "Benny Benassi",
+    ]
+    assert get_all_artists("Anirudh Ravichander / Shilpa Rao") == [
+        "Anirudh Ravichander",
+        "Shilpa Rao",
+    ]
+    assert get_all_artists("Solo Artist") == ["Solo Artist"]
+    assert get_all_artists("") == []
+
+
+def test_clean_track_title_unicode_quotes_and_dashes():
+    # Smart apostrophe / curly quotes
+    assert clean_track_title("Don’t Start Now") == "Don't Start Now"
+    assert clean_track_title("“Heroes”") == '"Heroes"'
+
+    # En-dash and em-dash movie soundtrack tags
+    assert clean_track_title('Kesariya – From "Brahmastra"') == "Kesariya"
+    assert clean_track_title("Apna Bana Le — From Bhediya") == "Apna Bana Le"
+
+    # Trailing audio tags with dashes
+    assert clean_track_title("Heat Waves - Acoustic") == "Heat Waves"
+    assert clean_track_title("Starboy (feat. Daft Punk) - Explicit") == "Starboy"
+    assert clean_track_title("Midnight City - Deluxe Edition") == "Midnight City"
+
+    # Title ending with '- <artist>'
+    assert clean_track_title("Husn - Anuv Jain", artist="Anuv Jain") == "Husn"
+    assert (
+        clean_track_title(
+            "Die With A Smile - Lady Gaga, Bruno Mars",
+            artist="Lady Gaga, Bruno Mars",
+        )
+        == "Die With A Smile"
+    )
+
+
+def test_score_item_null_duration_and_none_metadata():
+    with patch("lyricvibe.lyrics.fetcher._HTTP_SESSION.get") as mock_get:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        # Results contain None duration and None trackName/artistName
+        mock_resp.json.return_value = [
+            {
+                "id": 1,
+                "trackName": None,
+                "artistName": None,
+                "duration": None,
+                "syncedLyrics": "[00:10.00]Sample line",
+            },
+            {
+                "id": 2,
+                "trackName": "Target Song",
+                "artistName": "Target Artist",
+                "duration": 180.0,
+                "syncedLyrics": "[00:10.00]Target line",
+            },
+        ]
+        mock_get.return_value = mock_resp
+
+        # Must not raise TypeError: float() argument must be a string or a real number, not 'NoneType'
+        result = _try_search(
+            "Target Song",
+            duration_sec=180.0,
+            target_title="Target Song",
+            target_artist="Target Artist",
+        )
+        assert result is not None
+        assert len(result) == 1
+        assert result[0].text == "Target line"
+
+
+def test_get_lyrics_multi_artist_fallback():
+    # When primary artist has no match, but secondary artist does
+    with patch("lyricvibe.lyrics.fetcher._try_get") as mock_get, patch(
+        "lyricvibe.lyrics.fetcher._try_search"
+    ) as mock_search:
+        # Exact GET matches when artist_name is the secondary artist ('Arijit Singh')
+        def fake_get(params):
+            if params.get("artist_name") == "Arijit Singh":
+                return [LyricLine(time_sec=10.0, text="Lehra do")]
+            return None
+
+        mock_get.side_effect = fake_get
+        mock_search.return_value = None
+
+        lyrics = get_lyrics(
+            track_name='Lehra Do (From "83")',
+            artist_name="Pritam, Arijit Singh",
+            duration_sec=215.0,
+        )
+        assert lyrics is not None
+        assert len(lyrics) == 1
+        assert lyrics[0].text == "Lehra do"
+
