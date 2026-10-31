@@ -344,6 +344,7 @@ class LivePreview(QWidget):
         self._line_idx = 0
         self._current_anim_choice = ""
         self._color_idx = 0
+        self._word_span_cache: dict[str, list[tuple[str, int, int]]] = {}
 
         self.engine.trigger_line(self.PREVIEW_LINES[0], 3.8, "cinematic_crossfade")
 
@@ -370,7 +371,32 @@ class LivePreview(QWidget):
 
     def update_settings(self, settings: dict):
         self.settings.update(settings)
+        self._word_span_cache.clear()
         self.update()
+
+    def _get_word_spans(self, text: str) -> list[tuple[str, int, int]]:
+        cached = self._word_span_cache.get(text)
+        if cached is not None:
+            return cached
+
+        words = []
+        idx = 0
+        length = len(text)
+        while idx < length:
+            if text[idx].isspace():
+                idx += 1
+                continue
+            w_start = idx
+            while idx < length and not text[idx].isspace():
+                idx += 1
+            w_end = idx
+            words.append((text[w_start:w_end], w_start, w_end))
+
+        if len(self._word_span_cache) > 50:
+            self._word_span_cache.clear()
+
+        self._word_span_cache[text] = words
+        return words
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -533,26 +559,15 @@ class LivePreview(QWidget):
             p.setPen(QColor(255, 255, 255, in_alpha))
             p.drawText(QPointF(start_x, baseline_y), curr_text)
 
-            # Ultra-bright highlight on currently spoken word (clean, razor-sharp, NO box)
-            if hl_enabled and hl_idx >= 0:
-                words = []
-                idx = 0
-                while idx < len(curr_text):
-                    if curr_text[idx].isspace():
-                        idx += 1
-                        continue
-                    w_start = idx
-                    while idx < len(curr_text) and not curr_text[idx].isspace():
-                        idx += 1
-                    w_end = idx
-                    words.append((curr_text[w_start:w_end], w_start, w_end))
+            words = self._get_word_spans(curr_text)
 
-                if 0 <= hl_idx < len(words):
-                    w_str, w_start, _ = words[hl_idx]
-                    w_x = start_x + metrics.horizontalAdvance(curr_text[:w_start])
-                    # Draw active word in vibrant ultra-bright color
-                    p.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), in_alpha))
-                    p.drawText(QPointF(w_x, baseline_y), w_str)
+            # Ultra-bright highlight on currently spoken word (clean, razor-sharp, NO box)
+            if hl_enabled and hl_idx >= 0 and 0 <= hl_idx < len(words):
+                w_str, w_start, _ = words[hl_idx]
+                w_x = start_x + metrics.horizontalAdvance(curr_text[:w_start])
+                # Draw active word in vibrant ultra-bright color
+                p.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), in_alpha))
+                p.drawText(QPointF(w_x, baseline_y), w_str)
 
             # Focal underline
             if (self.settings.get("hand_drawn_underline_enabled", True) and
@@ -561,18 +576,6 @@ class LivePreview(QWidget):
                     data.get("focal_word_idx", -1) >= 0):
 
                 focal_idx = data["focal_word_idx"]
-                words = []
-                idx = 0
-                while idx < len(curr_text):
-                    if curr_text[idx].isspace():
-                        idx += 1
-                        continue
-                    w_start = idx
-                    while idx < len(curr_text) and not curr_text[idx].isspace():
-                        idx += 1
-                    w_end = idx
-                    words.append((curr_text[w_start:w_end], w_start, w_end))
-
                 if 0 <= focal_idx < len(words):
                     w_str, w_start, _ = words[focal_idx]
                     w_start_x = start_x + metrics.horizontalAdvance(curr_text[:w_start])

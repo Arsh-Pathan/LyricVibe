@@ -1,7 +1,7 @@
 """Tests for PyQt6 UI components, settings dialog, and signal bridges."""
 
 import sys
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 from PyQt6.QtWidgets import QApplication
@@ -184,6 +184,60 @@ def test_track_switch_race_condition_protection():
         # Case 3: Matching response
         widget._on_lyrics_fetched(fetch_id=5, req_track_id="Artist B - Song B", lyrics=valid_lyrics)
         assert widget.lyrics == valid_lyrics
+
+        widget.render_timer.stop()
+        widget.poll_timer.stop()
+        widget.smooth_timer.stop()
+        if widget.tray_icon:
+            widget.tray_icon.hide()
+        widget.close()
+
+
+def test_multi_monitor_coordinate_preservation():
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    with patch("lyricvibe.ui.overlay.SpotifyClient"):
+        widget = FloatingLyricsWidget(DEFAULT_SETTINGS)
+
+        # Simulate secondary monitor located at x = 1920
+        mock_screen = MagicMock()
+        mock_geo = MagicMock()
+        mock_geo.x.return_value = 1920
+        mock_geo.width.return_value = 2560
+        mock_screen.availableGeometry.return_value = mock_geo
+
+        with patch.object(widget, "screen", return_value=mock_screen):
+            widget._on_screen_changed()
+            assert widget.window_x == 1920
+            assert widget.window_w == 2560
+            assert widget.geometry().x() == 1920
+
+        widget.render_timer.stop()
+        widget.poll_timer.stop()
+        widget.smooth_timer.stop()
+        if widget.tray_icon:
+            widget.tray_icon.hide()
+        widget.close()
+
+
+def test_word_span_cache_and_irregular_spaces():
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    with patch("lyricvibe.ui.overlay.SpotifyClient"):
+        widget = FloatingLyricsWidget(DEFAULT_SETTINGS)
+
+        text_with_spaces = "  Multiple   spaces   between words  "
+        spans = widget._get_word_spans(text_with_spaces)
+        assert len(spans) == 4
+        assert [s[0] for s in spans] == ["Multiple", "spaces", "between", "words"]
+
+        # Verify spans match actual substring indices exactly
+        for word, start, end in spans:
+            assert text_with_spaces[start:end] == word
 
         widget.render_timer.stop()
         widget.poll_timer.stop()

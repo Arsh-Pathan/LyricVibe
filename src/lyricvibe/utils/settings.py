@@ -203,34 +203,45 @@ def _validate_settings(raw_data: dict) -> dict:
 
 def load_settings() -> dict:
     """Loads and validates settings from disk. Returns defaults on error."""
-    if os.path.exists(SETTINGS_FILE):
-        try:
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                saved = json.load(f)
-                return _validate_settings(saved)
-        except (json.JSONDecodeError, OSError) as e:
-            logger.warning("[settings] Could not read %s, using defaults: %s", SETTINGS_FILE, e)
+    appdata = os.environ.get("APPDATA", os.path.expanduser("~"))
+    fallback_file = os.path.join(appdata, "LyricVibe", "settings.json")
+    for candidate in (SETTINGS_FILE, fallback_file):
+        if os.path.exists(candidate):
+            try:
+                with open(candidate, "r", encoding="utf-8") as f:
+                    saved = json.load(f)
+                    return _validate_settings(saved)
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning("[settings] Could not read %s: %s", candidate, e)
 
     return DEFAULT_SETTINGS.copy()
 
 
+def _write_settings_to_path(target_path: str, settings: dict):
+    dir_name = os.path.dirname(os.path.abspath(target_path))
+    os.makedirs(dir_name, exist_ok=True)
+
+    with tempfile.NamedTemporaryFile("w", dir=dir_name, delete=False, encoding="utf-8") as tf:
+        json.dump(settings, tf, indent=4)
+        tf.flush()
+        os.fsync(tf.fileno())
+        temp_name = tf.name
+
+    os.replace(temp_name, target_path)
+
+
 def save_settings(settings: dict):
     """Atomically writes settings to disk via temporary file rename to prevent corruption."""
+    target_file = SETTINGS_FILE
     try:
-        dir_name = os.path.dirname(os.path.abspath(SETTINGS_FILE))
-        os.makedirs(dir_name, exist_ok=True)
-
-        with tempfile.NamedTemporaryFile("w", dir=dir_name, delete=False, encoding="utf-8") as tf:
-            json.dump(settings, tf, indent=4)
-            tf.flush()
-            os.fsync(tf.fileno())
-            temp_name = tf.name
-
-        os.replace(temp_name, SETTINGS_FILE)
+        _write_settings_to_path(target_file, settings)
     except OSError as e:
-        logger.error("[settings] Error saving settings to %s: %s", SETTINGS_FILE, e)
-        if "temp_name" in locals() and os.path.exists(temp_name):
+        logger.error("[settings] Error saving settings to %s: %s", target_file, e)
+        appdata = os.environ.get("APPDATA", os.path.expanduser("~"))
+        fallback_file = os.path.join(appdata, "LyricVibe", "settings.json")
+        if os.path.abspath(target_file) != os.path.abspath(fallback_file):
             try:
-                os.remove(temp_name)
-            except OSError:
-                pass
+                _write_settings_to_path(fallback_file, settings)
+                logger.info("[settings] Successfully saved settings to fallback: %s", fallback_file)
+            except OSError as fallback_err:
+                logger.error("[settings] Fallback save to %s also failed: %s", fallback_file, fallback_err)

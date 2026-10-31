@@ -157,7 +157,7 @@ class FloatingLyricsWidget(QWidget):
         screen_geo = screen.availableGeometry() if screen else self.screen().geometry()
         self.window_w = screen_geo.width()
         self.window_h = 180
-        self.window_x = 0
+        self.window_x = screen_geo.x()
         self.window_y = self.settings.get("overlay_y", 55)
         self.setGeometry(self.window_x, self.window_y, self.window_w, self.window_h)
 
@@ -266,7 +266,7 @@ class FloatingLyricsWidget(QWidget):
 
             # Update screen vertical position
             self.window_y = int(self.settings.get("overlay_y", 55))
-            self.move(0, self.window_y)
+            self.move(self.window_x, self.window_y)
 
             # Trigger immediate live repaint
             self.update()
@@ -523,18 +523,12 @@ class FloatingLyricsWidget(QWidget):
         start_x = -total_w / 2.0
         baseline_y = (metrics.ascent() - metrics.descent()) / 2.0
 
-        # Build word map with exact character bounds
-        word_char_map = []
-        words = text.strip().split()
-        if hl_enabled and hl_word_idx >= 0 and words:
-            char_idx = 0
-            for wi, word in enumerate(words):
-                if wi > 0:
-                    word_char_map.append(-1)
-                    char_idx += 1
-                for _ in word:
-                    word_char_map.append(wi)
-                    char_idx += 1
+        words = self._get_word_spans(text)
+        hl_start = -1
+        hl_end = -1
+        if hl_enabled and 0 <= hl_word_idx < len(words):
+            hl_start = words[hl_word_idx][1]
+            hl_end = words[hl_word_idx][2]
 
         for i, ch in enumerate(text):
             ch_w = metrics.horizontalAdvance(ch)
@@ -545,8 +539,7 @@ class FloatingLyricsWidget(QWidget):
             cs = char_scales[i] if i < len(char_scales) else 1.0
             final_a = max(0, min(255, int(master_alpha * ca)))
 
-            if (hl_enabled and hl_word_idx >= 0 and
-                    i < len(word_char_map) and word_char_map[i] == hl_word_idx):
+            if hl_start <= i < hl_end:
                 painter.setPen(QColor(hl_color.red(), hl_color.green(), hl_color.blue(), final_a))
             else:
                 painter.setPen(QColor(255, 255, 255, final_a))
@@ -570,22 +563,11 @@ class FloatingLyricsWidget(QWidget):
         start_line_x = -total_w / 2.0
         baseline_y = (metrics.ascent() - metrics.descent()) / 2.0
 
-        words = []
-        idx = 0
-        while idx < len(text):
-            if text[idx].isspace():
-                idx += 1
-                continue
-            w_start = idx
-            while idx < len(text) and not text[idx].isspace():
-                idx += 1
-            w_end = idx
-            words.append((text[w_start:w_end], w_start, w_end))
-
+        words = self._get_word_spans(text)
         if focal_idx >= len(words):
             return
 
-        word_str, w_start, w_end = words[focal_idx]
+        word_str, w_start, _ = words[focal_idx]
         word_start_x = start_line_x + metrics.horizontalAdvance(text[:w_start])
         target_w = metrics.horizontalAdvance(word_str)
 
@@ -684,7 +666,7 @@ class FloatingLyricsWidget(QWidget):
     def mouseMoveEvent(self, event):
         if event.buttons() == Qt.MouseButton.LeftButton and self.is_dragging and not self.is_locked:
             new_pos = event.globalPosition().toPoint() - self.drag_position
-            self.move(0, new_pos.y())
+            self.move(self.window_x, new_pos.y())
             self.settings["overlay_y"] = new_pos.y()
             event.accept()
 
@@ -693,7 +675,8 @@ class FloatingLyricsWidget(QWidget):
         if screen:
             screen_geo = screen.availableGeometry()
             self.window_w = screen_geo.width()
-            self.setGeometry(0, self.window_y, self.window_w, self.window_h)
+            self.window_x = screen_geo.x()
+            self.setGeometry(self.window_x, self.window_y, self.window_w, self.window_h)
             self._font_cache.clear()
             self.update()
 
@@ -1024,6 +1007,8 @@ def main():
         widget.show()
     else:
         widget.is_hidden_by_idle = True
+        if hasattr(widget, "render_timer") and widget.render_timer.isActive():
+            widget.render_timer.stop()
 
     sys.exit(app.exec())
 

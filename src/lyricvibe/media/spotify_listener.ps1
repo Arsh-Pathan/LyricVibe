@@ -2,6 +2,7 @@ Add-Type -AssemblyName System.Runtime.WindowsRuntime
 $asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]
 
 function Await($asyncOp, $type) {
+    if (-not $asyncOp) { return $null }
     $asTask = $asTaskGeneric.MakeGenericMethod($type)
     $netTask = $asTask.Invoke($null, @($asyncOp))
     $netTask.Wait(1200) | Out-Null
@@ -36,11 +37,19 @@ while ($true) {
 
         $sessions = if ($manager) { $manager.GetSessions() } else { @() }
         $spotifySession = $null
+        $playingSession = $null
         foreach ($s in $sessions) {
             if ($s.SourceAppUserModelId -match "Spotify") {
-                $spotifySession = $s
-                break
+                if (-not $spotifySession) { $spotifySession = $s }
+                $pb = $s.GetPlaybackInfo()
+                if ($pb -and $pb.PlaybackStatus -eq [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus]::Playing) {
+                    $playingSession = $s
+                    break
+                }
             }
+        }
+        if ($playingSession) {
+            $spotifySession = $playingSession
         }
         if (-not $spotifySession -and $manager) {
             $curr = $manager.GetCurrentSession()

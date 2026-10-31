@@ -11,6 +11,7 @@ import collections
 import logging
 import re
 import threading
+import time
 from dataclasses import dataclass
 
 import requests
@@ -35,7 +36,8 @@ class LyricLine:
 
 # Bounded in-memory cache to prevent unbounded growth during long playback sessions (max 250 songs)
 _MAX_CACHE_SIZE = 250
-_LYRICS_CACHE: collections.OrderedDict[str, list[LyricLine] | None] = collections.OrderedDict()
+_NEGATIVE_CACHE_TTL = 120.0  # Expire 404/not-found after 2 minutes so recovery/retry works
+_LYRICS_CACHE: collections.OrderedDict[str, object] = collections.OrderedDict()
 _CACHE_LOCK = threading.Lock()
 
 
@@ -101,8 +103,8 @@ def clean_track_title(title: str) -> str:
     # Strip remaining trailing empty brackets
     t = re.sub(r'[\(\[]\s*[\)\]]', '', t)
 
-    # Strip any trailing parenthetical if preceded by a clean title
-    t = re.sub(r'\s*\([^)]*\)\s*$', '', t).strip()
+    # Strip any trailing parenthetical or bracketed suffix if preceded by a clean title
+    t = re.sub(r'\s*(\([^)]*\)|\[[^\]]*\])\s*$', '', t).strip()
 
     return t.strip() if t.strip() else title.strip()
 
@@ -214,11 +216,11 @@ def is_romanized(text: str) -> bool:
 
 
 def _cache_put(key: str, lyrics: list[LyricLine] | None):
-    """Stores result in bounded cache with LRU eviction in a thread-safe manner."""
+    """Stores result in bounded cache with LRU eviction and timestamping in a thread-safe manner."""
     with _CACHE_LOCK:
         if key in _LYRICS_CACHE:
             _LYRICS_CACHE.move_to_end(key)
-        _LYRICS_CACHE[key] = lyrics
+        _LYRICS_CACHE[key] = (lyrics, time.time())
         if len(_LYRICS_CACHE) > _MAX_CACHE_SIZE:
             _LYRICS_CACHE.popitem(last=False)
 
@@ -250,19 +252,25 @@ def _try_get(params: dict) -> list[LyricLine] | None:
         )
         if resp.status_code == 200:
             data = resp.json()
-            synced = data.get("syncedLyrics")
-            if synced:
-                return parse_lrc(synced)
-            plain = data.get("plainLyrics")
-            if plain:
-                dur = float(params.get("duration", 0))
-                return _parse_plain_lyrics(plain, dur)
+            if isinstance(data, dict):
+                synced = data.get("syncedLyrics")
+                if synced:
+                    return parse_lrc(synced)
+                plain = data.get("plainLyrics")
+                if plain:
+                    dur = float(params.get("duration", 0))
+                    return _parse_plain_lyrics(plain, dur)
     except requests.RequestException as e:
         logger.debug("[fetcher] Exact GET failed for %s: %s", params, e)
     return None
 
 
-def _try_search(query: str, duration_sec: float = 0) -> list[LyricLine] | None:
+def _try_search(
+    query: str,
+    duration_sec: float = 0,
+    target_title: str = "",
+    target_artist: str = "",
+) -> list[LyricLine] | None:
     try:
         resp = _HTTP_SESSION.get(
             "https://lrclib.net/api/search",
@@ -273,13 +281,28 @@ def _try_search(query: str, duration_sec: float = 0) -> list[LyricLine] | None:
         if resp.status_code == 200:
             results = resp.json()
             if results and isinstance(results, list):
-                # Score results to find the EXACT version matching playback duration
+                # Score results to find the EXACT version matching playback duration and metadata
                 def score_item(item: dict) -> int:
                     score = 0
                     synced = item.get("syncedLyrics")
                     if not synced:
                         return -1000
                     score += 100
+                    # Metadata title and artist matching
+                    item_title = item.get("trackName", "").lower()
+                    item_artist = item.get("artistName", "").lower()
+                    if target_title:
+                        t_clean = target_title.lower()
+                        if t_clean == item_title or t_clean in item_title:
+                            score += 60
+                        elif item_title in t_clean:
+                            score += 35
+                    if target_artist:
+                        a_clean = target_artist.lower()
+                        if a_clean == item_artist or a_clean in item_artist:
+                            score += 50
+                        elif item_artist in a_clean:
+                            score += 25
                     # Duration match (+/- 3 seconds is ideal)
                     item_dur = float(item.get("duration", 0))
                     if duration_sec > 0 and item_dur > 0:
@@ -338,8 +361,14 @@ def get_lyrics(
     cache_key = f"{track_name.strip().lower()}||{artist_name.strip().lower()}"
     with _CACHE_LOCK:
         if cache_key in _LYRICS_CACHE:
-            _LYRICS_CACHE.move_to_end(cache_key)
-            return _LYRICS_CACHE[cache_key]
+            cached_val = _LYRICS_CACHE[cache_key]
+            if isinstance(cached_val, tuple):
+                cached_data, cached_at = cached_val
+            else:
+                cached_data, cached_at = cached_val, time.time()
+            if cached_data is not None or (time.time() - cached_at < _NEGATIVE_CACHE_TTL):
+                _LYRICS_CACHE.move_to_end(cache_key)
+                return cached_data
 
     clean_title = clean_track_title(track_name)
     primary_artist = get_primary_artist(artist_name)
@@ -365,7 +394,12 @@ def get_lyrics(
         clean_title,
     ]
     for q in queries:
-        lyrics = _try_search(q, duration_sec)
+        lyrics = _try_search(
+            q,
+            duration_sec,
+            target_title=clean_title,
+            target_artist=primary_artist,
+        )
         if lyrics:
             _cache_put(cache_key, lyrics)
             return lyrics

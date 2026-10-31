@@ -1,10 +1,13 @@
 """Tests for lyrics fetching, cleaning, and LRC parsing."""
 
+import time
 from unittest.mock import MagicMock, patch
 
 from lyricvibe.lyrics.fetcher import (
     _LYRICS_CACHE,
+    _NEGATIVE_CACHE_TTL,
     LyricLine,
+    _cache_put,
     _parse_plain_lyrics,
     clean_lyric_line,
     clean_track_title,
@@ -253,3 +256,76 @@ def test_lyrics_cache_thread_safety():
             t.join()
 
     assert len(errors) == 0, f"Thread errors encountered: {errors}"
+
+
+def test_clean_track_title_square_bracketed_suffix():
+    assert clean_track_title("Bohemian Rhapsody [Live at Wembley]") == "Bohemian Rhapsody"
+    assert clean_track_title("Hotel California [Acoustic 1994]") == "Hotel California"
+    assert clean_track_title("Song Name [Bonus Track]") == "Song Name"
+
+
+@patch("lyricvibe.lyrics.fetcher._HTTP_SESSION.get")
+def test_search_metadata_scoring_prioritizes_authentic_artist(mock_get):
+    _LYRICS_CACHE.clear()
+
+    # Exact GET returns 404, search returns both cover and authentic versions
+    def mock_side_effect(url, **kwargs):
+        resp = MagicMock()
+        if "api/get" in url:
+            resp.status_code = 404
+            resp.json.return_value = {}
+        else:
+            resp.status_code = 200
+            resp.json.return_value = [
+                {
+                    "trackName": "Starboy",
+                    "artistName": "Cover Band",
+                    "duration": 230.0,
+                    "syncedLyrics": "[00:05.00]Cover band lyrics",
+                },
+                {
+                    "trackName": "Starboy",
+                    "artistName": "The Weeknd",
+                    "duration": 230.0,
+                    "syncedLyrics": "[00:05.00]Authentic The Weeknd lyrics",
+                },
+            ]
+        return resp
+
+    mock_get.side_effect = mock_side_effect
+
+    lyrics = fetch_lyrics_smart("Starboy", "The Weeknd", duration_sec=230.0)
+    assert lyrics is not None
+    assert len(lyrics) == 1
+    # Ensure the authentic artist's lyrics were selected
+    assert lyrics[0].text == "Authentic The Weeknd lyrics"
+
+
+def test_negative_cache_expiration():
+    _LYRICS_CACHE.clear()
+
+    # 1. Put negative result into cache
+    _cache_put("unknown_track||unknown_artist", None)
+
+    # Within TTL, it should return None without querying network
+    with patch("lyricvibe.lyrics.fetcher._HTTP_SESSION.get") as mock_get:
+        assert fetch_lyrics_smart("unknown_track", "unknown_artist") is None
+        mock_get.assert_not_called()
+
+    # 2. Simulate expired cache entry by modifying timestamp
+    _LYRICS_CACHE["unknown_track||unknown_artist"] = (None, time.time() - (_NEGATIVE_CACHE_TTL + 5.0))
+
+    # After TTL, it must attempt fresh network lookup
+    with patch("lyricvibe.lyrics.fetcher._HTTP_SESSION.get") as mock_get:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "syncedLyrics": "[00:03.00]Freshly found lyrics",
+            "plainLyrics": "",
+        }
+        mock_get.return_value = mock_resp
+
+        fresh = fetch_lyrics_smart("unknown_track", "unknown_artist", duration_sec=180.0)
+        assert fresh is not None
+        assert fresh[0].text == "Freshly found lyrics"
+        mock_get.assert_called()

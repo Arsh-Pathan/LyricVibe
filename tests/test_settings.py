@@ -164,3 +164,21 @@ def test_autostart_toggle():
 
     # Restore initial state
     set_autostart_enabled(initial)
+
+
+def test_settings_save_fallback_on_restricted_path():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        restricted_file = "Z:\\NonExistentDrive\\settings.json"
+        fallback_dir = os.path.join(tmp_dir, "LyricVibe")
+        fallback_file = os.path.join(fallback_dir, "settings.json")
+
+        with patch("lyricvibe.utils.settings.SETTINGS_FILE", restricted_file), \
+             patch.dict("os.environ", {"APPDATA": tmp_dir}):
+            custom = DEFAULT_SETTINGS.copy()
+            custom["font_size"] = 50
+
+            save_settings(custom)
+            assert os.path.exists(fallback_file)
+
+            loaded = load_settings()
+            assert loaded["font_size"] == 50
