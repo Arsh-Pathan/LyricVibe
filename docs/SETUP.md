@@ -13,20 +13,33 @@ This guide covers all methods for installing and configuring LyricVibe on Window
 
 ---
 
-## Method 1: Standalone Executable (Recommended)
+## Method 1: Windows Setup Installer (Recommended)
 
-The standalone executable requires no Python installation, no virtual environments, and no package managers.
+The official Windows installer provides a guided setup wizard with Start Menu shortcuts, optional desktop icon, auto-start integration, and clean uninstallation registered in Windows Add/Remove programs.
 
-1. Download the latest release from the [GitHub Releases](https://github.com/Arsh-Pathan/LyricVibe/releases) page:
-   - `LyricVibe.exe` (Single portable file)
-   - Or `LyricVibe-v1.0.0-Windows.zip` (Includes batch launchers and helper scripts)
-2. Move `LyricVibe.exe` to your preferred folder (e.g. `C:\Tools\LyricVibe`).
-3. Double-click `LyricVibe.exe` to run.
-4. Play any track in Spotify Desktop — the lyrics will float at the top of your screen automatically.
+1. Download `LyricVibe-Setup-v1.1.0.exe` from the [GitHub Releases](https://github.com/Arsh-Pathan/LyricVibe/releases) page.
+2. Double-click `LyricVibe-Setup-v1.1.0.exe` and follow the setup wizard instructions.
+3. Select optional tasks:
+   - Create a desktop shortcut.
+   - Launch LyricVibe on Windows startup.
+4. Click **Install**.
+5. Once installed, launch LyricVibe from your Start Menu or Desktop.
+6. Play any song in Spotify Desktop — lyrics will float seamlessly on your screen.
 
 ---
 
-## Method 2: Running from Python Source
+## Method 2: Portable Standalone Executable
+
+The standalone executable requires no installer and no Python runtime:
+
+1. Download `LyricVibe.exe` or `LyricVibe-v1.1.0-Windows.zip` from [GitHub Releases](https://github.com/Arsh-Pathan/LyricVibe/releases).
+2. Move `LyricVibe.exe` to your preferred folder (e.g., `C:\Tools\LyricVibe`).
+3. Double-click `LyricVibe.exe` to run.
+4. Play any track in Spotify Desktop — lyrics will appear automatically.
+
+---
+
+## Method 3: Running from Python Source
 
 If you prefer to run or modify the code directly:
 
@@ -54,7 +67,7 @@ python main.py
 
 ---
 
-## Method 3: One-Click Spotify + Overlay Launcher
+## Method 4: One-Click Spotify + Overlay Launcher
 
 To launch Spotify and LyricVibe together in a single click:
 

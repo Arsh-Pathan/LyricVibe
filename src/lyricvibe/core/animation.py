@@ -45,6 +45,10 @@ ANIMATION_CATALOG = [
     ("soft_dissolve", 16),
     ("mist_evaporate", 14),
     ("velvet_wipe", 14),
+    ("aurora_shimmer", 16),
+    ("nebula_bloom", 14),
+    ("horizon_dawn", 14),
+    ("starlight_glimmer", 14),
     # ── Kinetic & Snappy Motion ──
     ("gravity_drop", 18),
     ("slide_up", 18),
@@ -53,6 +57,10 @@ ANIMATION_CATALOG = [
     ("drift_left", 14),
     ("drift_right", 14),
     ("overshoot_rise", 14),
+    ("whip_pan_left", 14),
+    ("whip_pan_right", 14),
+    ("bass_drop_shake", 14),
+    ("hyper_zoom", 12),
     ("magnetic_snap", 12),
     ("bounce_land", 12),
     ("impact_slam", 10),
@@ -69,6 +77,9 @@ ANIMATION_CATALOG = [
     ("hand_drawn_flourish", 18),
     ("spotlight_reveal", 12),
     ("echo_pulse", 10),
+    ("laser_etch", 12),
+    ("neon_flicker", 12),
+    ("parabolic_arc", 12),
     # ── Expressive & Cinematic ──
     ("pendulum_swing", 8),
     ("split_horizon", 8),
@@ -88,6 +99,10 @@ ANIMATION_CATALOG = [
     ("spring_rebound", 8),
     ("ripple_snap", 8),
     ("vortex_spin", 6),
+    ("prism_refract", 12),
+    ("card_flip_3d", 10),
+    ("isometric_slide", 10),
+    ("cinema_scope_unfold", 12),
     # ── Per-Character Physics (Glitch-Free) ──
     ("letter_drop", 16),
     ("letter_burst", 10),
@@ -110,6 +125,10 @@ FADE_ANIMS = {
     "soft_dissolve",
     "mist_evaporate",
     "velvet_wipe",
+    "aurora_shimmer",
+    "nebula_bloom",
+    "horizon_dawn",
+    "starlight_glimmer",
 }
 
 
@@ -336,6 +355,21 @@ class AnimationEngine:
         elif anim == "velvet_wipe":
             alpha = ease_out_cubic
             scale = 0.995 + 0.005 * ease_out_cubic
+        elif anim == "aurora_shimmer":
+            alpha = ease_out_cubic
+            scale = 0.99 + 0.01 * math.sin(t_in * math.pi)
+            offset_y = (1.0 - ease_out_cubic) * 3.0
+        elif anim == "nebula_bloom":
+            alpha = ease_out_quart
+            scale = 0.95 + 0.05 * ease_out_quart
+            offset_y = (1.0 - ease_out_quart) * 4.0
+        elif anim == "horizon_dawn":
+            alpha = math.pow(t_in, 1.4)
+            offset_y = (1.0 - ease_out_cubic) * 12.0
+            scale = 0.98 + 0.02 * ease_out_cubic
+        elif anim == "starlight_glimmer":
+            alpha = ease_out_cubic
+            scale = 0.99 + 0.01 * math.sin(t_in * math.pi * 1.5)
 
         # ── 12-22. Kinetic & Snappy Motion ──
         elif anim == "gravity_drop":
@@ -417,6 +451,32 @@ class AnimationEngine:
             alpha = ease_out_quart
             scale = 0.96 + 0.04 * ease_out_quart
             offset_y = (1.0 - ease_out_quart) * -10.0
+        elif anim == "whip_pan_left":
+            alpha = 0.80 + 0.20 * ease_out_quart
+            offset_x = (1.0 - ease_out_quart) * 28.0
+        elif anim == "whip_pan_right":
+            alpha = 0.80 + 0.20 * ease_out_quart
+            offset_x = (1.0 - ease_out_quart) * -28.0
+        elif anim == "bass_drop_shake":
+            alpha = 0.85 + 0.15 * ease_out_cubic
+            damp = 8.0
+            freq = 18.0
+            offset_y = (
+                math.exp(-damp * t_in) * math.sin(freq * t_in) * 4.0
+                if t_in < 0.6
+                else 0.0
+            )
+            scale = (
+                1.0 + 0.04 * math.exp(-damp * t_in) * math.cos(freq * t_in)
+                if t_in < 0.6
+                else 1.0
+            )
+        elif anim == "hyper_zoom":
+            alpha = 0.70 + 0.30 * ease_out_cubic
+            if t_in < 0.65:
+                scale = 0.85 + 0.18 * (t_in / 0.65)
+            else:
+                scale = 1.03 - 0.03 * ((t_in - 0.65) / 0.35)
 
         # ── 23-32. Vocal & Flow ──
         elif anim == "word_reveal":
@@ -449,6 +509,27 @@ class AnimationEngine:
         elif anim == "echo_pulse":
             alpha = ease_out_cubic
             scale = 1.03 - 0.03 * ease_out_cubic
+        elif anim == "laser_etch":
+            alpha = ease_out_quart
+            scale = 0.98 + 0.02 * ease_out_quart
+            offset_x = (1.0 - ease_out_quart) * -16.0
+        elif anim == "neon_flicker":
+            if t_in < 0.12:
+                alpha = 0.40 + 0.60 * (t_in / 0.12)
+            elif t_in < 0.22:
+                alpha = 0.30
+            elif t_in < 0.35:
+                alpha = 0.95
+            elif t_in < 0.42:
+                alpha = 0.60
+            else:
+                alpha = 1.0
+            scale = 0.98 + 0.02 * min(t_in / 0.42, 1.0)
+        elif anim == "parabolic_arc":
+            alpha = ease_out_cubic
+            arc_p = 1.0 - ease_out_cubic
+            offset_x = arc_p * 15.0
+            offset_y = arc_p * arc_p * -12.0
 
         # ── 33-47. Expressive & Cinematic ──
         elif anim == "pendulum_swing":
@@ -517,6 +598,25 @@ class AnimationEngine:
         elif anim == "vortex_spin":
             alpha = ease_out_cubic
             rotation = (1.0 - ease_out_cubic) * 1.8
+        elif anim == "prism_refract":
+            alpha = ease_out_quart
+            scale = 0.96 + 0.04 * ease_out_quart
+            offset_x = (1.0 - ease_out_quart) * 10.0
+            skew_x = (1.0 - ease_out_quart) * 2.0
+        elif anim == "card_flip_3d":
+            alpha = ease_out_cubic
+            scale = 0.92 + 0.08 * ease_out_cubic
+            offset_y = (1.0 - ease_out_cubic) * -12.0
+            rotation = (1.0 - ease_out_cubic) * -2.5
+        elif anim == "isometric_slide":
+            alpha = 0.75 + 0.25 * ease_out_cubic
+            offset_x = (1.0 - ease_out_cubic) * 16.0
+            offset_y = (1.0 - ease_out_cubic) * 9.0
+            skew_x = (1.0 - ease_out_cubic) * -1.5
+        elif anim == "cinema_scope_unfold":
+            alpha = ease_out_quart
+            scale = 0.95 + 0.05 * ease_out_quart
+            offset_y = (1.0 - ease_out_quart) * 6.0
 
         # ── 48-52. Per-Character & Special Physics ──
         elif anim == "balloon_inflate":

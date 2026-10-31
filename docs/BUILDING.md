@@ -54,6 +54,31 @@ pyinstaller --noconfirm --onefile --windowed ^
 
 ---
 
+## Building the Windows Setup Installer (.exe)
+
+LyricVibe includes an Inno Setup script (`scripts/installer.iss`) to build a professional Windows Setup Installer (`LyricVibe-Setup-v1.1.0.exe`).
+
+### Prerequisites
+Install Inno Setup 6:
+```powershell
+winget install JRSoftware.InnoSetup
+```
+
+### One-Click Installer Build
+Run `scripts/build_installer.bat`:
+```cmd
+scripts\build_installer.bat
+```
+
+Or compile directly with the Inno Setup CLI compiler:
+```powershell
+& "C:\Users\ArshPathan\AppData\Local\Programs\Inno Setup 6\ISCC.exe" scripts/installer.iss
+```
+
+The resulting setup executable is output to `dist\LyricVibe-Setup-v1.1.0.exe`.
+
+---
+
 ## Verification
 
 After building, test the binary from the command line:

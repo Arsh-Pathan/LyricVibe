@@ -1,8 +1,16 @@
 # Release Notes
 
-## LyricVibe v1.1.0 — Multi-Script Transliteration, Custom Color Picker & Scrubbing Snapping
+## LyricVibe v1.1.0 — Windows Setup Installer, 72+ Animations, Multi-Script Transliteration & Custom Color Picker
 
 ### New Features & Improvements in v1.1.0
+- **Professional Windows Setup Installer**:
+  - Added native Windows installer (`LyricVibe-Setup-v1.1.0.exe`) created with Inno Setup 6.
+  - Guided setup wizard with options for Desktop shortcut, Start Menu folder, Windows Startup integration, and clean uninstaller registered in Windows Add/Remove programs.
+  - Per-user and system-wide installation support without requiring elevation.
+- **Expanded 72+ Dynamic Animations Suite**:
+  - Expanded catalog from 55+ to 72+ animations with custom mathematical easing functions.
+  - 15 new animations: `aurora_shimmer`, `nebula_bloom`, `horizon_dawn`, `starlight_glimmer`, `whip_pan_left`, `whip_pan_right`, `bass_drop_shake`, `hyper_zoom`, `laser_etch`, `neon_flicker`, `parabolic_arc`, `prism_refract`, `card_flip_3d`, `isometric_slide`, and `cinema_scope_unfold`.
+  - Atmospheric fade animations (`aurora_shimmer`, `nebula_bloom`, `horizon_dawn`, `starlight_glimmer`) integrated into zero-blur transition physics.
 - **Multi-Script Transliteration Suite**:
   - Full native phonetic transliteration for Devanagari (Hindi), Perso-Arabic (Urdu), Gurmukhi (Punjabi), Bengali, Gujarati, Tamil, and Telugu into Latin Roman text.
   - Zero-width character and bidi formatter filtering (ZWNJ, ZWJ, LRM, RLM, BOM) to prevent missing glyph rectangle boxes in brush fonts.
@@ -22,7 +30,7 @@
   - Screen boundary clamping keeps the overlay within viewable display bounds across monitor moves and resolution drops.
   - Dynamic `windowHandle().screenChanged` listener for multi-display setups.
 - **Durability & Stress Test Suite**:
-  - 87 unit tests validating LRU bounded caches, multi-hour continuous playback, and thread safety.
+  - 90 unit tests validating LRU bounded caches, multi-hour continuous playback, easing calculations, and thread safety.
 
 ---
 
