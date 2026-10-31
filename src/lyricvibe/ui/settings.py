@@ -492,7 +492,7 @@ class LivePreview(QWidget):
         p.setFont(font)
 
         hl_enabled = self.settings.get("highlight_enabled", True)
-        # Use ultra-bright neon colorful highlight (guaranteed never a darker shade)
+        # Highlight color (supports darker and vivid shades)
         if self.settings.get("highlight_mode", "per_song") == "per_song":
             hl_hex = ensure_bright_hex(BRIGHT_HIGHLIGHT_HEX_LIST[self._color_idx])
             hl_color = QColor(hl_hex)
