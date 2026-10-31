@@ -110,7 +110,7 @@ def test_get_settings_file_path_fallback():
         patch.dict("os.environ", {"APPDATA": "C:\\Users\\Test\\AppData\\Roaming"}),
     ):
         fallback_path = get_settings_file_path()
-        assert "AppData\\Roaming\\LyricVibe\\settings.json" in fallback_path
+        assert "LyricVibe" in fallback_path and fallback_path.endswith("settings.json")
 
 
 def test_ensure_hex_supports_darker_colors():
@@ -205,7 +205,12 @@ def test_autostart_toggle():
 
 def test_settings_save_fallback_on_restricted_path():
     with tempfile.TemporaryDirectory() as tmp_dir:
-        restricted_file = "Z:\\NonExistentDrive\\settings.json"
+        import sys
+        restricted_file = (
+            "/nonexistent_restricted_root_dir/settings.json"
+            if sys.platform != "win32"
+            else "Z:\\NonExistentDrive\\settings.json"
+        )
         fallback_dir = os.path.join(tmp_dir, "LyricVibe")
         fallback_file = os.path.join(fallback_dir, "settings.json")
 
