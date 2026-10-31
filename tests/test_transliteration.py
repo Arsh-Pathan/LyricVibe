@@ -122,3 +122,30 @@ def test_devanagari_multiline_whitespace():
     assert "Dil" in out
     assert "deevaanaa" in out.lower()
     assert is_pure_ascii(out)
+
+
+def test_gurmukhi_punjabi_transliteration():
+    # Gurmukhi script transliterates cleanly to 100% pure Latin ASCII
+    samples = [
+        ("ਦਿਲਬਰ", "Dilabar"),
+        ("ਤੇਰੇ ਵਾਸਤੇ", "Tere vaasate"),
+        ("ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ", "Sati sree akaal"),
+        ("ਪਿਆਰ", "Piaar"),
+    ]
+    for gur, expected in samples:
+        out = to_hinglish(gur)
+        assert is_pure_ascii(out), f"Gurmukhi transliteration leaked non-ASCII: {out}"
+        assert out.lower().startswith(expected.lower()[:4]), (
+            f"Expected {expected}, got {out}"
+        )
+
+
+def test_invisible_zero_width_and_bidi_characters():
+    # Devanagari and Urdu lyrics with ZWNJ, ZWJ, LRM, RLM, and BOM
+    contaminated = "ਦਿਲ\u200cਬਰ ਅਤੇ \u200eਜ਼ਿੰਦਗੀ\u200d \ufeffप्यार"
+    out = to_hinglish(contaminated)
+    assert is_pure_ascii(out)
+    assert "\u200c" not in out
+    assert "\u200d" not in out
+    assert "\u200e" not in out
+    assert "\ufeff" not in out

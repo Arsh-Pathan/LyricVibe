@@ -230,7 +230,10 @@ def is_romanized(text: str) -> bool:
     if not text:
         return True
     return not any(
-        ("\u0900" <= ch <= "\u097f") or ("\u0600" <= ch <= "\u06ff") for ch in text
+        ("\u0900" <= ch <= "\u097f")
+        or ("\u0600" <= ch <= "\u06ff")
+        or ("\u0a00" <= ch <= "\u0a7f")
+        for ch in text
     )
 
 

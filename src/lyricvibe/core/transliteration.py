@@ -217,6 +217,90 @@ DEV_PUNCTUATION = {
 
 HALANT = "्"
 
+# ── 3. Gurmukhi (Punjabi) Mapping ─────────────────────────────────────
+GUR_VOWELS = {
+    "ਅ": "a",
+    "ਆ": "aa",
+    "ਇ": "i",
+    "ਈ": "ee",
+    "ਉ": "u",
+    "ਊ": "oo",
+    "ਏ": "e",
+    "ਐ": "ai",
+    "ਓ": "o",
+    "ਔ": "au",
+}
+
+GUR_MATRAS = {
+    "ਾ": "aa",
+    "ਿ": "i",
+    "ੀ": "ee",
+    "ੁ": "u",
+    "ੂ": "oo",
+    "ੇ": "e",
+    "ੈ": "ai",
+    "ੋ": "o",
+    "ਔ": "au",
+    "ੰ": "n",
+    "ਂ": "n",
+}
+
+GUR_CONSONANTS = {
+    "ਸ": "s",
+    "ਹ": "h",
+    "ਕ": "k",
+    "ਖ": "kh",
+    "ਗ": "g",
+    "ਘ": "gh",
+    "ਙ": "ng",
+    "ਚ": "ch",
+    "ਛ": "chh",
+    "ਜ": "j",
+    "ਝ": "jh",
+    "ਞ": "ny",
+    "ਟ": "t",
+    "ਠ": "th",
+    "ਡ": "d",
+    "ਢ": "dh",
+    "ਣ": "n",
+    "ਤ": "t",
+    "ਥ": "th",
+    "ਦ": "d",
+    "ਧ": "dh",
+    "ਨ": "n",
+    "ਪ": "p",
+    "ਫ": "ph",
+    "ਬ": "b",
+    "ਭ": "bh",
+    "ਮ": "m",
+    "ਯ": "y",
+    "ਰ": "r",
+    "ਲ": "l",
+    "ਵ": "v",
+    "ੜ": "r",
+    "ਸ਼": "sh",
+    "ਖ਼": "kh",
+    "ਗ਼": "gh",
+    "ਜ਼": "z",
+    "ਫ਼": "f",
+    "ਲ਼": "l",
+}
+
+GUR_DIGITS = {
+    "੦": "0",
+    "੧": "1",
+    "੨": "2",
+    "੩": "3",
+    "੪": "4",
+    "੫": "5",
+    "੬": "6",
+    "੭": "7",
+    "੮": "8",
+    "੯": "9",
+}
+
+GUR_HALANT = "੍"
+
 # ── 3. Phonetic Cleanups & Common Word Corrections ────────────────────
 WORD_REPLACEMENTS = [
     # Common corrupted syllables from mixed scripts
@@ -308,6 +392,47 @@ def transliterate_devanagari_word(word: str) -> str:
     return "".join(res)
 
 
+def transliterate_gurmukhi_word(word: str) -> str:
+    """Converts a Gurmukhi (Punjabi) word cleanly into Roman Latin characters."""
+    res = []
+    i = 0
+    n = len(word)
+    while i < n:
+        char = word[i]
+        if char in GUR_VOWELS:
+            res.append(GUR_VOWELS[char])
+            i += 1
+        elif char in GUR_CONSONANTS:
+            cons = GUR_CONSONANTS[char]
+            i += 1
+            if i < n and word[i] == GUR_HALANT:
+                res.append(cons)
+                i += 1
+            elif i < n and word[i] in GUR_MATRAS:
+                res.append(cons + GUR_MATRAS[word[i]])
+                i += 1
+            else:
+                if i >= n or word[i] in " ,.?!()-'\"\n\r":
+                    res.append(cons)
+                else:
+                    res.append(cons + "a")
+        elif char in GUR_MATRAS:
+            res.append(GUR_MATRAS[char])
+            i += 1
+        elif char in GUR_DIGITS:
+            res.append(GUR_DIGITS[char])
+            i += 1
+        elif char == GUR_HALANT or char == "ੱ":
+            i += 1
+        elif char in ("।", "॥"):
+            res.append(".")
+            i += 1
+        else:
+            res.append(char)
+            i += 1
+    return "".join(res)
+
+
 def transliterate_urdu_text(text: str) -> str:
     """Converts Arabic/Urdu/Persian characters cleanly to Latin Hinglish."""
     res = []
@@ -351,6 +476,18 @@ def _universal_safety_sanitize(text: str) -> str:
                 clean.append(DEV_PUNCTUATION[ch])
             else:
                 pass  # drop
+        # Check Gurmukhi (Punjabi)
+        elif 0x0A00 <= code <= 0x0A7F:
+            if ch in GUR_CONSONANTS:
+                clean.append(GUR_CONSONANTS[ch])
+            elif ch in GUR_VOWELS:
+                clean.append(GUR_VOWELS[ch])
+            elif ch in GUR_MATRAS:
+                clean.append(GUR_MATRAS[ch])
+            elif ch in GUR_DIGITS:
+                clean.append(GUR_DIGITS[ch])
+            else:
+                pass  # drop
         # Check Arabic / Urdu / Persian
         elif (
             (0x0600 <= code <= 0x06FF)
@@ -362,6 +499,15 @@ def _universal_safety_sanitize(text: str) -> str:
                 clean.append(URDU_MAP[ch])
             else:
                 pass  # drop
+        # Invisible bidi / zero-width formatting characters
+        elif (
+            ch in ("\u200b", "\u200c", "\u200d", "\u200e", "\u200f", "\ufeff")
+            or (0x202A <= code <= 0x202E)
+            or (0x2066 <= code <= 0x2069)
+        ):
+            pass
+        elif ch == "\u00a0":
+            clean.append(" ")
         # Smart quotes / punctuation normalisation
         elif ch in ("\u2018", "\u2019", "`"):
             clean.append("'")
@@ -378,16 +524,20 @@ def _universal_safety_sanitize(text: str) -> str:
 
 def to_hinglish(text: str) -> str:
     """
-    Takes any lyric text (Devanagari, Urdu, mixed, or corrupted) and produces
+    Takes any lyric text (Devanagari, Urdu, Gurmukhi, mixed, or corrupted) and produces
     100% clean, pure Latin Hinglish with zero foreign symbols.
     """
     if not text:
         return ""
 
-    # 1. Preprocess nuktas
+    # 1. Clean invisible bidi and zero-width formatting characters and normalize NBSP
+    text = re.sub(r"[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]", "", text)
+    text = text.replace("\u00a0", " ")
+
+    # 2. Preprocess nuktas
     text = _preprocess_nuktas(text)
 
-    # 2. Check for Arabic / Urdu
+    # 3. Check for Arabic / Urdu
     has_urdu = any(
         (0x0600 <= ord(ch) <= 0x06FF)
         or (0x0750 <= ord(ch) <= 0x077F)
@@ -398,7 +548,7 @@ def to_hinglish(text: str) -> str:
     if has_urdu:
         text = transliterate_urdu_text(text)
 
-    # 3. Check for Devanagari
+    # 4. Check for Devanagari
     has_devanagari = any(0x0900 <= ord(ch) <= 0x097F for ch in text)
     if has_devanagari:
         tokens = re.split(r"(\s+)", text)
@@ -408,14 +558,24 @@ def to_hinglish(text: str) -> str:
         ]
         text = "".join(converted)
 
-    # 4. Universal safety sanitization (zero leaks guarantee)
+    # 5. Check for Gurmukhi (Punjabi)
+    has_gurmukhi = any(0x0A00 <= ord(ch) <= 0x0A7F for ch in text)
+    if has_gurmukhi:
+        tokens = re.split(r"(\s+)", text)
+        converted = [
+            transliterate_gurmukhi_word(tok) if not tok.isspace() else tok
+            for tok in tokens
+        ]
+        text = "".join(converted)
+
+    # 6. Universal safety sanitization (zero leaks guarantee)
     text = _universal_safety_sanitize(text)
 
-    # 5. Apply phonetic cleanups
+    # 7. Apply phonetic cleanups
     for pattern, replacement in WORD_REPLACEMENTS:
         text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
 
-    # 6. Normalize whitespace
+    # 8. Normalize whitespace
     text = re.sub(r"\s+", " ", text).strip()
 
     if not text:

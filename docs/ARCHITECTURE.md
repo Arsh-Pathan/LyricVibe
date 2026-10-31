@@ -41,7 +41,7 @@ flowchart TD
 - **Race Condition Prevention**: Employs monotonically incrementing request tags (`_current_fetch_id`) to discard stale responses when tracks are skipped rapidly.
 
 ### 3. Core Physics & Transliteration (`src/lyricvibe/core/`)
-- **`transliteration.py`**: Converts Devanagari (Hindi) and Perso-Arabic (Urdu) scripts into clean phonetic Roman Hinglish with schwa deletion and nukta handling.
+- **`transliteration.py`**: Converts Devanagari (Hindi), Perso-Arabic (Urdu), and Gurmukhi (Punjabi) scripts into clean phonetic Roman Hinglish/Punjabi with schwa deletion, nukta handling, and zero-width/bidi filtering.
 - **`animation.py`**: 165Hz physics engine, sub-millisecond continuous lift-out easing, and clamped motion blur vectors.
 - **`paths.py`**: Centralized asset and directory resolution supporting both source and PyInstaller environments.
 - **`config.py`**: Static defaults for overlay dimensions and chroma keying.
@@ -49,4 +49,4 @@ flowchart TD
 ### 4. User Interface & Settings (`src/lyricvibe/ui/` & `src/lyricvibe/utils/`)
 - **`ui/overlay.py`**: Frameless, transparent 165Hz PyQt6 overlay with Direct2D hardware acceleration and single-instance IPC server.
 - **`ui/settings.py`**: Material Design 3 dark-themed settings customizer with live interactive animation preview.
-- **`utils/settings.py`**: Persistent JSON settings management and 16-color ultra-bright neon palette definitions.
+- **`utils/settings.py`**: Persistent JSON settings management and 20-color highlight palette definitions supporting darker and vivid tones.

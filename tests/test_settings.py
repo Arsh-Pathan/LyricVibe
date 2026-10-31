@@ -113,47 +113,45 @@ def test_get_settings_file_path_fallback():
         assert "AppData\\Roaming\\LyricVibe\\settings.json" in fallback_path
 
 
-def test_ensure_bright_hex_never_dark():
-    from lyricvibe.utils.settings import BRIGHT_HIGHLIGHT_PALETTE, ensure_bright_hex
+def test_ensure_hex_supports_darker_colors():
+    from lyricvibe.utils.settings import HIGHLIGHT_PALETTE, ensure_bright_hex
 
-    # 1. Dark colors must be boosted to luminance >= 175.0
+    # 1. Darker colors are supported and preserved directly
     dark_inputs = [
-        "#000000",  # Pure black
-        "#111111",  # Dark grey
-        "#000080",  # Navy blue
-        "#800000",  # Maroon
-        "#004400",  # Dark green
-        "#330033",  # Deep purple
-        "#FF00A0",  # Darker magenta
-        "#B026FF",  # Darker electric violet
+        ("#1DB954", "#1DB954"),  # Spotify green
+        ("#0E8A42", "#0E8A42"),  # Deep emerald
+        ("#000080", "#000080"),  # Navy blue
+        ("#800000", "#800000"),  # Maroon
+        ("#7B1FA2", "#7B1FA2"),  # Royal purple
+        ("#D32F2F", "#D32F2F"),  # Crimson
     ]
-    for d in dark_inputs:
-        bright = ensure_bright_hex(d)
-        h = bright.lstrip("#")
-        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-        lum = 0.299 * r + 0.587 * g + 0.114 * b
-        assert lum >= 175.0, (
-            f"Expected {d} to be lifted >= 175.0 lum, got {lum} ({bright})"
+    for d, expected in dark_inputs:
+        res = ensure_bright_hex(d)
+        assert res.upper() == expected.upper(), (
+            f"Expected {expected}, got {res} for {d}"
         )
 
-    # 2. Already bright colors preserve high luminance
-    for bright_in in ["#00FFFF", "#FFE600", "#26FF7C"]:
-        res = ensure_bright_hex(bright_in)
-        assert res.upper() == bright_in.upper()
+    # 2. Shorthand 3-digit hex is expanded
+    assert ensure_bright_hex("#fff") == "#FFFFFF"
+    assert ensure_bright_hex("#123") == "#112233"
 
-    # 3. All colors in BRIGHT_HIGHLIGHT_PALETTE are strictly >= 175.0 lum
-    for item in BRIGHT_HIGHLIGHT_PALETTE:
-        h = item["hex"].lstrip("#")
-        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-        lum = 0.299 * r + 0.587 * g + 0.114 * b
-        assert lum >= 175.0, (
-            f"Palette color {item['name']} ({item['hex']}) is below 175.0 lum: {lum}"
-        )
+    # 3. Explicit min_lum lifts darker colors when requested
+    brightened = ensure_bright_hex("#000080", min_lum=175.0)
+    h = brightened.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    lum = 0.299 * r + 0.587 * g + 0.114 * b
+    assert lum >= 175.0
 
-    # 4. Invalid or malformed inputs return bright fallback
+    # 4. All palette items are valid 7-character hex colors starting with '#'
+    for item in HIGHLIGHT_PALETTE:
+        hx = item["hex"]
+        assert len(hx) == 7
+        assert hx.startswith("#")
+        assert int(hx[1:], 16) >= 0
+
+    # 5. Invalid or malformed inputs return default fallback
     assert ensure_bright_hex(None).startswith("#")
     assert ensure_bright_hex("invalid").startswith("#")
-    assert ensure_bright_hex("#123").startswith("#")
 
 
 def test_autostart_toggle():

@@ -229,7 +229,7 @@ class FloatingLyricsWidget(QWidget):
         return "Montserrat"
 
     def _pick_next_song_color(self, track_identifier: str):
-        """Picks a distinct, ultra-bright neon color for each song, guaranteed never a darker shade."""
+        """Picks a distinct color for each song, supporting darker and vivid palettes."""
         palette_len = len(BRIGHT_HIGHLIGHT_HEX_LIST)
         if not palette_len:
             return
@@ -249,8 +249,8 @@ class FloatingLyricsWidget(QWidget):
 
     def _get_highlight_color(self) -> QColor:
         """
-        Returns the vibrant ultra-bright highlight color for the active spoken word.
-        Rotates automatically per song or uses fixed user selection, guaranteed never dark.
+        Returns the highlight color for the active spoken word.
+        Rotates automatically per song or uses fixed user selection (darker and vivid tones supported).
         """
         mode = self.settings.get("highlight_mode", "per_song")
         if mode == "per_song":

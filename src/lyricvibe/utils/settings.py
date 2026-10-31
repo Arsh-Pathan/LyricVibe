@@ -25,27 +25,31 @@ except ImportError:
     get_executable_command = lambda: sys.executable
 
 
-def ensure_bright_hex(hex_str: str, min_lum: float = 175.0) -> str:
+def ensure_bright_hex(hex_str: str, min_lum: float = 0.0) -> str:
     """
-    Guarantees that a hex color string is never a darker shade.
-    If the perceived relative luminance is below min_lum, dynamically adjusts
-    saturation in HSV space to lift brightness while strictly preserving hue.
+    Validates and formats a hex color string into standard #RRGGBB.
+    Supports both darker shades (e.g. rich emerald, crimson, indigo) and luminous tones.
+    If min_lum > 0 is explicitly specified, lifts luminance while preserving hue.
     """
     if not isinstance(hex_str, str):
-        return "#26FF7C"
+        return "#1DB954"
 
     clean_hex = hex_str.strip().lstrip("#")
+    if len(clean_hex) == 3:
+        clean_hex = "".join(c * 2 for c in clean_hex)
     if len(clean_hex) != 6:
-        return "#26FF7C"
+        return "#1DB954"
 
     try:
         r = int(clean_hex[0:2], 16)
         g = int(clean_hex[2:4], 16)
         b = int(clean_hex[4:6], 16)
     except ValueError:
-        return "#26FF7C"
+        return "#1DB954"
 
-    # Perceived relative luminance (ITU-R BT.601 standard)
+    if min_lum <= 0.0:
+        return f"#{r:02X}{g:02X}{b:02X}"
+
     lum = 0.299 * r + 0.587 * g + 0.114 * b
     if lum >= min_lum:
         return f"#{r:02X}{g:02X}{b:02X}"
@@ -53,7 +57,6 @@ def ensure_bright_hex(hex_str: str, min_lum: float = 175.0) -> str:
     h_val, s_val, _ = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
     v_val = 1.0
 
-    # Step down saturation to inject white luminance until threshold met
     for s_step in range(int(s_val * 100), 10, -5):
         s_test = s_step / 100.0
         nr, ng, nb = [int(c * 255) for c in colorsys.hsv_to_rgb(h_val, s_test, v_val)]
@@ -64,75 +67,38 @@ def ensure_bright_hex(hex_str: str, min_lum: float = 175.0) -> str:
     return f"#{nr:02X}{ng:02X}{nb:02X}"
 
 
-# Ultra-bright, vivid, luminous highlight color palette (guaranteed Lum >= 175.0, NEVER dark)
-BRIGHT_HIGHLIGHT_PALETTE = [
-    {
-        "name": "Laser Neon Green",
-        "hex": "#26FF7C",
-    },  # High-luminance electric green (Lum: 175.2)
-    {
-        "name": "Electric Cyan",
-        "hex": "#00FFFF",
-    },  # Pure luminous bright cyan (Lum: 178.8)
-    {
-        "name": "Vivid Neon Yellow",
-        "hex": "#FFE600",
-    },  # Ultra-bright golden canary (Lum: 211.3)
-    {
-        "name": "Neon Candy Pink",
-        "hex": "#FF87C7",
-    },  # Radiant luminous candy pink (Lum: 178.2)
-    {
-        "name": "Electric Violet",
-        "hex": "#D999FF",
-    },  # Luminous glowing violet lilac (Lum: 183.8)
-    {
-        "name": "Neon Tangerine",
-        "hex": "#FF9B59",
-    },  # Ultra-bright neon tangerine (Lum: 177.4)
-    {
-        "name": "Luminous Aqua",
-        "hex": "#33F7DC",
-    },  # Super-bright mint turquoise (Lum: 183.8)
-    {
-        "name": "Neon Strawberry",
-        "hex": "#FF8CA8",
-    },  # Bright luminous coral strawberry (Lum: 177.6)
-    {
-        "name": "Electric Sky",
-        "hex": "#59D7FF",
-    },  # Radiant high-chroma sky azure (Lum: 179.9)
-    {
-        "name": "Neon Lime",
-        "hex": "#A6FF00",
-    },  # Brilliant electric chartreuse (Lum: 199.3)
-    {
-        "name": "Electric Magenta",
-        "hex": "#FF8CD4",
-    },  # Radiant bright magenta orchid (Lum: 182.6)
-    {"name": "Neon Amber", "hex": "#FFB800"},  # Bright warm electric amber (Lum: 184.3)
-    {
-        "name": "Electric Lilac",
-        "hex": "#DF8FFF",
-    },  # Bright electric violet lilac (Lum: 178.4)
-    {
-        "name": "Neon Seafoam",
-        "hex": "#14FFB2",
-    },  # Brilliant glowing teal seafoam (Lum: 176.0)
-    {
-        "name": "Electric Rose",
-        "hex": "#FF8CB8",
-    },  # Bright vibrant punch rose (Lum: 179.4)
-    {
-        "name": "Spotify High-Neon",
-        "hex": "#57E48A",
-    },  # Ultra-bright vibrant Spotify green (Lum: 175.2)
+# Highlight color palette supporting rich darker tones and vivid shades
+HIGHLIGHT_PALETTE = [
+    # ── Iconic & Rich Darker Shades ──
+    {"name": "Spotify Green", "hex": "#1DB954"},  # Iconic Spotify brand green
+    {"name": "Deep Emerald", "hex": "#0E8A42"},  # Rich dark jewel emerald
+    {"name": "Crimson Red", "hex": "#D32F2F"},  # Deep vibrant crimson
+    {"name": "Royal Purple", "hex": "#7B1FA2"},  # Deep rich royal violet
+    {"name": "Midnight Indigo", "hex": "#303F9F"},  # Classic deep dark indigo
+    {"name": "Dark Forest", "hex": "#2E7D32"},  # Rich dark moss forest green
+    {"name": "Burnt Orange", "hex": "#E64A19"},  # Deep warm dark terracotta
+    {"name": "Deep Teal", "hex": "#00796B"},  # Moody rich dark sea teal
+    {"name": "Rich Plum", "hex": "#6A1B9A"},  # Luxurious dark velvet plum
+    {"name": "Wine Rose", "hex": "#C2185B"},  # Sophisticated dark rose wine
+    {"name": "Dark Amber", "hex": "#F57C00"},  # Deep glowing golden amber
+    {"name": "Cobalt Blue", "hex": "#1976D2"},  # Strong deep cobalt
+    # ── Vivid & Luminous Shades ──
+    {"name": "Laser Neon Green", "hex": "#26FF7C"},  # Electric laser green
+    {"name": "Electric Cyan", "hex": "#00FFFF"},  # Pure vibrant bright cyan
+    {"name": "Vivid Neon Yellow", "hex": "#FFE600"},  # High-energy canary yellow
+    {"name": "Neon Candy Pink", "hex": "#FF87C7"},  # Vibrant bright candy pink
+    {"name": "Electric Violet", "hex": "#D999FF"},  # Glowing electric lilac
+    {"name": "Neon Tangerine", "hex": "#FF9B59"},  # Ultra-bright neon tangerine
+    {"name": "Luminous Aqua", "hex": "#33F7DC"},  # Bright mint turquoise
+    {"name": "Electric Sky", "hex": "#59D7FF"},  # Radiant sky blue
 ]
 
-BRIGHT_HIGHLIGHT_HEX_LIST = [c["hex"] for c in BRIGHT_HIGHLIGHT_PALETTE]
+HIGHLIGHT_HEX_LIST = [c["hex"] for c in HIGHLIGHT_PALETTE]
 # Aliases for compatibility
-SMOOTH_SOFT_PALETTE = BRIGHT_HIGHLIGHT_PALETTE
-SMOOTH_SOFT_HEX_LIST = BRIGHT_HIGHLIGHT_HEX_LIST
+BRIGHT_HIGHLIGHT_PALETTE = HIGHLIGHT_PALETTE
+BRIGHT_HIGHLIGHT_HEX_LIST = HIGHLIGHT_HEX_LIST
+SMOOTH_SOFT_PALETTE = HIGHLIGHT_PALETTE
+SMOOTH_SOFT_HEX_LIST = HIGHLIGHT_HEX_LIST
 
 WINDOWS_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 APP_REG_NAME = "LyricVibe"
@@ -205,7 +171,7 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "font_weight": "bold",
     "text_color": "#FFFFFF",
     "highlight_mode": "per_song",  # "per_song" (changes each song) or "fixed"
-    "highlight_color": "#26FF7C",  # Active / default ultra-bright laser green (guaranteed never dark)
+    "highlight_color": "#1DB954",  # Spotify green default (allows darker and vivid shades)
     "highlight_block_enabled": False,  # Box removed per user preference
     "highlight_enabled": True,
     "motion_blur_enabled": True,  # Multi-pass directional motion blur
@@ -246,9 +212,9 @@ def _validate_settings(raw_data: dict) -> dict:
         elif isinstance(default_val, str):
             res[key] = str(val) if val else default_val
 
-    # Guarantee highlight color is NEVER a darker shade
+    # Format and validate highlight color (supports darker and vivid shades)
     res["highlight_color"] = ensure_bright_hex(
-        str(res.get("highlight_color", "#26FF7C"))
+        str(res.get("highlight_color", "#1DB954"))
     )
 
     # Sanity bounds

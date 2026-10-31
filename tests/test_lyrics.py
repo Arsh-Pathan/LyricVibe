@@ -13,6 +13,7 @@ from lyricvibe.lyrics.fetcher import (
     clean_track_title,
     fetch_lyrics_smart,
     get_primary_artist,
+    is_romanized,
     parse_lrc,
 )
 
@@ -375,3 +376,12 @@ def test_negative_cache_expiration():
         assert fresh is not None
         assert fresh[0].text == "Freshly found lyrics"
         mock_get.assert_called()
+
+
+def test_is_romanized_detects_scripts():
+    assert is_romanized("Cause you knew that I'd be at one") is True
+    assert is_romanized("Dilbar tere vaaste") is True
+    assert is_romanized("क़रीब आओ ना") is False  # Devanagari
+    assert is_romanized("اگر تم ساتھ ہو") is False  # Urdu
+    assert is_romanized("ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ") is False  # Gurmukhi
+    assert is_romanized("") is True

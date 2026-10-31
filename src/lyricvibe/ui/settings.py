@@ -685,14 +685,12 @@ class ColorSwatch(QPushButton):
         self._apply_style()
 
     def _apply_style(self):
-        color_name = "Bright Neon Color"
+        color_name = "Highlight Color"
         for item in BRIGHT_HIGHLIGHT_PALETTE:
             if item["hex"].upper() == self._color.upper():
                 color_name = item["name"]
                 break
-        self.setToolTip(
-            f"{color_name} ({self._color})\nClick to cycle through bright colors"
-        )
+        self.setToolTip(f"{color_name} ({self._color})\nClick to cycle through colors")
         self.setStyleSheet(f"""
             QPushButton {{
                 background: {self._color};
@@ -1171,14 +1169,14 @@ class SettingsDialog(QDialog):
         fx_card.add_row(row_hl)
         fx_card.add_separator()
 
-        # 2. Highlight Color Mode & Swatch (Ultra-bright vibrant palette)
+        # 2. Highlight Color Mode & Swatch (Supports darker & vivid palettes)
         row_color = SettingRow(
-            "Bright Highlight Palette",
-            "Rotates an ultra-bright neon color each song, or pin your favorite",
+            "Highlight Color Palette",
+            "Rotates a distinct color each song, or pin your favorite shade",
         )
         self.combo_hl_mode = QComboBox()
         self.combo_hl_mode.wheelEvent = lambda event: event.ignore()
-        self.combo_hl_mode.addItem("Auto: Different Bright Color Each Song", "per_song")
+        self.combo_hl_mode.addItem("Auto: Different Color Each Song", "per_song")
         for item in BRIGHT_HIGHLIGHT_PALETTE:
             self.combo_hl_mode.addItem(f"● {item['name']}", item["hex"])
 
