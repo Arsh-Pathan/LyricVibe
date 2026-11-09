@@ -48,7 +48,7 @@
 
 <p align="center">
   <b>Modern Customizer Panel</b><br>
-  <img width="727" height="1027" alt="image" src="https://github.com/user-attachments/assets/21952f82-8336-42f1-849a-c1f301a5b919" />
+  <img width="100%" alt="image" src="https://github.com/user-attachments/assets/21952f82-8336-42f1-849a-c1f301a5b919" />
 </p>
 
 ---
