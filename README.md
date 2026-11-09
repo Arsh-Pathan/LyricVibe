@@ -48,7 +48,7 @@
 
 <p align="center">
   <b>Modern Customizer Panel</b><br>
-  <img src="assets/settings-preview.png" width="520" alt="LyricVibe Settings Window" />
+  <img width="727" height="1027" alt="image" src="https://github.com/user-attachments/assets/21952f82-8336-42f1-849a-c1f301a5b919" />
 </p>
 
 ---
